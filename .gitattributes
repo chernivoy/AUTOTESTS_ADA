@@ -1,0 +1,17 @@
+# У репозиторії текстові файли зберігаються з LF, у робочій копії — з CRLF.
+# Проєкт працює лише під Windows (WPF, bat у Jenkins), тому CRLF задано явно,
+# щоб результат не залежав від core.autocrlf у кожного розробника.
+* text=auto eol=crlf
+
+# Скриптам для Unix-оболонок потрібен LF.
+*.sh text eol=lf
+
+# Бінарні файли не змінюються.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.dll binary
+*.exe binary

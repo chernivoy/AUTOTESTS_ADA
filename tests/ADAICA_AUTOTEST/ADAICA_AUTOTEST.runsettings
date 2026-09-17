@@ -11,7 +11,7 @@
     Пароль тут не зберігайте: передавайте його змінною ADAICA_PASSWORD.
   -->
   <TestRunParameters>
-    <!-- Порожнє значення: використовується демо-застосунок з цього рішення. -->
+    <!-- Повний шлях до exe ADAICA; на Jenkins задається параметром APP_PATH. -->
     <Parameter name="AppPath" value="C:\adaica\feature_documents-in-postgre\ADAICA.exe" />
     <Parameter name="AppStartTimeoutSeconds" value="60" />
     <Parameter name="DefaultTimeoutSeconds" value="10" />

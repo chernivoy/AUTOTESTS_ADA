@@ -19,23 +19,27 @@ UI-автотести для WPF-застосунку ADAICA на **FlaUI (UI Au
 
 ```
 ADAICA_AUTOTEST.sln
-├─ src/ADAICA_AUTOTEST.DemoApp/        демо WPF-застосунок для перевірки самого фреймворку
 └─ tests/ADAICA_AUTOTEST/
    ├─ Infrastructure/
    │  ├─ AppSession.cs                 запуск і закриття застосунку, пошук вікон
    │  ├─ UiTestBase.cs                 базовий клас тестів, скріншот при падінні
    │  ├─ TestSettings.cs               налаштування (змінні середовища / .runsettings)
-   │  └─ Wait.cs                       очікування елементів і умов
+   │  ├─ Wait.cs                       очікування елементів і умов
+   │  ├─ RawTree.cs                    пошук у raw-дереві UI Automation
+   │  ├─ AtomicMouse.cs                клік мишею одним викликом SendInput
+   │  └─ ComboBoxExtensions.cs         вибір пункту у ComboBox зі згортанням списку
    ├─ Pages/                           Page Objects ADAICA
    │  ├─ AdaicaWindow.cs               вікно FlatWnd: діалоги, вихід із підтвердженням
    │  ├─ LoginPage.cs                  форма входу (користувач, пароль, база, схема)
-   │  ├─ MainPage.cs                   робочий простір після входу
-   │  ├─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
-   │  └─ Demo/                         сторінки демо-застосунку
+   │  ├─ MainPage.cs                   робочий простір після входу, вкладки й дерево навігаторів
+   │  ├─ ProjectForm.cs                бланк проєкту (у вікні та в огляді збереженого проєкту)
+   │  ├─ ProjectDialog.cs              вікно проєкту («Neues Projekt»): OK, Abbrechen
+   │  ├─ ProjectData.cs                значення полів проєкту
+   │  └─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
    ├─ Tests/
    │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA
    │  ├─ LoginTests.cs                 вхід в ADAICA
-   │  └─ Demo/                         тести демо-застосунку (категорія Demo)
+   │  └─ NavigatorTests.cs             навігатор Dokumentation → створення і перевірка проєкту
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
    └─ allureConfig.json
@@ -52,9 +56,6 @@ Jenkinsfile
 dotnet build ADAICA_AUTOTEST.sln
 $env:ADAICA_PASSWORD = '<пароль>'
 dotnet test tests/ADAICA_AUTOTEST
-
-# лише тести ADAICA, без демо
-dotnet test tests/ADAICA_AUTOTEST --filter "Category!=Demo"
 
 # лише smoke-тести
 dotnet test tests/ADAICA_AUTOTEST --filter "Category=Smoke"
@@ -77,7 +78,7 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 
 | Змінна середовища | Параметр .runsettings | За замовчуванням |
 |---|---|---|
-| `ADAICA_APP_PATH` | `AppPath` | exe демо-застосунку з цього рішення (у `.runsettings` зараз задано `C:\adaica\feature_documents-in-postgre\ADAICA.exe`) |
+| `ADAICA_APP_PATH` | `AppPath` | обов'язковий (у `.runsettings` зараз задано `C:\adaica\feature_documents-in-postgre\ADAICA.exe`) |
 | `ADAICA_APP_START_TIMEOUT` | `AppStartTimeoutSeconds` | 60 |
 | `ADAICA_DEFAULT_TIMEOUT` | `DefaultTimeoutSeconds` | 10 |
 | `ADAICA_LOGIN_TIMEOUT` | `LoginTimeoutSeconds` | 60 |
@@ -89,8 +90,6 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 
 Паролі в `.runsettings` не зберігайте, передавайте їх через змінні середовища або Jenkins Credentials.
 
-Демо-тести (`Tests/Demo`) завжди запускають демо-застосунок з його власними обліковими даними і від цих параметрів не залежать.
-
 ## Особливості ADAICA
 
 - **UI Automation вимкнено за замовчуванням.** Поки `AutomationTests:AutomationPeerFeatureEnabled` в `appsettings.json` дорівнює `false`, ADAICA підміняє AutomationPeer вікон на порожні, і тести не бачать жодного елемента. `AppSession` запускає застосунок зі змінною `AutomationTests__AutomationPeerFeatureEnabled=true` (див. `TestSettings.AppEnvironment`), тому файл змінювати не треба.
@@ -99,6 +98,13 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Зміна бази скидає користувача й пароль**, тому `LoginAs` спершу вибирає базу й схему.
 - **Поки список (ComboBox) розгорнутий, ADAICA ігнорує закриття вікна.** Після вибору пункту згортайте список.
 - **Вихід.** Після кожного тесту `AdaicaTestBase` закриває ADAICA і підтверджує «Wollen Sie ADAICA verlassen?». Якщо за 30 с застосунок не завершився, процес зупиняється примусово.
+- **Навігатори.** Кнопка «+» праворуч від вкладок (`PART_AddTab`) відкриває список навігаторів. Кожне відкриття додає нову вкладку в кінець смуги, а відкриті вкладки ADAICA запам'ятовує між сеансами, тож тест має закрити за собою те, що відкрив (див. `OnCleanup` нижче). Назва вкладки змінюється разом із вибраним вузлом, тому `CloseLastNavigatorTabs` закриває вкладки за кількістю, а не за назвою.
+- **Лише мишею.** Пункт списку навігаторів і контекстне меню вузла дерева реагують тільки на клік мишею: `SelectionItem`, Enter, Shift+F10, клавіша меню й `ShowContextMenu` з UI Automation не діють. Для таких кліків є `AtomicMouse`. Він переміщує курсор і натискає кнопку одним викликом `SendInput`. Звичайний клік FlaUI робить це двома кроками, і якщо між ними курсор зсуне користувач або програма віддаленого доступу, клік піде в довільне місце екрана, навіть в інший застосунок. Під час прогону не рухайте мишею.
+- **Дерево навігатора.** До назв вузлів ADAICA додає діапазон записів («Projekte (1-25)»), тому `MainPage.NavigatorNode` порівнює лише назву.
+- **Вікно проєкту.** «Neu» у контекстному меню вузла Projekte відкриває дочірнє вікно без AutomationId; `ProjectDialog` знаходить його за вкладкою `tiMainRecordFolder`. Редагуються лише Name, Kurzname, дати, Kosten/Aufwand з одиницями та Bemerkung: клас і відповідальний задаються окремими діалогами, решта полів заповнюється автоматично. Дати й числа ADAICA показує в німецькому форматі (`18.09.2026`, `1500,00`), тому `ProjectData` зберігає суми як `decimal`. Кожне відкриття вікна займає наступний номер проєкту, навіть якщо закрити його без збереження.
+- **Після збереження** (OK) ADAICA сама переходить до нового проєкту: виділяє в дереві вузол «Назва (Номер)» і показує той самий бланк в області перегляду (`InformationView`). `MainPage.WaitForOpenedProject` шукає бланк лише там, бо у відкритому діалозі є поля з тими самими AutomationId. Назви проєктів між прогонами повторюються, тож свій проєкт тест упізнає за номером.
+- **Тестові дані лишаються.** `NavigatorTests` щоразу створює в базі новий проєкт `Main_autotest_project` і не видаляє його.
+- **Raw-дерево.** Звичайний пошук FlaUI не бачить елементів із шаблонів WPF, наприклад заголовка вкладки `PART_Text`. Для них є `FindFirstDescendantRaw` з `RawTree.cs`.
 - **Скріншоти й DPI.** `TestRunSetup` вмикає для тестового процесу per-monitor DPI awareness. Без цього на моніторах з масштабом понад 100% скріншоти падінь виходять обрізаними.
 - Нові елементи шукайте за `AutomationId`. Якщо в елемента його немає, попросіть розробників додати `AutomationProperties.AutomationId` у XAML. Пошук за текстом або індексом ламається від будь-якої зміни UI, а тексти ADAICA ще й залежать від мови.
 
@@ -113,10 +119,18 @@ public class MyTests : AdaicaTestBase      // ADAICA запускається п
     {
         var main = new LoginPage(Session).LoginAs(
             TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
-        main.Schema.ShouldBe(TestSettings.Schema);
+
+        // Прибирання виконається після тесту (і після скріншота падіння), перед виходом з ADAICA.
+        var tabCount = main.NavigatorTabNames.Count;
+        OnCleanup(() => main.CloseLastNavigatorTabs(keep: tabCount));
+
+        main.OpenNavigator("Dokumentation");
+        main.ActiveNavigatorName.ShouldBe("Dokumentation");
     }
 }
 ```
+
+Усе, що тест змінює в збережених налаштуваннях користувача (вкладки, фільтри тощо), повертайте через `OnCleanup`, інакше наступні прогони почнуться з іншого стану.
 
 Правила:
 
@@ -140,11 +154,11 @@ UI-тести працюють лише в **розблокованій інте
 4. Якщо підключаєтеся по RDP, не згортайте вікно RDP і не відключайтеся звичайним способом: сесія заблокується, і тести впадуть. Щоб відключитися й залишити сесію активною, виконайте від адміністратора `tscon %sessionname% /dest:console`.
 5. Роздільна здатність екрана — не менше 1920×1080.
 6. На агенті встановлено .NET 10 SDK і є доступ до nuget.org або внутрішнього NuGet-feed.
-7. Застосунок під тестом установлено на агенті (шлях передається через `APP_PATH`) або він збирається в цьому ж пайплайні.
+7. ADAICA встановлено на агенті, шлях до exe передається параметром `APP_PATH`.
 8. Агент має доступ до сервера ADAICA, а база й схема для тестів існують. Передайте їх через `ADAICA_DATABASE` і `ADAICA_SCHEMA`, якщо вони відрізняються від `.runsettings`.
 
 ### Плагіни та інструменти Jenkins
 
 - Pipeline, Git, JUnit.
 - **Allure Jenkins Plugin**, а в *Manage Jenkins → Tools* додано **Allure Commandline**. Без плагіна крок `allure` у `post` завершиться помилкою: або встановіть плагін, або приберіть цей крок.
-- Облікові дані реального застосунку зберігайте в *Credentials* (див. коментар у `Jenkinsfile`).
+- Облікові дані ADAICA зберігайте в *Credentials* (див. коментар у `Jenkinsfile`).

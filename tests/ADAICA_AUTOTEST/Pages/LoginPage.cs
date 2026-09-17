@@ -1,7 +1,6 @@
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons.Attributes;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 
 namespace ADAICA_AUTOTEST.Pages;
 
@@ -63,40 +62,19 @@ public sealed class LoginPage : AdaicaWindow
     [AllureStep("Вибрати базу даних {database}")]
     public LoginPage SelectDatabase(string database)
     {
-        Select(DatabaseComboBox, database);
+        DatabaseComboBox.SelectByText(database);
         return this;
     }
 
     [AllureStep("Вибрати схему {schema}")]
     public LoginPage SelectSchema(string schema)
     {
-        Select(SchemaComboBox, schema);
+        SchemaComboBox.SelectByText(schema);
         return this;
     }
 
     // ComboBox усередині ImageComboBox завжди має AutomationId "combo", тому шукаємо в межах контейнера.
     private ComboBox Combo(string containerId) => Element(containerId).FindByAutomationId("combo").AsComboBox();
-
-    private static void Select(ComboBox comboBox, string text)
-    {
-        if (comboBox.SelectedItem?.Text == text)
-            return;
-
-        try
-        {
-            // Список схем заповнюється після вибору бази, тому чекаємо на потрібний пункт.
-            Wait.Until(() => comboBox.Items.Any(item => item.Text == text), $"пункту «{text}» у списку");
-            comboBox.Select(text);
-        }
-        finally
-        {
-            // Пошук пунктів розгортає список, а поки він розгорнутий, ADAICA ігнорує закриття вікна.
-            if (comboBox.ExpandCollapseState == ExpandCollapseState.Expanded)
-                comboBox.Collapse();
-        }
-
-        Wait.Until(() => comboBox.SelectedItem?.Text == text, $"вибору «{text}»");
-    }
 
     private void WaitForMainWindow()
     {

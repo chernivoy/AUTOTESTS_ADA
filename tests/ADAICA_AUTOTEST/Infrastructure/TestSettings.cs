@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 
 namespace ADAICA_AUTOTEST.Infrastructure;
 
@@ -9,7 +8,7 @@ namespace ADAICA_AUTOTEST.Infrastructure;
 public static class TestSettings
 {
     /// <summary>Повний шлях до exe застосунку під тестом.</summary>
-    public static string AppPath => Get("ADAICA_APP_PATH", "AppPath") ?? DemoAppPath;
+    public static string AppPath => Require("ADAICA_APP_PATH", "AppPath");
 
     public static TimeSpan AppStartTimeout => TimeSpan.FromSeconds(GetInt("ADAICA_APP_START_TIMEOUT", "AppStartTimeoutSeconds", 60));
 
@@ -38,13 +37,6 @@ public static class TestSettings
         // Змінна перекриває AutomationTests:AutomationPeerFeatureEnabled з appsettings.json лише для запущеного процесу.
         ["AutomationTests__AutomationPeerFeatureEnabled"] = "true",
     };
-
-    /// <summary>Exe демо-застосунку з цього рішення; шлях вшивається в збірку під час build.</summary>
-    public static string DemoAppPath =>
-        typeof(TestSettings).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(a => a.Key == "DemoAppPath")?.Value
-        ?? throw new InvalidOperationException(
-            "Шлях до застосунку не задано: встановіть змінну ADAICA_APP_PATH або параметр AppPath у .runsettings.");
 
     private static string? Get(string environmentVariable, string runSettingsParameter)
     {

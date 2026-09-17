@@ -27,16 +27,6 @@
     <Using Include="Shouldly" />
   </ItemGroup>
 
-  <!--
-    Демо-застосунок збирається разом із тестами, а шлях до його exe вшивається в збірку
-    як значення за замовчуванням для TestSettings.AppPath.
-    Коли тести переключаться на реальний застосунок, цей блок можна видалити.
-  -->
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\ADAICA_AUTOTEST.DemoApp\ADAICA_AUTOTEST.DemoApp.csproj" ReferenceOutputAssembly="false" />
-    <AssemblyMetadata Include="DemoAppPath" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\src\ADAICA_AUTOTEST.DemoApp\bin\$(Configuration)\$(TargetFramework)\ADAICA_AUTOTEST.DemoApp.exe'))" />
-  </ItemGroup>
-
   <ItemGroup>
     <None Update="allureConfig.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

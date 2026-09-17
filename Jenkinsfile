@@ -23,7 +23,7 @@ pipeline {
         CONFIGURATION = 'Release'
         TEST_PROJECT = 'tests/ADAICA_AUTOTEST/ADAICA_AUTOTEST.csproj'
         ADAICA_APP_PATH = "${params.APP_PATH}"
-        // Для реального застосунку облікові дані беріть з Jenkins Credentials, наприклад:
+        // Облікові дані ADAICA беріть з Jenkins Credentials, наприклад:
         //   ADAICA = credentials('adaica-test-user')
         // і передавайте в тести як ADAICA_USER=%ADAICA_USR%, ADAICA_PASSWORD=%ADAICA_PSW%.
     }

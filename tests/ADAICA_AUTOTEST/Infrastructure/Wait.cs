@@ -19,18 +19,36 @@ public static class Wait
     }
 
     /// <summary>
+    /// Чекає, доки <paramref name="find"/> поверне не null, і повертає знайдене.
+    /// </summary>
+    public static T For<T>(Func<T?> find, string description, TimeSpan? timeout = null)
+        where T : class
+    {
+        var effectiveTimeout = timeout ?? TestSettings.DefaultTimeout;
+        var result = Retry.WhileNull(find, effectiveTimeout, ignoreException: true);
+
+        return result.Result ?? throw new TimeoutException(
+            $"Не дочекалися: {description} (таймаут {effectiveTimeout.TotalSeconds} с).", result.LastException);
+    }
+
+    /// <summary>
     /// Шукає нащадка за AutomationId і чекає, доки він з'явиться.
     /// </summary>
     public static AutomationElement FindByAutomationId(
-        this AutomationElement parent, string automationId, TimeSpan? timeout = null)
-    {
-        var effectiveTimeout = timeout ?? TestSettings.DefaultTimeout;
-        var element = Retry.WhileNull(
+        this AutomationElement parent, string automationId, TimeSpan? timeout = null) =>
+        For(
             () => parent.FindFirstDescendant(cf => cf.ByAutomationId(automationId)),
-            effectiveTimeout,
-            ignoreException: true).Result;
+            $"елемента з AutomationId '{automationId}'",
+            timeout);
 
-        return element ?? throw new TimeoutException(
-            $"Елемент з AutomationId '{automationId}' не знайдено за {effectiveTimeout.TotalSeconds} с.");
-    }
+    /// <summary>
+    /// Шукає прямий дочірній елемент за AutomationId і чекає, доки він з'явиться.
+    /// Потрібно, коли такий самий AutomationId є й глибше в дереві.
+    /// </summary>
+    public static AutomationElement FindChildByAutomationId(
+        this AutomationElement parent, string automationId, TimeSpan? timeout = null) =>
+        For(
+            () => parent.FindFirstChild(cf => cf.ByAutomationId(automationId)),
+            $"дочірнього елемента з AutomationId '{automationId}'",
+            timeout);
 }

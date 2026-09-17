@@ -14,11 +14,8 @@ public abstract class UiTestBase
 {
     protected AppSession Session { get; private set; } = null!;
 
-    /// <summary>Який exe запускати перед кожним тестом.</summary>
-    protected virtual string ApplicationPath => TestSettings.AppPath;
-
     [SetUp]
-    public void StartApplication() => Session = AppSession.Launch(ApplicationPath);
+    public void StartApplication() => Session = AppSession.Launch(TestSettings.AppPath);
 
     [TearDown]
     public void StopApplication()
