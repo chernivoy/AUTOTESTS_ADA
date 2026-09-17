@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons.Attributes;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 
 namespace ADAICA_AUTOTEST.Pages;
 
@@ -24,6 +24,9 @@ public sealed partial class MainPage : AdaicaWindow
     {
         Element(MainMenuId);
         CloseDemoVersionWindowIfShown();
+
+        NavigatorTitle = new LabelControl("Navigator", Locate.ById(Window, "tbNameOfNavigator"));
+        AddNavigatorButton = new ToggleButtonControl("+", () => Window.FindChildByAutomationId(AddNavigatorButtonId));
     }
 
     /// <summary>База даних, до якої підключено застосунок (із заголовка «… [БАЗА:СХЕМА] …»).</summary>
@@ -33,7 +36,10 @@ public sealed partial class MainPage : AdaicaWindow
     public string Schema => ParseTitle().Groups["schema"].Value;
 
     /// <summary>Назва навігатора, відкритого зараз (заголовок над деревом зліва).</summary>
-    public string ActiveNavigatorName => Element("tbNameOfNavigator").Name;
+    public LabelControl NavigatorTitle { get; }
+
+    /// <summary>Кнопка «+» праворуч від вкладок: відкриває список навігаторів.</summary>
+    public ToggleButtonControl AddNavigatorButton { get; }
 
     /// <summary>Назви вкладок навігаторів у верхній смузі, зліва направо.</summary>
     public IReadOnlyList<string> NavigatorTabNames => NavigatorTabs.Select(TabName).ToList();
@@ -48,9 +54,7 @@ public sealed partial class MainPage : AdaicaWindow
     {
         var tabCount = NavigatorTabs.Length;
 
-        var addButton = Window.FindChildByAutomationId(AddNavigatorButtonId).AsToggleButton();
-        if (addButton.ToggleState != ToggleState.On)
-            addButton.Toggle();
+        AddNavigatorButton.SwitchOn();
 
         var item = Wait.For(
             () => FindInPopups("listView")?.FindFirstChild(cf => cf.ByName(navigatorName)),
@@ -61,7 +65,7 @@ public sealed partial class MainPage : AdaicaWindow
 
         // Кожне відкриття додає нову вкладку, навіть якщо такий навігатор уже відкритий.
         Wait.Until(
-            () => NavigatorTabs.Length == tabCount + 1 && ActiveNavigatorName == navigatorName,
+            () => NavigatorTabs.Length == tabCount + 1 && NavigatorTitle.Text == navigatorName,
             $"відкриття навігатора «{navigatorName}»");
         return this;
     }
@@ -125,9 +129,8 @@ public sealed partial class MainPage : AdaicaWindow
         var node = NavigatorNode(ProjectsNodeName);
         AtomicMouse.RightClick((NodeText(node) ?? node).GetClickablePoint());
 
-        Wait.For(() => FindInPopups(NewRecordMenuItemId), "пункту «Neu» у контекстному меню")
-            .AsMenuItem()
-            .Invoke();
+        new MenuItemControl("Neu", () => Wait.For(() => FindInPopups(NewRecordMenuItemId), "пункту «Neu» у контекстному меню"))
+            .Click();
 
         return new ProjectDialog(Window);
     }

@@ -26,8 +26,20 @@ ADAICA_AUTOTEST.sln
    │  ├─ TestSettings.cs               налаштування (змінні середовища / .runsettings)
    │  ├─ Wait.cs                       очікування елементів і умов
    │  ├─ RawTree.cs                    пошук у raw-дереві UI Automation
-   │  ├─ AtomicMouse.cs                клік мишею одним викликом SendInput
-   │  └─ ComboBoxExtensions.cs         вибір пункту у ComboBox зі згортанням списку
+   │  └─ AtomicMouse.cs                клік мишею одним викликом SendInput
+   ├─ Controls/                        контроли: заповнення й перевірка окремих полів
+   │  ├─ Control.cs                    базовий клас: назва, пошук елемента, доступність
+   │  ├─ Locate.cs                     пошук елемента за ланцюжком AutomationId
+   │  ├─ TextBoxControl.cs             текстове поле
+   │  ├─ NumberBoxControl.cs           числове поле
+   │  ├─ PasswordBoxControl.cs         поле пароля
+   │  ├─ DatePickerControl.cs          поле дати (DatePicker3)
+   │  ├─ ComboBoxControl.cs            випадний список, зокрема редагований
+   │  ├─ ButtonControl.cs              кнопка
+   │  ├─ ToggleButtonControl.cs        кнопка-перемикач
+   │  ├─ MenuItemControl.cs            пункт меню
+   │  ├─ LabelControl.cs               текст лише для читання
+   │  └─ AdaicaFormat.cs               формати дат і чисел ADAICA
    ├─ Pages/                           Page Objects ADAICA
    │  ├─ AdaicaWindow.cs               вікно FlatWnd: діалоги, вихід із підтвердженням
    │  ├─ LoginPage.cs                  форма входу (користувач, пароль, база, схема)
@@ -125,18 +137,53 @@ public class MyTests : AdaicaTestBase      // ADAICA запускається п
         OnCleanup(() => main.CloseLastNavigatorTabs(keep: tabCount));
 
         main.OpenNavigator("Dokumentation");
-        main.ActiveNavigatorName.ShouldBe("Dokumentation");
+        main.NavigatorTitle.ShouldHaveText("Dokumentation");
     }
 }
 ```
+
+## Page Objects і контроли
+
+Тести написано за патерном Page Object: тест працює лише з Page Objects, а ті складаються з контролів.
+
+- **Контрол** (`Controls/`) — одне поле чи кнопка. Він знаходить свій елемент, заповнює значення і перевіряє його. Кожна дія й перевірка стає окремим кроком у звіті Allure з назвою поля.
+
+  | Контрол | Дії | Перевірки |
+  |---|---|---|
+  | `TextBoxControl` | `Fill(text)`, `Text` | `ShouldHaveText` |
+  | `NumberBoxControl` | `Fill(decimal)`, `Value` | `ShouldHaveValue` |
+  | `DatePickerControl` | `Fill(DateTime)`, `Value` | `ShouldHaveValue` |
+  | `ComboBoxControl` | `Select(text)`, `EnterText(text)`, `SelectedText`, `Items` | `ShouldHaveSelected` |
+  | `PasswordBoxControl` | `Fill(password)` — значення не потрапляє у звіт | — |
+  | `ButtonControl` | `Click()` — падає, якщо кнопка недоступна | — |
+  | `ToggleButtonControl` | `SwitchOn()`, `IsOn` | — |
+  | `MenuItemControl` | `Click()` | — |
+  | `LabelControl` | `Text` | `ShouldHaveText` |
+
+  Усі контроли мають `IsEnabled`, `ShouldBeEnabled()` і `ShouldBeDisabled()`. `Fill` і `Select` чекають, доки ADAICA покаже нове значення, тож окремо чекати не треба.
+- **Page Object** (`Pages/`) — вікно або його частина. Він оголошує поля як властивості-контроли, підписані так, як в ADAICA, і описує сценарії: `LoginAs`, `OpenNavigator`, `Save`. Бланк, що повторюється в кількох місцях, виносьте в окремий клас, як `ProjectForm`: він працює і у вікні «Neues Projekt», і в огляді збереженого проєкту.
+- **Дані** — record на кшталт `ProjectData`. Бланк заповнює всі поля методом `Fill(data)` і перевіряє їх методом `ShouldHaveValues(data)`. Перевірка повідомляє про всі розбіжності одразу, а не лише про першу.
+
+Новий бланк (завдання, термін, інфозапис) оголошується так:
+
+```csharp
+public class TaskForm(AutomationElement root)
+{
+    public TextBoxControl Subject { get; } = new("Betreff", Locate.ById(root, "txtSubject"));
+    public DatePickerControl DueDate { get; } = new("Fällig am", Locate.ById(root, "dateDue"));
+    public ComboBoxControl Priority { get; } = new("Priorität", Locate.ById(root, "cmbPriority"));
+}
+```
+
+AutomationId у прикладі умовні: справжні беріть із FlaUInspect. Якщо AutomationId неунікальний, передайте в `Locate.ById` ланцюжок від контейнера, наприклад `Locate.ById(Window, "cmbDataBase", "combo")`. Якщо елемент треба шукати інакше, передайте в контрол власну функцію пошуку, як `MessageBoxDialog.Button`.
 
 Усе, що тест змінює в збережених налаштуваннях користувача (вкладки, фільтри тощо), повертайте через `OnCleanup`, інакше наступні прогони почнуться з іншого стану.
 
 Правила:
 
-- Елементи шукайте лише через Page Object, а всередині нього — через `Element("AutomationId")`: цей метод сам чекає появи елемента.
+- Тест не шукає елементи сам: поля оголошуються контролами в Page Object, а решта елементів шукається всередині Page Object через `Element("AutomationId")`, який сам чекає появи елемента.
 - Не використовуйте `Thread.Sleep`. Для очікування є `Wait.Until(() => умова, "що чекаємо")`.
-- Позначайте методи Page Object атрибутом `[AllureStep("...")]`, щоб у звіті було видно кроки. Секрети в параметрах позначайте `[AllureParameter(Ignore = true)]`.
+- Позначайте сценарії Page Object атрибутом `[AllureStep("...")]`, щоб у звіті було видно кроки. Секрети в параметрах позначайте `[AllureParameter(Ignore = true)]`. Атрибут загортає винятки в `TargetInvocationException`, тому для перевірок краще `AllureApi.Step(назва, дія)`, як у `ProjectForm.ShouldHaveValues`.
 - Тести не запускаються паралельно (`AssemblyInfo.cs`), бо робочий стіл один.
 - Дерево елементів зручно дивитися в **FlaUInspect** (режим UIA3), **Accessibility Insights for Windows** або `Inspect.exe` з Windows SDK. ADAICA для цього запускайте зі змінною `AutomationTests__AutomationPeerFeatureEnabled=true`.
 

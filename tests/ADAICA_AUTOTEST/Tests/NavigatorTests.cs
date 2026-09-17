@@ -22,7 +22,7 @@ public class NavigatorTests : AdaicaTestBase
 
         mainPage.OpenNavigator(Dokumentation);
 
-        mainPage.ActiveNavigatorName.ShouldBe(Dokumentation);
+        mainPage.NavigatorTitle.ShouldHaveText(Dokumentation);
         mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(Dokumentation));
 
         var projectDialog = mainPage.OpenNewProjectDialog();
@@ -43,9 +43,9 @@ public class NavigatorTests : AdaicaTestBase
 
         projectDialog.Fill(project);
 
-        projectDialog.ReadValues().ShouldBe(project);
+        projectDialog.ShouldHaveValues(project);
         // Назви проєктів можуть повторюватися між прогонами, тому свій проєкт впізнаємо за номером.
-        var number = projectDialog.Number;
+        var number = projectDialog.Number.Text;
         number.ShouldNotBeNullOrWhiteSpace();
 
         projectDialog.Save();
@@ -53,6 +53,6 @@ public class NavigatorTests : AdaicaTestBase
         // Після збереження ADAICA сама переходить до нового проєкту.
         var savedProject = mainPage.WaitForOpenedProject(number);
         mainPage.SelectedNavigatorNodeName.ShouldBe($"{project.Name} ({number})");
-        savedProject.ReadValues().ShouldBe(project);
+        savedProject.ShouldHaveValues(project);
     }
 }

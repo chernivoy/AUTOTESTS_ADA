@@ -31,8 +31,8 @@ public class AdaicaWindow(AppSession session) : PageBase(session, AutomationId)
                 return true;
 
             var dialog = FindMessageBox();
-            if (dialog?.Message == ExitQuestion)
-                dialog.Click("Ja");
+            if (dialog?.Message.Text == ExitQuestion)
+                dialog.Button("Ja").Click();
             return false;
         }, "завершення ADAICA", ExitTimeout);
     }

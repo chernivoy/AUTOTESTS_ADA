@@ -1,5 +1,6 @@
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
-using Allure.Net.Commons.Attributes;
+using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 
@@ -30,6 +31,8 @@ public sealed class ProjectDialog : ProjectForm
     {
         _owner = owner;
         _dialog = dialog;
+        OkButton = new ButtonControl("OK", Locate.ById(dialog, "btnOKCtrMainForm"));
+        CancelButton = new ButtonControl("Abbrechen", Locate.ById(dialog, "btnCancelCtrMainForm"));
     }
 
     public string Title => _dialog.Name;
@@ -37,17 +40,13 @@ public sealed class ProjectDialog : ProjectForm
     // IsAvailable для закритого вікна WPF лишається true, тому перевіряємо, чи вікно ще серед дочірніх.
     public bool IsOpen => ChildWindows(_owner).Contains(_dialog);
 
-    public Button OkButton => Element("btnOKCtrMainForm").AsButton();
+    public ButtonControl OkButton { get; }
 
-    public Button CancelButton => Element("btnCancelCtrMainForm").AsButton();
+    public ButtonControl CancelButton { get; }
 
-    [AllureStep("Зберегти проєкт кнопкою OK")]
-    public void Save()
+    public void Save() => AllureApi.Step("Зберегти проєкт", () =>
     {
-        if (!OkButton.IsEnabled)
-            throw new InvalidOperationException("Кнопка OK недоступна: ADAICA не дозволяє зберегти проєкт.");
-
-        OkButton.Invoke();
+        OkButton.Click();
 
         string? error = null;
         Wait.Until(() =>
@@ -60,20 +59,19 @@ public sealed class ProjectDialog : ProjectForm
             if (message is null)
                 return false;
 
-            error = $"{message.Title}: {message.Message}";
+            error = $"{message.Title}: {message.Message.Text}";
             return true;
         }, "збереження проєкту", SaveTimeout);
 
         if (error is not null)
             throw new InvalidOperationException($"Проєкт не збережено, ADAICA показала діалог «{error}».");
-    }
+    });
 
-    [AllureStep("Закрити вікно проєкту без збереження")]
-    public void Cancel()
+    public void Cancel() => AllureApi.Step("Закрити вікно проєкту без збереження", () =>
     {
-        CancelButton.Invoke();
+        CancelButton.Click();
         Wait.Until(() => !IsOpen, "закриття вікна проєкту");
-    }
+    });
 
     /// <summary>Для прибирання після тесту: закриває вікно, лише якщо воно ще відкрите.</summary>
     public void CancelIfOpen()

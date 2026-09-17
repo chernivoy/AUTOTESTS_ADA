@@ -1,4 +1,5 @@
-using Allure.Net.Commons.Attributes;
+using ADAICA_AUTOTEST.Controls;
+using ADAICA_AUTOTEST.Infrastructure;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 
@@ -13,11 +14,15 @@ public sealed class MessageBoxDialog
 
     private readonly Window _dialog;
 
-    private MessageBoxDialog(Window dialog) => _dialog = dialog;
+    private MessageBoxDialog(Window dialog)
+    {
+        _dialog = dialog;
+        Message = new LabelControl("Повідомлення", Locate.ById(dialog, MessageId));
+    }
 
     public string Title => _dialog.Name;
 
-    public string Message => _dialog.FindFirstChild(cf => cf.ByAutomationId(MessageId))?.Name ?? string.Empty;
+    public LabelControl Message { get; }
 
     public static MessageBoxDialog? Find(Window owner)
     {
@@ -27,14 +32,11 @@ public sealed class MessageBoxDialog
         return dialog is null ? null : new MessageBoxDialog(dialog.AsWindow());
     }
 
-    [AllureStep("Натиснути {buttonText} у діалозі")]
-    public void Click(string buttonText)
-    {
-        // Кнопка містить підпис і пояснення як два дочірні TextBlock.
-        var button = _dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
-            .FirstOrDefault(b => b.FindFirstChild(cf => cf.ByName(buttonText)) is not null)
-            ?? throw new InvalidOperationException($"У діалозі «{Title}» немає кнопки «{buttonText}».");
-
-        button.AsButton().Invoke();
-    }
+    /// <summary>Кнопка за підписом. Вона містить підпис і пояснення як два дочірні TextBlock.</summary>
+    public ButtonControl Button(string caption) => new(
+        caption,
+        () => Wait.For(
+            () => _dialog.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
+                .FirstOrDefault(button => button.FindFirstChild(cf => cf.ByName(caption)) is not null),
+            $"кнопки «{caption}» у діалозі «{Title}»"));
 }

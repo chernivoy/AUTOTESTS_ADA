@@ -1,6 +1,5 @@
-using System.Globalization;
-using ADAICA_AUTOTEST.Infrastructure;
-using Allure.Net.Commons.Attributes;
+using ADAICA_AUTOTEST.Controls;
+using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 
 namespace ADAICA_AUTOTEST.Pages;
@@ -13,64 +12,50 @@ public class ProjectForm(AutomationElement root)
 {
     public const string NumberId = "txtRecordFolderNumber";
 
-    // ADAICA показує дати й числа в німецькому форматі: «18.09.2026», «1500,00».
-    private const string DateFormat = "dd.MM.yyyy";
-    private static readonly CultureInfo AdaicaCulture = CultureInfo.GetCultureInfo("de-DE");
+    public TextBoxControl Name { get; } = new("Name", Locate.ById(root, "txtRecordName"));
 
-    public TextBox NameTextBox => TextBox("txtRecordName");
-
-    public TextBox ShortNameTextBox => TextBox("txtRecordFolderShortName");
+    public TextBoxControl ShortName { get; } = new("Kurzname", Locate.ById(root, "txtRecordFolderShortName"));
 
     /// <summary>Номер, який ADAICA призначає проєкту сама (наприклад, PRO0000016).</summary>
-    public string Number => TextBox(NumberId).Text;
+    public TextBoxControl Number { get; } = new("Nummer", Locate.ById(root, NumberId));
 
-    public TextBox CostTextBox => TextBox("txtRecordFolderCost");
+    public DatePickerControl BeginDate { get; } = new("Datum von", Locate.ById(root, "dateBeginRecordFolder"));
 
-    public ComboBox CostCurrencyComboBox => Element("cmbUnitCostRecordFolder").AsComboBox();
+    public DatePickerControl EndDate { get; } = new("Datum bis", Locate.ById(root, "dateEndRecordFolder"));
 
-    public TextBox OutlayTextBox => TextBox("txtRecordFolderOutlay");
+    public NumberBoxControl Cost { get; } = new("Kosten", Locate.ById(root, "txtRecordFolderCost"));
 
-    public ComboBox OutlayUnitComboBox => Element("cmbRecordFolderUnitJob").AsComboBox();
+    public ComboBoxControl CostCurrency { get; } = new("Kosten: Währung", Locate.ById(root, "cmbUnitCostRecordFolder"));
 
-    public TextBox CommentTextBox => TextBox("txtRecordFolderComment");
+    public NumberBoxControl Outlay { get; } = new("Aufwand", Locate.ById(root, "txtRecordFolderOutlay"));
 
-    [AllureStep("Заповнити поля проєкту")]
-    public void Fill(ProjectData project)
+    public ComboBoxControl OutlayUnit { get; } = new("Aufwand: Einheit", Locate.ById(root, "cmbRecordFolderUnitJob"));
+
+    public TextBoxControl Comment { get; } = new("Bemerkung", Locate.ById(root, "txtRecordFolderComment"));
+
+    public void Fill(ProjectData project) => AllureApi.Step("Заповнити поля проєкту", () =>
     {
-        NameTextBox.Text = project.Name;
-        ShortNameTextBox.Text = project.ShortName;
-        SetDate("dateBeginRecordFolder", project.BeginDate);
-        SetDate("dateEndRecordFolder", project.EndDate);
-        CostTextBox.Text = project.Cost.ToString(AdaicaCulture);
-        CostCurrencyComboBox.SelectByText(project.CostCurrency);
-        OutlayTextBox.Text = project.Outlay.ToString(AdaicaCulture);
-        OutlayUnitComboBox.SelectByText(project.OutlayUnit);
-        CommentTextBox.Text = project.Comment;
-    }
+        Name.Fill(project.Name);
+        ShortName.Fill(project.ShortName);
+        BeginDate.Fill(project.BeginDate);
+        EndDate.Fill(project.EndDate);
+        Cost.Fill(project.Cost);
+        CostCurrency.Select(project.CostCurrency);
+        Outlay.Fill(project.Outlay);
+        OutlayUnit.Select(project.OutlayUnit);
+        Comment.Fill(project.Comment);
+    });
 
-    /// <summary>Значення, які зараз показує бланк, у тому ж вигляді, що й <see cref="ProjectData"/>.</summary>
-    public ProjectData ReadValues() => new(
-        NameTextBox.Text,
-        ShortNameTextBox.Text,
-        GetDate("dateBeginRecordFolder"),
-        GetDate("dateEndRecordFolder"),
-        decimal.Parse(CostTextBox.Text, NumberStyles.Number, AdaicaCulture),
-        CostCurrencyComboBox.SelectedItem?.Text ?? string.Empty,
-        decimal.Parse(OutlayTextBox.Text, NumberStyles.Number, AdaicaCulture),
-        OutlayUnitComboBox.SelectedItem?.Text ?? string.Empty,
-        CommentTextBox.Text);
-
-    protected AutomationElement Element(string automationId) => root.FindByAutomationId(automationId);
-
-    private TextBox TextBox(string automationId) => Element(automationId).AsTextBox();
-
-    // DatePicker3 приймає дату через ValuePattern у форматі поля; показане значення лежить у PART_TextBox1.
-    private void SetDate(string datePickerId, DateTime date) =>
-        Element(datePickerId).Patterns.Value.Pattern.SetValue(date.ToString(DateFormat, CultureInfo.InvariantCulture));
-
-    private DateTime GetDate(string datePickerId)
-    {
-        var text = Element(datePickerId).FindByAutomationId("PART_TextBox1").AsTextBox().Text;
-        return DateTime.ParseExact(text, DateFormat, CultureInfo.InvariantCulture);
-    }
+    /// <summary>Перевіряє всі поля й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
+    public void ShouldHaveValues(ProjectData expected) => AllureApi.Step("Перевірити поля проєкту", () =>
+        this.ShouldSatisfyAllConditions(
+            () => Name.ShouldHaveText(expected.Name),
+            () => ShortName.ShouldHaveText(expected.ShortName),
+            () => BeginDate.ShouldHaveValue(expected.BeginDate),
+            () => EndDate.ShouldHaveValue(expected.EndDate),
+            () => Cost.ShouldHaveValue(expected.Cost),
+            () => CostCurrency.ShouldHaveSelected(expected.CostCurrency),
+            () => Outlay.ShouldHaveValue(expected.Outlay),
+            () => OutlayUnit.ShouldHaveSelected(expected.OutlayUnit),
+            () => Comment.ShouldHaveText(expected.Comment)));
 }
