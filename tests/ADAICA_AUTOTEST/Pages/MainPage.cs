@@ -18,6 +18,7 @@ public sealed partial class MainPage : AdaicaWindow
 
     private const string ProjectsNodeName = "Projekte";
     private const string TasksNodeName = "Aufgaben";
+    private const string AppointmentsNodeName = "Termine";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
@@ -117,6 +118,10 @@ public sealed partial class MainPage : AdaicaWindow
     public TaskForm WaitForOpenedTask(string number) =>
         WaitForOpenedRecord(TaskForm.NumberId, number, view => new TaskForm(view));
 
+    [AllureStep("Дочекатися відкриття терміну {number}")]
+    public AppointmentForm WaitForOpenedAppointment(string number) =>
+        WaitForOpenedRecord(AppointmentForm.NumberId, number, view => new AppointmentForm(view));
+
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
     public ProjectDialog OpenNewProjectDialog()
     {
@@ -133,6 +138,14 @@ public sealed partial class MainPage : AdaicaWindow
         PopupMenuItem("Neu", NewRecordMenuItemId).Expand();
         PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId).Click();
         return new TaskDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно терміну: вузол Termine → контекстне меню → Neu")]
+    public AppointmentDialog OpenNewAppointmentDialog()
+    {
+        OpenNodeContextMenu(AppointmentsNodeName);
+        PopupMenuItem("Neu", NewRecordMenuItemId).Click();
+        return new AppointmentDialog(Window);
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
@@ -102,6 +103,48 @@ public class NavigatorTests : AdaicaTestBase
         var savedTask = mainPage.WaitForOpenedTask(number);
         mainPage.SelectedNavigatorNodeName.ShouldBe(task.Name);
         savedTask.ShouldHaveValues(task);
+    }
+
+    [Test]
+    [Category("Smoke")]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewAppointment()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+
+        var appointmentDialog = mainPage.OpenNewAppointmentDialog();
+        // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
+        OnCleanup(appointmentDialog.CancelIfOpen);
+
+        var begin = DateTime.Today.AddDays(1).AddHours(10);
+        var appointment = new AppointmentData(
+            Name: "Main_autotest_appointment",
+            ShortName: "MAT",
+            Begin: begin,
+            End: begin.AddHours(2),
+            AllDay: false,
+            // Трудовитрати дорівнюють тривалості терміну, тому ADAICA не показує попередження.
+            Effort: 120m,
+            EffortUnit: "Minute(n)",
+            Importance: "hoch",
+            Location: "Autotest Ort",
+            Remark: "Created by ADAICA_AUTOTEST");
+
+        appointmentDialog.Form.Fill(appointment);
+
+        appointmentDialog.Form.ShouldHaveValues(appointment);
+        var number = appointmentDialog.Form.Number.Text;
+        number.ShouldNotBeNullOrWhiteSpace();
+
+        appointmentDialog.Save();
+
+        // Після збереження ADAICA сама переходить до нового терміну.
+        // Вузол терміну в дереві — «ррММдд ГГ:хх/+Nh Назва», без номера, тому номер перевіряємо в бланку.
+        var savedAppointment = mainPage.WaitForOpenedAppointment(number);
+        var hours = (int)(appointment.End - appointment.Begin).TotalHours;
+        var begins = appointment.Begin.ToString("yyMMdd HH:mm", CultureInfo.InvariantCulture);
+        mainPage.SelectedNavigatorNodeName.ShouldBe($"{begins}/+{hours}h {appointment.Name}");
+        savedAppointment.ShouldHaveValues(appointment);
     }
 
     private MainPage LogInAndOpenDokumentation()
