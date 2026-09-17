@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Максимальна тривалість усього прогону, мс. -->
+    <TestSessionTimeout>3600000</TestSessionTimeout>
+  </RunConfiguration>
+
+  <!--
+    Параметри доступні в тестах через TestSettings.
+    Змінні середовища (ADAICA_APP_PATH, ADAICA_USER, ...) мають вищий пріоритет.
+    Пароль тут не зберігайте: передавайте його змінною ADAICA_PASSWORD.
+  -->
+  <TestRunParameters>
+    <!-- Порожнє значення: використовується демо-застосунок з цього рішення. -->
+    <Parameter name="AppPath" value="C:\adaica\feature_documents-in-postgre\ADAICA.exe" />
+    <Parameter name="AppStartTimeoutSeconds" value="60" />
+    <Parameter name="DefaultTimeoutSeconds" value="10" />
+    <Parameter name="LoginTimeoutSeconds" value="60" />
+    <Parameter name="UserName" value="cher" />
+    <Parameter name="Database" value="BLANK_IGOR" />
+    <Parameter name="Schema" value="BLANK_IGOR" />
+  </TestRunParameters>
+</RunSettings>

@@ -1,0 +1,67 @@
+using System.Globalization;
+using System.Reflection;
+
+namespace ADAICA_AUTOTEST.Infrastructure;
+
+/// <summary>
+/// Налаштування прогону. Пріоритет джерел: змінна середовища → параметр з .runsettings → значення за замовчуванням.
+/// </summary>
+public static class TestSettings
+{
+    /// <summary>Повний шлях до exe застосунку під тестом.</summary>
+    public static string AppPath => Get("ADAICA_APP_PATH", "AppPath") ?? DemoAppPath;
+
+    public static TimeSpan AppStartTimeout => TimeSpan.FromSeconds(GetInt("ADAICA_APP_START_TIMEOUT", "AppStartTimeoutSeconds", 60));
+
+    /// <summary>Скільки чекати появи елемента або виконання умови.</summary>
+    public static TimeSpan DefaultTimeout => TimeSpan.FromSeconds(GetInt("ADAICA_DEFAULT_TIMEOUT", "DefaultTimeoutSeconds", 10));
+
+    /// <summary>Скільки чекати головного вікна після натискання кнопки входу.</summary>
+    public static TimeSpan LoginTimeout => TimeSpan.FromSeconds(GetInt("ADAICA_LOGIN_TIMEOUT", "LoginTimeoutSeconds", 60));
+
+    public static string UserName => Require("ADAICA_USER", "UserName");
+
+    public static string Password => Require("ADAICA_PASSWORD", "Password");
+
+    public static string Database => Require("ADAICA_DATABASE", "Database");
+
+    public static string Schema => Require("ADAICA_SCHEMA", "Schema");
+
+    /// <summary>Куди складати скріншоти та інші артефакти падінь.</summary>
+    public static string ArtifactsDirectory =>
+        Get("ADAICA_ARTIFACTS_DIR", "ArtifactsDirectory") ?? Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts");
+
+    /// <summary>Змінні середовища, з якими запускається застосунок.</summary>
+    public static IReadOnlyDictionary<string, string> AppEnvironment { get; } = new Dictionary<string, string>
+    {
+        // Без цього ADAICA підміняє AutomationPeer вікон на порожні, і UI Automation не бачить жодного елемента.
+        // Змінна перекриває AutomationTests:AutomationPeerFeatureEnabled з appsettings.json лише для запущеного процесу.
+        ["AutomationTests__AutomationPeerFeatureEnabled"] = "true",
+    };
+
+    /// <summary>Exe демо-застосунку з цього рішення; шлях вшивається в збірку під час build.</summary>
+    public static string DemoAppPath =>
+        typeof(TestSettings).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "DemoAppPath")?.Value
+        ?? throw new InvalidOperationException(
+            "Шлях до застосунку не задано: встановіть змінну ADAICA_APP_PATH або параметр AppPath у .runsettings.");
+
+    private static string? Get(string environmentVariable, string runSettingsParameter)
+    {
+        var value = Environment.GetEnvironmentVariable(environmentVariable);
+        if (string.IsNullOrWhiteSpace(value))
+            value = TestContext.Parameters.Get(runSettingsParameter);
+
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string Require(string environmentVariable, string runSettingsParameter) =>
+        Get(environmentVariable, runSettingsParameter)
+        ?? throw new InvalidOperationException(
+            $"Не задано {environmentVariable}: встановіть змінну середовища або параметр {runSettingsParameter} у .runsettings.");
+
+    private static int GetInt(string environmentVariable, string runSettingsParameter, int defaultValue) =>
+        int.TryParse(Get(environmentVariable, runSettingsParameter), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : defaultValue;
+}
