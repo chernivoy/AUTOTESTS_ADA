@@ -17,7 +17,9 @@ public sealed partial class MainPage : AdaicaWindow
     private const string AddNavigatorButtonId = "PART_AddTab";
 
     private const string ProjectsNodeName = "Projekte";
+    private const string TasksNodeName = "Aufgaben";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
+    private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
     public MainPage(AppSession session)
         : base(session)
@@ -61,7 +63,7 @@ public sealed partial class MainPage : AdaicaWindow
             $"пункту «{navigatorName}» у списку навігаторів");
 
         // ADAICA відкриває навігатор лише на клік мишею: SelectionItem.Select() тільки виділяє пункт, Enter не діє.
-        AtomicMouse.LeftClick(item.GetClickablePoint());
+        AtomicMouse.LeftClick(item);
 
         // Кожне відкриття додає нову вкладку, навіть якщо такий навігатор уже відкритий.
         Wait.Until(
@@ -107,33 +109,56 @@ public sealed partial class MainPage : AdaicaWindow
             .Select(node => NodeText(node)?.Name)
             .FirstOrDefault();
 
-    /// <summary>
-    /// Чекає, доки в області перегляду відкриється проєкт із заданим номером.
-    /// Шукаємо лише в області перегляду: у відкритому діалозі проєкту є поля з тими самими AutomationId.
-    /// </summary>
     [AllureStep("Дочекатися відкриття проєкту {number}")]
     public ProjectForm WaitForOpenedProject(string number) =>
-        Wait.For(
-            () =>
-            {
-                var view = Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
-                var shownNumber = view?.FindFirstDescendant(cf => cf.ByAutomationId(ProjectForm.NumberId))?.AsTextBox().Text;
-                return shownNumber == number ? new ProjectForm(view!) : null;
-            },
-            $"проєкту {number} в області перегляду");
+        WaitForOpenedRecord(ProjectForm.NumberId, number, view => new ProjectForm(view));
+
+    [AllureStep("Дочекатися відкриття завдання {number}")]
+    public TaskForm WaitForOpenedTask(string number) =>
+        WaitForOpenedRecord(TaskForm.NumberId, number, view => new TaskForm(view));
 
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
     public ProjectDialog OpenNewProjectDialog()
     {
-        // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
-        var node = NavigatorNode(ProjectsNodeName);
-        AtomicMouse.RightClick((NodeText(node) ?? node).GetClickablePoint());
-
-        new MenuItemControl("Neu", () => Wait.For(() => FindInPopups(NewRecordMenuItemId), "пункту «Neu» у контекстному меню"))
-            .Click();
-
+        OpenNodeContextMenu(ProjectsNodeName);
+        PopupMenuItem("Neu", NewRecordMenuItemId).Click();
         return new ProjectDialog(Window);
     }
+
+    [AllureStep("Відкрити нове вікно завдання: вузол Aufgaben → контекстне меню → Neu → Neue Aufgabe")]
+    public TaskDialog OpenNewTaskDialog()
+    {
+        OpenNodeContextMenu(TasksNodeName);
+        // На вузлі Aufgaben «Neu» — підменю з варіантами створення.
+        PopupMenuItem("Neu", NewRecordMenuItemId).Expand();
+        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId).Click();
+        return new TaskDialog(Window);
+    }
+
+    /// <summary>
+    /// Чекає, доки в області перегляду відкриється запис із заданим номером.
+    /// Шукаємо лише в області перегляду: у відкритому діалозі запису є поля з тими самими AutomationId.
+    /// </summary>
+    private TForm WaitForOpenedRecord<TForm>(string numberId, string number, Func<AutomationElement, TForm> createForm)
+        where TForm : class =>
+        Wait.For(
+            () =>
+            {
+                var view = Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
+                var shownNumber = view?.FindFirstDescendant(cf => cf.ByAutomationId(numberId))?.AsTextBox().Text;
+                return shownNumber == number ? createForm(view!) : null;
+            },
+            $"запису {number} в області перегляду");
+
+    // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
+    private void OpenNodeContextMenu(string nodeName)
+    {
+        var node = NavigatorNode(nodeName);
+        AtomicMouse.RightClick(NodeText(node) ?? node);
+    }
+
+    private MenuItemControl PopupMenuItem(string name, string automationId) =>
+        new(name, () => Wait.For(() => FindInPopups(automationId), $"пункту «{name}» у контекстному меню"));
 
     private static AutomationElement? NodeText(AutomationElement node) =>
         node.FindFirstChild(cf => cf.ByAutomationId("TextBlock"));

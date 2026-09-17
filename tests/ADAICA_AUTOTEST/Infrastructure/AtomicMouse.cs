@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using FlaUI.Core.AutomationElements;
 
 namespace ADAICA_AUTOTEST.Infrastructure;
 
@@ -25,12 +26,15 @@ public static class AtomicMouse
     private const int SmCxVirtualScreen = 78;
     private const int SmCyVirtualScreen = 79;
 
-    public static void LeftClick(Point point) => Click(point, MouseEventLeftDown, MouseEventLeftUp);
+    public static void LeftClick(AutomationElement target) => Click(target, MouseEventLeftDown, MouseEventLeftUp);
 
-    public static void RightClick(Point point) => Click(point, MouseEventRightDown, MouseEventRightUp);
+    public static void RightClick(AutomationElement target) => Click(target, MouseEventRightDown, MouseEventRightUp);
 
-    private static void Click(Point point, uint buttonDown, uint buttonUp)
+    private static void Click(AutomationElement target, uint buttonDown, uint buttonUp)
     {
+        var point = target.GetClickablePoint();
+        EnsureTargetIsOnTop(target, point);
+
         var (x, y) = ToAbsolute(point);
         var move = MouseEventMove | MouseEventAbsolute | MouseEventVirtualDesk;
         Input[] inputs =
@@ -42,6 +46,38 @@ public static class AtomicMouse
         // SendInput вставляє події підряд, не перемежовуючи їх з іншим введенням.
         if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>()) != inputs.Length)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "SendInput не надіслав клік.");
+    }
+
+    // Клік отримає те вікно, яке зараз у цій точці екрана. Якщо застосунок перекрито іншим вікном,
+    // виводимо його на передній план, а якщо це не допомогло — не клікаємо зовсім.
+    private static void EnsureTargetIsOnTop(AutomationElement target, Point point)
+    {
+        var processId = target.Properties.ProcessId.Value;
+        if (ProcessAt(point) == processId)
+            return;
+
+        TopLevelWindow(target).SetForeground();
+        Wait.Until(
+            () => ProcessAt(point) == processId,
+            $"вікна застосунку в точці кліку {point}; там інше вікно, тому клік скасовано");
+    }
+
+    private static int ProcessAt(Point point)
+    {
+        GetWindowThreadProcessId(WindowFromPoint(new NativePoint { X = point.X, Y = point.Y }), out var processId);
+        return (int)processId;
+    }
+
+    private static Window TopLevelWindow(AutomationElement element)
+    {
+        var desktop = element.Automation.GetDesktop();
+        var walker = element.Automation.TreeWalkerFactory.GetControlViewWalker();
+
+        var current = element;
+        for (var parent = walker.GetParent(current); parent is not null && !parent.Equals(desktop); parent = walker.GetParent(current))
+            current = parent;
+
+        return current.AsWindow();
     }
 
     // Абсолютні координати SendInput задаються від 0 до 65535 у межах усього віртуального робочого столу.
@@ -65,6 +101,19 @@ public static class AtomicMouse
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int index);
+
+    [DllImport("user32.dll")]
+    private static extern nint WindowFromPoint(NativePoint point);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
 
     // INPUT з union: для миші достатньо MOUSEINPUT — найбільшого з варіантів.
     [StructLayout(LayoutKind.Sequential)]
