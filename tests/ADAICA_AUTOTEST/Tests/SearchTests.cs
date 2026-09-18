@@ -151,19 +151,24 @@ public partial class SearchTests : AdaicaTestBase
         });
 
         var createdAt = DateTime.ParseExact(created, "dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
-        result.ShouldSatisfyAllConditions(
-            () => result.Number.ShouldBe(number, "Nummer / Version"),
-            () => result.ClassType.ShouldBe("TASK", "Klassentyp"),
-            () => result.Name.ShouldBe(task.Name, "Betreff/Name"),
-            () => result.FoundIn.ShouldBe(InNumber, "Fundstelle"),
-            () => result.Remark.ShouldBe(task.Remark, "Bemerkung"),
-            () => result.Class.ShouldBeEmpty("Klasse"),
-            () => result.Subclass.ShouldBeEmpty("Unterklasse"),
-            () => result.Created.ShouldBe(created, "Erstelldatum"),
-            () => result.Id.ShouldMatch(@"^\d{12}TASK\d{6}$", "ID"),
-            () => result.Id[..6].ShouldBe(createdAt.ToString("yyMMdd", CultureInfo.InvariantCulture), "ID починається з дати створення"),
-            () => bySuffix.ShouldNotBeNull($"«*{suffix}» не знайшов завдання {number}").FoundIn.ShouldBe(InNumber, "Fundstelle"),
-            () => summary.ShouldBe("Es wurde 1 Datensatz gefunden.", "підсумок для одного запису"));
+        AllureApi.Step("Перевірити колонки рядка результату", () =>
+            result.ShouldSatisfyAllConditions(
+                () => result.Number.ShouldBe(number, "Nummer / Version"),
+                () => result.ClassType.ShouldBe("TASK", "Klassentyp"),
+                () => result.Name.ShouldBe(task.Name, "Betreff/Name"),
+                () => result.FoundIn.ShouldBe(InNumber, "Fundstelle"),
+                () => result.Remark.ShouldBe(task.Remark, "Bemerkung"),
+                () => result.Class.ShouldBeEmpty("Klasse"),
+                () => result.Subclass.ShouldBeEmpty("Unterklasse"),
+                () => result.Created.ShouldBe(created, "Erstelldatum"),
+                () => result.Id.ShouldMatch(@"^\d{12}TASK\d{6}$", "ID"),
+                () => result.Id[..6].ShouldBe(createdAt.ToString("yyMMdd", CultureInfo.InvariantCulture), "ID починається з дати створення")));
+
+        AllureApi.Step($"Перевірити, що «*{suffix}» знаходить завдання за номером", () =>
+            bySuffix.ShouldNotBeNull($"«*{suffix}» не знайшов завдання {number}").FoundIn.ShouldBe(InNumber, "Fundstelle"));
+
+        AllureApi.Step("Перевірити підсумок для одного запису", () =>
+            ShouldBeSentence(summary, "Es wurde 1 Datensatz gefunden.", "Підсумок пошуку для одного запису"));
     }
 
     /// <summary>Назви режимів пошуку: мають бути німецькими словами латиницею.</summary>
@@ -227,6 +232,17 @@ public partial class SearchTests : AdaicaTestBase
             () => result.Name.ShouldBe(task.Name, "Betreff/Name"),
             () => result.FoundIn.ShouldBe(foundIn, "Fundstelle"),
             () => result.Remark.ShouldBe(task.Remark, "Bemerkung"));
+
+    /// <summary>
+    /// Порівнює текст для людей (речення) і повідомляє про розбіжність одним рядком. <c>ShouldBe</c> для рядків
+    /// додає таблицю розбіжностей, яка порівнює символи за позицією: одна вставлена літера («wurde» → «wurden»)
+    /// зсуває решту рядка, і таблиця показує розбіжність майже в кожному символі.
+    /// </summary>
+    private static void ShouldBeSentence(string? actual, string expected, string what)
+    {
+        if (actual != expected)
+            throw new ShouldAssertException($"{what}: «{actual}», а має бути «{expected}».");
+    }
 
     /// <summary>Виконує всі випадки й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
     private static void ShouldBehaveAsExpected(SearchWindow search, string number, SearchCase[] cases) =>
