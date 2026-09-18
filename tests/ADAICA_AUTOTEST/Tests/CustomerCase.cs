@@ -8,6 +8,7 @@ namespace ADAICA_AUTOTEST.Tests;
 /// (німецькою, як працюють користувачі ADAICA), і щоразу інші: у базі накопичуються різні записи,
 /// на яких можна перевіряти повнотекстовий пошук за назвами й примітками. Усі записи однієї справи
 /// стосуються того самого клієнта й теми, як у реальній роботі. Вибрані значення видно в кроках звіту Allure.
+/// Дати — різні дні в межах 60 днів від сьогодні в минуле й майбутнє, час — робочі години з кроком 15 хвилин.
 /// </summary>
 /// <remarks>
 /// Назви можуть повторитися в іншому прогоні, тому свій запис тест і далі впізнає за номером.
@@ -16,6 +17,12 @@ namespace ADAICA_AUTOTEST.Tests;
 public sealed class CustomerCase
 {
     private const string ShortName = "MAT";
+
+    // Межа дат записів у днях від сьогодні, в минуле й майбутнє.
+    private const int DateRangeDays = 60;
+
+    // Дні, уже зайняті датами записів у цьому прогоні тестів, щоб дати різних тестів теж не збігалися.
+    private static readonly HashSet<DateTime> DaysUsedInRun = [];
 
     private static readonly Customer[] Customers =
     [
@@ -42,6 +49,7 @@ public sealed class CustomerCase
 
     private readonly Customer _customer;
     private readonly Topic _topic;
+    private readonly HashSet<DateTime> _usedDays = [];
 
     private CustomerCase(Customer customer, Topic topic)
     {
@@ -53,12 +61,12 @@ public sealed class CustomerCase
 
     public ProjectData NewProject()
     {
-        var today = DateTime.Today;
+        var days = UniqueDays(2);
         return new ProjectData(
             Name: $"{_topic.Title} – {_customer.Company}",
             ShortName: ShortName,
-            BeginDate: today.AddDays(1),
-            EndDate: today.AddMonths(1),
+            BeginDate: days[0],
+            EndDate: days[1],
             Cost: 1500m,
             CostCurrency: "USD",
             Outlay: 8m,
@@ -81,7 +89,10 @@ public sealed class CustomerCase
 
     public TaskData NewTask()
     {
-        var start = DateTime.Today.AddDays(1);
+        // Початок — найраніший день; виконання раніше за закриття; термін «Fällig am» — будь-коли після початку.
+        var days = UniqueDays(4);
+        var due = Pick(1, 2, 3);
+        var (done, closed) = due switch { 1 => (2, 3), 2 => (1, 3), _ => (1, 2) };
         return new TaskData(
             Name: Pick(
                 $"Offerte für {_topic.Object} erstellen",
@@ -89,11 +100,11 @@ public sealed class CustomerCase
                 $"Unterlagen für {_topic.Object} zusammenstellen",
                 $"Terminplan für {_topic.Object} aktualisieren"),
             ShortName: ShortName,
-            Begin: start.AddHours(9),
-            Due: start.AddDays(7).AddHours(17),
+            Begin: days[0] + WorkingTime(),
+            Due: days[due] + WorkingTime(),
             // Дати виконання й закриття переводять завдання в статус «Aufgabe erledigt».
-            Done: start.AddDays(5).AddHours(12),
-            ClosedOn: start.AddDays(6),
+            Done: days[done] + WorkingTime(),
+            ClosedOn: days[closed],
             AcceptanceType: "Automatisch",
             Priority: "hoch",
             Importance: "mittel",
@@ -101,7 +112,7 @@ public sealed class CustomerCase
             EstimatedDurationUnit: "Tag(e)",
             ActualDuration: 6m,
             ActualDurationUnit: "Stunde(n)",
-            OrderNumber: $"A-{start.Year}-{System.Random.Shared.Next(100, 1000)}",
+            OrderNumber: $"A-{days[0].Year}-{System.Random.Shared.Next(100, 1000)}",
             PurchaseOrderNumber: $"B-{System.Random.Shared.Next(10000, 100000)}",
             PercentDone: 50m,
             Location: "Unbekannt",
@@ -118,7 +129,8 @@ public sealed class CustomerCase
 
     public AppointmentData NewAppointment()
     {
-        var begin = DateTime.Today.AddDays(1).AddHours(10);
+        // Термін триває 2 години й закінчується того самого дня.
+        var begin = UniqueDays(1)[0] + WorkingTime(latestHour: 16);
         return new AppointmentData(
             Name: Pick(
                 $"Kick-off-Meeting {_topic.Title}",
@@ -154,8 +166,8 @@ public sealed class CustomerCase
                 $"E-Mail von {Contact.Dative}",
                 $"Gesprächsnotiz {_topic.Title}"),
             ShortName: ShortName,
-            // Дата інфозапису не може бути пізнішою за сьогодні.
-            Begin: DateTime.Today.AddDays(-1).AddHours(11).AddMinutes(30),
+            // Дата інфозапису не може бути пізнішою за сьогодні, тому лише минулі дні.
+            Begin: UniqueDays(1, toDay: -1)[0] + WorkingTime(),
             // У BLANK_IGOR список «Ergebnis» порожній.
             Result: null,
             Remark: Pick(
@@ -166,6 +178,36 @@ public sealed class CustomerCase
     }
 
     private Person Contact => _customer.Contact;
+
+    /// <summary>
+    /// <paramref name="count"/> різних днів за зростанням, від <paramref name="fromDay"/> до <paramref name="toDay"/>
+    /// днів від сьогодні. Дні не повторюються в межах справи, а поки вільних днів вистачає, — і в межах прогону.
+    /// </summary>
+    private DateTime[] UniqueDays(int count, int fromDay = -DateRangeDays, int toDay = DateRangeDays)
+    {
+        var candidates = Enumerable.Range(fromDay, toDay - fromDay + 1)
+            .Select(offset => DateTime.Today.AddDays(offset))
+            .Where(day => !_usedDays.Contains(day))
+            .ToArray();
+
+        lock (DaysUsedInRun)
+        {
+            var fresh = candidates.Where(day => !DaysUsedInRun.Contains(day)).ToArray();
+            var pool = fresh.Length >= count ? fresh : candidates;
+            if (pool.Length < count)
+                throw new InvalidOperationException($"Бракує вільних днів для {count} дат справи «{_customer.Company}».");
+
+            System.Random.Shared.Shuffle(pool);
+            var days = pool.Take(count).Order().ToArray();
+            DaysUsedInRun.UnionWith(days);
+            _usedDays.UnionWith(days);
+            return days;
+        }
+    }
+
+    // Час, який людина вибрала б сама: робочі години з 07:00, кратно 15 хвилинам.
+    private static TimeSpan WorkingTime(int latestHour = 17) =>
+        TimeSpan.FromMinutes(System.Random.Shared.Next(7 * 4, latestHour * 4 + 1) * 15);
 
     private static T Pick<T>(params T[] items) => items[System.Random.Shared.Next(items.Length)];
 
