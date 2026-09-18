@@ -9,7 +9,7 @@ namespace ADAICA_AUTOTEST.Pages;
 /// <summary>Робочий простір ADAICA після входу.</summary>
 public sealed partial class MainPage : AdaicaWindow
 {
-    private const string MainMenuId = "mnuSystemMenuWndMain";
+    private const string SystemMenuId = "mnuSystemMenuWndMain";
     private const string DemoVersionWindowId = "wndDemoVersion";
 
     // Така сама смуга вкладок і кнопка «+» є й унизу робочої області, тому верхні шукаємо серед дочірніх елементів вікна.
@@ -30,7 +30,7 @@ public sealed partial class MainPage : AdaicaWindow
     public MainPage(AppSession session)
         : base(session)
     {
-        Element(MainMenuId);
+        Element(SystemMenuId);
         CloseDemoVersionWindowIfShown();
 
         NavigatorTitle = new LabelControl("Navigator", Locate.ById(Window, "tbNameOfNavigator"));
@@ -55,7 +55,7 @@ public sealed partial class MainPage : AdaicaWindow
     private AutomationElement[] NavigatorTabs => Window.FindChildByAutomationId(NavigatorTabsId).FindAllChildren();
 
     public static bool IsShownIn(Window window) =>
-        window.FindFirstDescendant(cf => cf.ByAutomationId(MainMenuId)) is not null;
+        window.FindFirstDescendant(cf => cf.ByAutomationId(SystemMenuId)) is not null;
 
     [AllureStep("Відкрити навігатор {navigatorName} кнопкою «+»")]
     public MainPage OpenNavigator(string navigatorName)
@@ -141,6 +141,14 @@ public sealed partial class MainPage : AdaicaWindow
     [AllureStep("Дочекатися відкриття інфозапису з Bemerkung {remark}")]
     public NoteForm WaitForOpenedNote(string remark) =>
         WaitForOpenedRecord(NoteForm.RemarkId, remark, view => new NoteForm(view));
+
+    [AllureStep("Відкрити вікно пошуку: System → Finden…")]
+    public SearchWindow OpenSearchWindow()
+    {
+        new MenuItemControl("System", Locate.ById(Window, SystemMenuId)).Expand();
+        PopupMenuItem("Finden…", "mnuSystemSearchWndMain").Click();
+        return new SearchWindow(Window);
+    }
 
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
     public ProjectDialog OpenNewProjectDialog()

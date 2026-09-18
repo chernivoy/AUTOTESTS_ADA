@@ -53,11 +53,13 @@ ADAICA_AUTOTEST.sln
    │  ├─ TaskDialog.cs, TaskForm.cs, TaskData.cs            завдання: вікно, бланк, дані
    │  ├─ AppointmentDialog.cs, AppointmentForm.cs, AppointmentData.cs   термін: вікно, бланк, дані
    │  ├─ NoteDialog.cs, NoteForm.cs, NoteData.cs            інфозапис (Notiz): вікно, бланк, дані
-   │  └─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
+   │  ├─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
+   │  └─ SearchWindow.cs, SearchResult.cs   вікно пошуку «Finden» і рядок його результатів
    ├─ Tests/
-   │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA
+   │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA: вхід, Dokumentation, прибирання
    │  ├─ LoginTests.cs                 вхід в ADAICA
    │  ├─ CustomerCase.cs               дані записів: природні назви й примітки, щоразу інші
+   │  ├─ SearchTests.cs                повнотекстовий пошук завдання за назвою й приміткою у «Finden»
    │  └─ NavigatorTests.cs             навігатор Dokumentation → створення проєкту, Ordner, завдання, терміну, інфозапису; під кожним із них — дочірні записи
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
@@ -131,6 +133,7 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Вікно інфозапису (Notiz).** «Neu» на вузлі Notizen одразу відкриває вікно «Neue Notiz». Номера в інфозапису немає, тому тест знаходить збережений запис за «Bemerkung» (`MainPage.WaitForOpenedNote`). Примітка закінчується часом запису («Notiert am 18.09.2026 um 08:46 Uhr.»), тож у кожному прогоні вона інша. Дата «Beginnt» не може бути пізнішою за сьогодні: ADAICA позначає поле зірочкою («Das angegebene Datum darf nicht später als Heute sein») і вимикає OK. Тому тест бере лише минулі дні. У BLANK_IGOR список «Ergebnis» порожній, тож у даних він `null`. Після збереження в дереві виділяється вузол «дд.ММ.рр Назва».
 - **Дочірні записи.** У контекстному меню будь-якого запису (проєкту, Ordner, завдання, терміну, інфозапису) «Neu» (`mnuNew`) — підменю з типами записів: Projekt (`mnuNewProject`), Ordner (`mnuNewProcess`), Aufgabe → Neue Aufgabe (`mnuNewTask` → `mnuNewTaskDefault`), Termin (`mnuNewAppoint`), Notiz (`mnuNewHistory`). Пункти в усіх меню мають ті самі id, лише порядок інший (у Ordner немає «Kontakt», у завдання є ще «Formular»). Вікна й бланки ті самі, що й для кореневих вузлів, лише в заголовку додається «(übergeordnet: Батько)». Після збереження ADAICA виділяє запис у дереві під батьківським записом, у папці його типу: «Батько → Aufgaben → Завдання». Назви завдань та інфозаписів можуть повторюватися, бо номера в дереві немає. Тому `MainPage` шукає батька для меню «Neu» серед виділеного вузла та його предків, а не першим збігом у дереві, а `CustomerCase` не дає дочірньому запису ту саму назву, що й батькові. Кореневі вузли Gesamtliste (Aufgaben, Termine, …) дочірніх записів не показують навіть після «Aktualisieren». Новий проєкт і кожен новий запис одразу мають власні `Notizen (1-1)` зі службовою приміткою «… wurde erstellt» і `Kontakte (1-1)`, тож лічильник Notizen під проєктом на один більший.
 - **Тестові дані лишаються.** `NavigatorTests` щоразу створює в базі новий проєкт, Ordner, завдання, термін та інфозапис, а тести дочірніх записів — ще по одному проєкту, Ordner, завданню, терміну та інфозапису, під кожним з яких проєкт, Ordner, завдання, термін та інфозапис (`NavigatorTests.CreateChildRecords`). Тести їх не видаляють. Назви й примітки дає `CustomerCase`: випадкова «справа клієнта» (фірма, контактна особа, місто, тема), з якої складаються природні німецькі тексти, наприклад проєкт «Umzug ins neue Lager – Müller Logistik AG» і завдання «Terminplan für den Umzug ins neue Lager aktualisieren». Так у базі накопичуються різні записи для перевірки повнотекстового пошуку за назвами й примітками. Записи однієї справи узгоджені між собою. Дати теж випадкові: різні дні в межах 60 днів від сьогодні в минуле й майбутнє, час — робочі години з кроком 15 хвилин. Дні не повторюються в межах тесту, а поки вистачає вільних днів, — і в межах прогону. Порядок дат зберігається: початок раніше за кінець, а в завдання «Beginnt am» раніше за «Erledigt am», а та — раніше за «Geschlossen an». Минулі дати в термінах і завданнях ADAICA приймає. Вибрані тексти й дати видно в кроках звіту. Kurzname у всіх тестових записах — «MAT», за ним їх можна відрізнити від уведених людьми.
+- **Пошук «Finden».** «System» (`mnuSystemMenuWndMain`) розгортається через UI Automation, у ньому «Finden…» (`mnuSystemSearchWndMain`) відкриває дочірнє вікно з AutomationId `This`. Тому `SearchWindow` впізнає його за вкладками `tcSearchParts`. На вкладці Dokumentation є поле «Suchbegriff» (`ctrRecordBox` → `txtBox`), кнопка «Finden» (`btnSearchFindCreateRecord`), режим «Alle Wörter» (`cmbSearchRecordSearchOpt`), фільтри «Suchen nach (Klassentypen)» і «Suchen in (Suchkriterien)», серед яких Name і Bemerkung позначені «Volltextsuche». Результати показує таблиця `listView` на вкладці «Übersicht». Колонки «Fundstelle» (де знайдено слова) і «Fundtext» на екрані сховані, але в UI Automation є. Список результатів віртуалізований: у дереві є лише видимі рядки (12 з 21), тому `SearchWindow.WaitForResult` гортає список. Колонки можна переставляти, тож комірки беруться за заголовком. При повторному відкритті вікно порожнє, фільтри тести не змінюють.
 - **Raw-дерево.** Звичайний пошук FlaUI не бачить елементів із шаблонів WPF, наприклад заголовка вкладки `PART_Text`. Для них є `FindFirstDescendantRaw` з `RawTree.cs`.
 - **Скріншоти й DPI.** `TestRunSetup` вмикає для тестового процесу per-monitor DPI awareness. Без цього на моніторах з масштабом понад 100% скріншоти падінь виходять обрізаними.
 - Нові елементи шукайте за `AutomationId`. Якщо в елемента його немає, попросіть розробників додати `AutomationProperties.AutomationId` у XAML. Пошук за текстом або індексом ламається від будь-якої зміни UI, а тексти ADAICA ще й залежать від мови.
@@ -144,15 +147,12 @@ public class MyTests : AdaicaTestBase      // ADAICA запускається п
     [Test]
     public void Something_Works()
     {
-        var main = new LoginPage(Session).LoginAs(
-            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+        // Вхід і нова вкладка Dokumentation; після тесту вкладку буде закрито.
+        var main = LogInAndOpenDokumentation();
 
+        var search = main.OpenSearchWindow();
         // Прибирання виконається після тесту (і після скріншота падіння), перед виходом з ADAICA.
-        var tabCount = main.NavigatorTabNames.Count;
-        OnCleanup(() => main.CloseLastNavigatorTabs(keep: tabCount));
-
-        main.OpenNavigator("Dokumentation");
-        main.NavigatorTitle.ShouldHaveText("Dokumentation");
+        OnCleanup(search.CloseIfOpen);
     }
 }
 ```

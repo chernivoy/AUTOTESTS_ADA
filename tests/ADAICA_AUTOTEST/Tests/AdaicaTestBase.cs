@@ -17,6 +17,26 @@ public abstract class AdaicaTestBase : UiTestBase
     /// </summary>
     protected void OnCleanup(Action cleanup) => _cleanups.Add(cleanup);
 
+    /// <summary>
+    /// Входить в ADAICA й відкриває навігатор Dokumentation у новій вкладці. Після тесту вкладку буде закрито,
+    /// бо відкриті вкладки ADAICA запам'ятовує для користувача.
+    /// </summary>
+    protected MainPage LogInAndOpenDokumentation()
+    {
+        const string dokumentation = "Dokumentation";
+
+        var mainPage = new LoginPage(Session).LoginAs(
+            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+        var tabsBefore = mainPage.NavigatorTabNames;
+        OnCleanup(() => mainPage.CloseLastNavigatorTabs(keep: tabsBefore.Count));
+
+        mainPage.OpenNavigator(dokumentation);
+
+        mainPage.NavigatorTitle.ShouldHaveText(dokumentation);
+        mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(dokumentation));
+        return mainPage;
+    }
+
     protected override void CloseApplication()
     {
         // Один екземпляр класу обслуговує всі тести, тому список очищаємо щоразу.

@@ -1,5 +1,4 @@
 using System.Globalization;
-using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
@@ -15,8 +14,6 @@ namespace ADAICA_AUTOTEST.Tests;
 [AllureSuite("Навігатори")]
 public class NavigatorTests : AdaicaTestBase
 {
-    private const string Dokumentation = "Dokumentation";
-
     [Test]
     [Category("Smoke")]
     [AllureSeverity(SeverityLevel.critical)]
@@ -253,20 +250,6 @@ public class NavigatorTests : AdaicaTestBase
         mainPage.WaitForOpenedNote(note.Remark);
 
         CreateChildRecords(mainPage, customer, NoteNode(note));
-    }
-
-    private MainPage LogInAndOpenDokumentation()
-    {
-        var mainPage = new LoginPage(Session).LoginAs(
-            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
-        var tabsBefore = mainPage.NavigatorTabNames;
-        OnCleanup(() => mainPage.CloseLastNavigatorTabs(keep: tabsBefore.Count));
-
-        mainPage.OpenNavigator(Dokumentation);
-
-        mainPage.NavigatorTitle.ShouldHaveText(Dokumentation);
-        mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(Dokumentation));
-        return mainPage;
     }
 
     /// <summary>

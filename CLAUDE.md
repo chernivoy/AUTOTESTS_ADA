@@ -27,7 +27,7 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 
 Три шари, кожен наступний нічого не знає про попередній:
 
-- **`Tests/`** — сценарії. Успадковують `AdaicaTestBase` (вхід/вихід з ADAICA, `OnCleanup`). Тест не шукає елементи сам.
+- **`Tests/`** — сценарії. Успадковують `AdaicaTestBase` (вхід/вихід з ADAICA, `LogInAndOpenDokumentation`, `OnCleanup`). Тест не шукає елементи сам.
 - **`Pages/`** — Page Objects. Оголошують поля як контроли й описують сценарії (`LoginAs`, `OpenNavigator`, `Save`).
 - **`Controls/`** — контроли: одне поле чи кнопка, яке вміє заповнити значення, дочекатися його появи й перевірити (`Fill`, `Select`, `ShouldHave…`).
 - **`Infrastructure/`** — запуск застосунку, очікування, налаштування, ввід миші, пошук у raw-дереві.
@@ -48,6 +48,7 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Розгорнутий ComboBox блокує закриття вікна**, тому `ComboBoxControl` завжди згортає список.
 - **Зміна бази на формі входу скидає користувача й пароль**, тому `LoginAs` спершу вибирає базу й схему.
 - **Заголовки вкладок та інші елементи шаблонів** видно лише в raw-дереві (`RawTree.FindFirstDescendantRaw`).
+- **Результати пошуку «Finden» віртуалізовані:** у дереві лише видимі рядки, тому `SearchWindow` гортає список і бере комірки за заголовками колонок.
 - **Дерево навігатора в UI Automation — плаский `ListBox`:** вкладеність видно лише з відступу тексту вузла (`MainPage.SelectedNavigatorNodePath`).
 - **Дати й числа — у німецькому форматі** (`AdaicaFormat`, `dd.MM.yyyy`, `1500,00`).
 - **Скріншоти й координати** правильні лише з per-monitor DPI awareness, яку вмикає `TestRunSetup`.
