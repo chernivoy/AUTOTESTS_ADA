@@ -39,8 +39,35 @@ public class NavigatorTests : AdaicaTestBase
 
         // Після збереження ADAICA сама переходить до нового проєкту.
         var savedProject = mainPage.WaitForOpenedProject(number);
-        mainPage.SelectedNavigatorNodeName.ShouldBe(ProjectNode(project, number));
+        mainPage.SelectedNavigatorNodeName.ShouldBe(NodeWithNumber(project.Name, number));
         savedProject.ShouldHaveValues(project);
+    }
+
+    [Test]
+    [Category("Smoke")]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewFolder()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+
+        var folderDialog = mainPage.OpenNewFolderDialog();
+        // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
+        OnCleanup(folderDialog.CancelIfOpen);
+
+        var folder = CustomerCase.Random().NewFolder();
+        folderDialog.Form.Fill(folder);
+
+        folderDialog.Form.ShouldHaveValues(folder);
+        var number = folderDialog.Form.Number.Text;
+        // Бланк той самий, що й у проєкту, тож Ordner від проєкту відрізняє лише номер.
+        number.ShouldStartWith("OPE");
+
+        folderDialog.Save();
+
+        // Після збереження ADAICA сама переходить до нового Ordner і виділяє його у вузлі Ordner.
+        var savedFolder = mainPage.WaitForOpenedFolder(number);
+        mainPage.SelectedNavigatorNodePath.ShouldBe(new[] { "Gesamtliste", "Ordner", NodeWithNumber(folder.Name, number) });
+        savedFolder.ShouldHaveValues(folder);
     }
 
     [Test]
@@ -123,7 +150,7 @@ public class NavigatorTests : AdaicaTestBase
     }
 
     /// <summary>
-    /// Підпроєкт, завдання, термін та інфозапис, створені з контекстного меню проєкту.
+    /// Підпроєкт, Ordner, завдання, термін та інфозапис, створені з контекстного меню проєкту.
     /// Кожен збережений запис ADAICA виділяє в дереві під проєктом, у папці свого типу.
     /// Усі записи стосуються однієї справи клієнта, як у реальному проєкті.
     /// </summary>
@@ -141,7 +168,7 @@ public class NavigatorTests : AdaicaTestBase
         var projectNumber = projectDialog.Form.Number.Text;
         projectDialog.Save();
         mainPage.WaitForOpenedProject(projectNumber);
-        var projectNode = ProjectNode(project, projectNumber);
+        var projectNode = NodeWithNumber(project.Name, projectNumber);
 
         var subprojectDialog = mainPage.OpenNewChildProjectDialog(projectNode);
         OnCleanup(subprojectDialog.CancelIfOpen);
@@ -150,7 +177,16 @@ public class NavigatorTests : AdaicaTestBase
         var subprojectNumber = subprojectDialog.Form.Number.Text;
         subprojectDialog.Save();
         mainPage.WaitForOpenedProject(subprojectNumber).ShouldHaveValues(subproject);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Projekte", ProjectNode(subproject, subprojectNumber));
+        ShouldBeSelectedInProject(mainPage, projectNode, "Projekte", NodeWithNumber(subproject.Name, subprojectNumber));
+
+        var folderDialog = mainPage.OpenNewChildFolderDialog(projectNode);
+        OnCleanup(folderDialog.CancelIfOpen);
+        var folder = customer.NewFolder();
+        folderDialog.Form.Fill(folder);
+        var folderNumber = folderDialog.Form.Number.Text;
+        folderDialog.Save();
+        mainPage.WaitForOpenedFolder(folderNumber).ShouldHaveValues(folder);
+        ShouldBeSelectedInProject(mainPage, projectNode, "Ordner", NodeWithNumber(folder.Name, folderNumber));
 
         var taskDialog = mainPage.OpenNewChildTaskDialog(projectNode);
         OnCleanup(taskDialog.CancelIfOpen);
@@ -199,8 +235,8 @@ public class NavigatorTests : AdaicaTestBase
             $"Перевірити, що в дереві виділено «{recordNode}» у «{projectNode} → {folder}»",
             () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { projectNode, folder, recordNode }));
 
-    // Як ADAICA підписує вузли записів у дереві навігатора.
-    private static string ProjectNode(ProjectData project, string number) => $"{project.Name} ({number})";
+    // Як ADAICA підписує вузли записів у дереві навігатора. Проєкт і Ordner — «Назва (Номер)».
+    private static string NodeWithNumber(string name, string number) => $"{name} ({number})";
 
     // «ррММдд ГГ:хх/+Nh Назва», наприклад «260918 10:00/+2h Besprechung mit Frau Keller».
     private static string AppointmentNode(AppointmentData appointment)

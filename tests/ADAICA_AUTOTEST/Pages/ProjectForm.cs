@@ -6,9 +6,11 @@ namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
 /// Бланк проєкту. Ті самі поля ADAICA показує і у вікні «Neues Projekt», і в огляді збереженого проєкту,
-/// тому бланк працює в межах переданого кореневого елемента.
+/// тому бланк працює в межах переданого кореневого елемента. Такий самий бланк і в Ordner (<see cref="FolderDialog"/>).
 /// </summary>
-public class ProjectForm(AutomationElement root)
+/// <param name="root">Вікно нового запису або область перегляду.</param>
+/// <param name="recordName">Запис у родовому відмінку для кроків звіту: «Заповнити поля проєкту».</param>
+public class ProjectForm(AutomationElement root, string recordName = "проєкту")
 {
     public const string NumberId = "txtRecordFolderNumber";
 
@@ -33,7 +35,7 @@ public class ProjectForm(AutomationElement root)
 
     public TextBoxControl Comment { get; } = new("Bemerkung", Locate.ById(root, "txtRecordFolderComment"));
 
-    public void Fill(ProjectData project) => AllureApi.Step("Заповнити поля проєкту", () =>
+    public void Fill(ProjectData project) => AllureApi.Step($"Заповнити поля {recordName}", () =>
     {
         Name.Fill(project.Name);
         ShortName.Fill(project.ShortName);
@@ -47,7 +49,7 @@ public class ProjectForm(AutomationElement root)
     });
 
     /// <summary>Перевіряє всі поля й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
-    public void ShouldHaveValues(ProjectData expected) => AllureApi.Step("Перевірити поля проєкту", () =>
+    public void ShouldHaveValues(ProjectData expected) => AllureApi.Step($"Перевірити поля {recordName}", () =>
         this.ShouldSatisfyAllConditions(
             () => Name.ShouldHaveText(expected.Name),
             () => ShortName.ShouldHaveText(expected.ShortName),

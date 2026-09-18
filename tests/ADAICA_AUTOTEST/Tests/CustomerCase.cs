@@ -87,6 +87,27 @@ public sealed class CustomerCase
                 $"Etappe mit {Contact.Dative} abgesprochen, Start nach Freigabe des Budgets."),
         };
 
+    /// <summary>Ordner для документів справи. Бланк у Ordner той самий, що й у проєкту, тому й дані — <see cref="ProjectData"/>.</summary>
+    public ProjectData NewFolder()
+    {
+        var days = UniqueDays(2);
+        var (name, comment) = Pick(
+            ($"Korrespondenz {_customer.Company}", $"E-Mails und Briefe von {Contact.Dative}, neueste zuerst."),
+            ($"Pläne {_topic.Title}", "Nur freigegebene Pläne ablegen, Entwürfe bleiben im Projektordner."),
+            ($"Verträge {_customer.Company}", $"Unterschriebene Verträge als PDF, die Originale liegen im Archiv in {_customer.City}."),
+            ("Sitzungsprotokolle", "Protokolle der Projektsitzungen, Ablage nach Datum."));
+        return new ProjectData(
+            Name: name,
+            ShortName: ShortName,
+            BeginDate: days[0],
+            EndDate: days[1],
+            Cost: 480m,
+            CostCurrency: "USD",
+            Outlay: 3m,
+            OutlayUnit: "Tag(e)",
+            Comment: comment);
+    }
+
     public TaskData NewTask()
     {
         // Початок — найраніший день; виконання раніше за закриття; термін «Fällig am» — будь-коли після початку.

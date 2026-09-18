@@ -17,6 +17,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string AddNavigatorButtonId = "PART_AddTab";
 
     private const string ProjectsNodeName = "Projekte";
+    private const string FoldersNodeName = "Ordner";
     private const string TasksNodeName = "Aufgaben";
     private const string AppointmentsNodeName = "Termine";
     private const string NotesNodeName = "Notizen";
@@ -143,6 +144,10 @@ public sealed partial class MainPage : AdaicaWindow
     public ProjectForm WaitForOpenedProject(string number) =>
         WaitForOpenedRecord(ProjectForm.NumberId, number, view => new ProjectForm(view));
 
+    [AllureStep("Дочекатися відкриття Ordner {number}")]
+    public ProjectForm WaitForOpenedFolder(string number) =>
+        WaitForOpenedRecord(ProjectForm.NumberId, number, view => new ProjectForm(view, "Ordner"));
+
     [AllureStep("Дочекатися відкриття завдання {number}")]
     public TaskForm WaitForOpenedTask(string number) =>
         WaitForOpenedRecord(TaskForm.NumberId, number, view => new TaskForm(view));
@@ -165,6 +170,14 @@ public sealed partial class MainPage : AdaicaWindow
         OpenNodeContextMenu(ProjectsNodeName);
         PopupMenuItem("Neu", NewRecordMenuItemId).Click();
         return new ProjectDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно Ordner: вузол Ordner → контекстне меню → Neu")]
+    public FolderDialog OpenNewFolderDialog()
+    {
+        OpenNodeContextMenu(FoldersNodeName);
+        PopupMenuItem("Neu", NewRecordMenuItemId).Click();
+        return new FolderDialog(Window);
     }
 
     [AllureStep("Відкрити нове вікно завдання: вузол Aufgaben → контекстне меню → Neu → Neue Aufgabe")]
@@ -199,6 +212,14 @@ public sealed partial class MainPage : AdaicaWindow
         OpenNewChildMenu(parentNode);
         PopupMenuItem("Projekt", "mnuNewProject").Click();
         return new ProjectDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно дочірнього Ordner: вузол {parentNode} → контекстне меню → Neu → Ordner")]
+    public FolderDialog OpenNewChildFolderDialog(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Ordner", "mnuNewProcess").Click();
+        return new FolderDialog(Window);
     }
 
     [AllureStep("Відкрити нове вікно дочірнього завдання: вузол {parentNode} → контекстне меню → Neu → Aufgabe → Neue Aufgabe")]
