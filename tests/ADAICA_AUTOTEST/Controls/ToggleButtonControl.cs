@@ -13,4 +13,10 @@ public sealed class ToggleButtonControl(string name, Func<AutomationElement> fin
         if (!IsOn)
             Element.Patterns.Toggle.Pattern.Toggle();
     });
+
+    public void SwitchOff() => Step($"Вимкнути «{Name}»", () =>
+    {
+        if (IsOn)
+            Element.Patterns.Toggle.Pattern.Toggle();
+    });
 }

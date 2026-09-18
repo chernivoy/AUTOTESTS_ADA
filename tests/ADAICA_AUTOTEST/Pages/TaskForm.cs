@@ -18,6 +18,9 @@ public class TaskForm(AutomationElement root)
     /// <summary>Номер, який ADAICA призначає завданню сама (наприклад, TAS0000001).</summary>
     public TextBoxControl Number { get; } = new("Nummer", Locate.ById(root, NumberId));
 
+    /// <summary>Дата й час створення («18.09.2026 08:48»), які ADAICA заповнює сама.</summary>
+    public TextBoxControl Created { get; } = new("Erstelldatum", Locate.ById(root, "txtEntryDateRecordTask"));
+
     public DateTimePickerControl Begin { get; } = new("Beginnt am", Locate.ById(root, "dpBeginDateRecordTask"));
 
     public DateTimePickerControl Due { get; } = new("Fällig am", Locate.ById(root, "dpEndDateRecordTask"));

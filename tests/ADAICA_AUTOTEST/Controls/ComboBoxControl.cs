@@ -51,6 +51,32 @@ public sealed class ComboBoxControl(string name, Func<AutomationElement> find) :
         Wait.Until(() => SelectedText == text, $"вибору «{text}» у списку «{Name}»");
     });
 
+    /// <summary>
+    /// Вибирає пункт за позицією (з нуля). Потрібно, коли текст пункту ненадійний, наприклад містить
+    /// схожу літеру з іншої абетки.
+    /// </summary>
+    public void SelectAt(int index)
+    {
+        var comboBox = ComboBox;
+        string text;
+        try
+        {
+            var item = Wait.For(() => comboBox.Items.ElementAtOrDefault(index), $"пункту №{index + 1} у списку «{Name}»");
+            text = ItemText(item);
+            Step($"Вибрати в «{Name}» пункт №{index + 1}: {text}", () =>
+            {
+                if (SelectedText != text)
+                    item.Select();
+            });
+        }
+        finally
+        {
+            Collapse(comboBox);
+        }
+
+        Wait.Until(() => SelectedText == text, $"вибору «{text}» у списку «{Name}»");
+    }
+
     /// <summary>Вводить текст у редагований список — значення може й не бути серед пунктів.</summary>
     public void EnterText(string text) => Step($"Ввести в «{Name}»: {text}", () =>
     {

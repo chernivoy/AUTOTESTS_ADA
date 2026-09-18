@@ -54,12 +54,12 @@ ADAICA_AUTOTEST.sln
    │  ├─ AppointmentDialog.cs, AppointmentForm.cs, AppointmentData.cs   термін: вікно, бланк, дані
    │  ├─ NoteDialog.cs, NoteForm.cs, NoteData.cs            інфозапис (Notiz): вікно, бланк, дані
    │  ├─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
-   │  └─ SearchWindow.cs, SearchResult.cs   вікно пошуку «Finden» і рядок його результатів
+   │  └─ SearchWindow.cs, SearchResult.cs, SearchMode.cs   вікно пошуку «Finden», рядок результатів, режим пошуку
    ├─ Tests/
    │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA: вхід, Dokumentation, прибирання
    │  ├─ LoginTests.cs                 вхід в ADAICA
    │  ├─ CustomerCase.cs               дані записів: природні назви й примітки, щоразу інші
-   │  ├─ SearchTests.cs                повнотекстовий пошук завдання за назвою й приміткою у «Finden»
+   │  ├─ SearchTests.cs                повнотекстовий пошук (Elasticsearch): джокери, режими, форми слів, колонки
    │  └─ NavigatorTests.cs             навігатор Dokumentation → створення проєкту, Ordner, завдання, терміну, інфозапису; під кожним із них — дочірні записи
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
@@ -133,7 +133,30 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Вікно інфозапису (Notiz).** «Neu» на вузлі Notizen одразу відкриває вікно «Neue Notiz». Номера в інфозапису немає, тому тест знаходить збережений запис за «Bemerkung» (`MainPage.WaitForOpenedNote`). Примітка закінчується часом запису («Notiert am 18.09.2026 um 08:46 Uhr.»), тож у кожному прогоні вона інша. Дата «Beginnt» не може бути пізнішою за сьогодні: ADAICA позначає поле зірочкою («Das angegebene Datum darf nicht später als Heute sein») і вимикає OK. Тому тест бере лише минулі дні. У BLANK_IGOR список «Ergebnis» порожній, тож у даних він `null`. Після збереження в дереві виділяється вузол «дд.ММ.рр Назва».
 - **Дочірні записи.** У контекстному меню будь-якого запису (проєкту, Ordner, завдання, терміну, інфозапису) «Neu» (`mnuNew`) — підменю з типами записів: Projekt (`mnuNewProject`), Ordner (`mnuNewProcess`), Aufgabe → Neue Aufgabe (`mnuNewTask` → `mnuNewTaskDefault`), Termin (`mnuNewAppoint`), Notiz (`mnuNewHistory`). Пункти в усіх меню мають ті самі id, лише порядок інший (у Ordner немає «Kontakt», у завдання є ще «Formular»). Вікна й бланки ті самі, що й для кореневих вузлів, лише в заголовку додається «(übergeordnet: Батько)». Після збереження ADAICA виділяє запис у дереві під батьківським записом, у папці його типу: «Батько → Aufgaben → Завдання». Назви завдань та інфозаписів можуть повторюватися, бо номера в дереві немає. Тому `MainPage` шукає батька для меню «Neu» серед виділеного вузла та його предків, а не першим збігом у дереві, а `CustomerCase` не дає дочірньому запису ту саму назву, що й батькові. Кореневі вузли Gesamtliste (Aufgaben, Termine, …) дочірніх записів не показують навіть після «Aktualisieren». Новий проєкт і кожен новий запис одразу мають власні `Notizen (1-1)` зі службовою приміткою «… wurde erstellt» і `Kontakte (1-1)`, тож лічильник Notizen під проєктом на один більший.
 - **Тестові дані лишаються.** `NavigatorTests` щоразу створює в базі новий проєкт, Ordner, завдання, термін та інфозапис, а тести дочірніх записів — ще по одному проєкту, Ordner, завданню, терміну та інфозапису, під кожним з яких проєкт, Ordner, завдання, термін та інфозапис (`NavigatorTests.CreateChildRecords`). Тести їх не видаляють. Назви й примітки дає `CustomerCase`: випадкова «справа клієнта» (фірма, контактна особа, місто, тема), з якої складаються природні німецькі тексти, наприклад проєкт «Umzug ins neue Lager – Müller Logistik AG» і завдання «Terminplan für den Umzug ins neue Lager aktualisieren». Так у базі накопичуються різні записи для перевірки повнотекстового пошуку за назвами й примітками. Записи однієї справи узгоджені між собою. Дати теж випадкові: різні дні в межах 60 днів від сьогодні в минуле й майбутнє, час — робочі години з кроком 15 хвилин. Дні не повторюються в межах тесту, а поки вистачає вільних днів, — і в межах прогону. Порядок дат зберігається: початок раніше за кінець, а в завдання «Beginnt am» раніше за «Erledigt am», а та — раніше за «Geschlossen an». Минулі дати в термінах і завданнях ADAICA приймає. Вибрані тексти й дати видно в кроках звіту. Kurzname у всіх тестових записах — «MAT», за ним їх можна відрізнити від уведених людьми.
-- **Пошук «Finden».** «System» (`mnuSystemMenuWndMain`) розгортається через UI Automation, у ньому «Finden…» (`mnuSystemSearchWndMain`) відкриває дочірнє вікно з AutomationId `This`. Тому `SearchWindow` впізнає його за вкладками `tcSearchParts`. На вкладці Dokumentation є поле «Suchbegriff» (`ctrRecordBox` → `txtBox`), кнопка «Finden» (`btnSearchFindCreateRecord`), режим «Alle Wörter» (`cmbSearchRecordSearchOpt`), фільтри «Suchen nach (Klassentypen)» і «Suchen in (Suchkriterien)», серед яких Name і Bemerkung позначені «Volltextsuche». Результати показує таблиця `listView` на вкладці «Übersicht». Колонки «Fundstelle» (де знайдено слова) і «Fundtext» на екрані сховані, але в UI Automation є. Список результатів віртуалізований: у дереві є лише видимі рядки (12 з 21), тому `SearchWindow.WaitForResult` гортає список. Колонки можна переставляти, тож комірки беруться за заголовком. При повторному відкритті вікно порожнє, фільтри тести не змінюють.
+- **Пошук «Finden».** «System» (`mnuSystemMenuWndMain`) розгортається через UI Automation, у ньому «Finden…» (`mnuSystemSearchWndMain`) відкриває дочірнє вікно з AutomationId `This`. Тому `SearchWindow` впізнає його за вкладками `tcSearchParts`. На вкладці Dokumentation є:
+  - поле «Suchbegriff» (`ctrRecordBox` → `txtBox`), кнопки «Finden» (`btnSearchFindCreateRecord`) і «Abbrechen» (`btnStopFindCreateRecord`);
+  - джокери-перемикачі «*Txt» (`fbRecordTabItemPercentToBeginWndFindCreate`, джокер перед словом) і «Txt*» (`…PercentToEnd…`, джокер після слова). «Txt*» увімкнений за замовчуванням. Стан джокерів ADAICA не запам'ятовує;
+  - режим (`cmbSearchRecordSearchOpt`), доступний лише для кількох слів: «Alle Wörter», «Exakte Suche», «Еinzelnes Wort». В останньому перша літера кирилична (U+0415), тому `ComboBoxControl.SelectAt` вибирає режим за позицією (`SearchMode`);
+  - фільтри «Suchen nach (Klassentypen)» і «Suchen in (Suchkriterien)», де Name, Bemerkung, Kommentar і Text позначені «Volltextsuche»;
+  - таблиця результатів `listView` на вкладці «Übersicht» і підсумок внизу вікна («Es wurden 5 Datensätze gefunden.», без AutomationId).
+
+  Пошук триває близько 3 с, і поки він іде, «Abbrechen» доступна: так `FindRecords` визначає, що пошук завершився. Новий запис Elasticsearch індексує не одразу, тому `WaitUntilFound` повторює пошук. Перевірки «не знаходить» можна робити лише після цього. Список результатів віртуалізований (у дереві лише видимі рядки, наприклад 12 з 21), тому `ResultFor` гортає його. Колонки «Fundstelle» і «Fundtext» на екрані сховані, але в UI Automation є.
+- **Як шукає Elasticsearch** (перевірено вручну й у `SearchTests`):
+
+  | Що | Поведінка |
+  |---|---|
+  | Регістр | не важливий: «umzug» = «UMZUG» |
+  | Джокери | без них шукається ціле слово: «Wärme» і «pumpe» не знаходять «Wärmepumpe». «Txt*» знаходить початок слова, «*Txt» — кінець, обидва — середину |
+  | Складені слова | не розбиваються: «plan» без джокера не знаходить «Terminplan» |
+  | Умлаути | «ä» = «ae» («Mueller» знаходить «Müller»), але «ä» ≠ «a» («Muller» — ні) |
+  | Основа слова | не виділяється: «Unterlage» не знаходить «Unterlagen» |
+  | Дефіси | ділять слово: «Meeting» знаходить «Kick-off-Meeting» |
+  | «Alle Wörter» | потрібні всі слова в **одному** полі; слово в назві й слово в примітці разом запис не знаходять |
+  | «Exakte Suche» | слова поруч і в тому самому порядку |
+  | «Einzelnes Wort» | вистачає будь-якого зі слів |
+  | Номер | шукається як слово («Fundstelle» = Nummer), із «*Txt» — за кінцем номера |
+
+- **Колонки результатів.** «Nummer / Version» — номер (в інфозапису порожній). «Klassentyp» — технічний код (TASK, APPOINT, HISTORY, OPERATION, PROJECT), а не німецька назва. «Fundstelle» — поле, де знайдено слова. «Fundtext» зараз завжди дорівнює «Bemerkung», навіть коли слова знайдено в назві. «Erstelldatum» збігається з датою створення в записі. «ID» — `ррММддГГххсс` + тип + 6 цифр. Для одного запису підсумок помилково в множині: «Es wurden 1 Datensätze gefunden.». Через цю помилку й кириличну «Е» в «Еinzelnes Wort» тести `Finden_ResultColumns` і `Finden_SearchModeNames` зараз падають навмисно: це баги ADAICA, а не тестів.
 - **Raw-дерево.** Звичайний пошук FlaUI не бачить елементів із шаблонів WPF, наприклад заголовка вкладки `PART_Text`. Для них є `FindFirstDescendantRaw` з `RawTree.cs`.
 - **Скріншоти й DPI.** `TestRunSetup` вмикає для тестового процесу per-monitor DPI awareness. Без цього на моніторах з масштабом понад 100% скріншоти падінь виходять обрізаними.
 - Нові елементи шукайте за `AutomationId`. Якщо в елемента його немає, попросіть розробників додати `AutomationProperties.AutomationId` у XAML. Пошук за текстом або індексом ламається від будь-якої зміни UI, а тексти ADAICA ще й залежать від мови.

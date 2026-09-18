@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
+using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
@@ -6,52 +8,245 @@ using Allure.Net.Commons.Attributes;
 namespace ADAICA_AUTOTEST.Tests;
 
 /// <summary>
-/// Повнотекстовий пошук у вікні «Finden» (System → Finden…, вкладка Dokumentation). Тест створює завдання
-/// з природними назвою й приміткою і шукає його за словами лише з одного поля: тоді «Fundstelle» показує саме це поле.
-/// Записів зі спільними словами в базі багато, тому своє завдання тест упізнає в результатах за номером.
+/// Повнотекстовий пошук (Elasticsearch) у вікні «Finden» (System → Finden…, вкладка Dokumentation).
+/// Тест створює завдання й шукає його; записів зі спільними словами в базі багато, тому своє завдання
+/// тест упізнає в результатах за номером. Перед перевірками «не знаходить» тест чекає, доки Elasticsearch
+/// проіндексує нове завдання (<see cref="SearchWindow.WaitUntilFound"/>), інакше перевірка пройшла б випадково.
 /// </summary>
 [AllureSuite("Пошук")]
 public partial class SearchTests : AdaicaTestBase
 {
+    private const string InName = "Name (Volltextsuche)";
+    private const string InRemark = "Bemerkung (Volltextsuche)";
+    private const string InNumber = "Nummer";
+
+    /// <summary>
+    /// Завдання для перевірок специфіки Elasticsearch. У назві — складені слова з умлаутами й слово з дефісами,
+    /// у примітці — фраза «Ende Monat». Жодне слово не повторюється в обох полях, тож «Fundstelle» однозначна.
+    /// </summary>
+    private const string FixtureName = "Kick-off-Meeting zur Wärmepumpe im Lagergebäude vorbereiten";
+
+    private const string FixtureRemark = "Offerte für die Montage bis Ende Monat einholen, Elektriker und Sanitär koordinieren.";
+
+    // Кожен випадок — окремий пошук. InField == null: завдання знаходитися не має.
+    private static readonly SearchCase[] WildcardCases =
+    [
+        new("ціле слово без джокерів", "Wärmepumpe", InName),
+        new("початок слова без джокера не знаходить", "Wärme", null),
+        new("початок слова з джокером ззаду («Txt*»)", "Wärme", InName, WildcardAfter: true),
+        new("кінець слова без джокера не знаходить: складені слова не розбиваються", "pumpe", null),
+        new("кінець слова з джокером ззаду не знаходить", "pumpe", null, WildcardAfter: true),
+        new("кінець слова з джокером спереду («*Txt»)", "pumpe", InName, WildcardBefore: true),
+        new("середина слова з обома джокерами", "rmepump", InName, WildcardBefore: true, WildcardAfter: true),
+        new("середина слова з одним джокером не знаходить", "rmepump", null, WildcardBefore: true),
+        new("початок слова в примітці з джокером ззаду", "Sanit", InRemark, WildcardAfter: true),
+    ];
+
+    private static readonly SearchCase[] ModeCases =
+    [
+        new("обидва слова в назві", "Wärmepumpe Lagergebäude", InName),
+        new("порядок слів не важливий", "Lagergebäude Wärmepumpe", InName),
+        new("одного слова в завданні немає", "Wärmepumpe Heizkessel", null),
+        new("слова в різних полях (назва й примітка) не знаходять", "Wärmepumpe Elektriker", null),
+        new("вистачає одного слова", "Wärmepumpe Heizkessel", InName, SearchMode.SingleWord),
+        new("вистачає одного слова з примітки", "Heizkessel Elektriker", InRemark, SearchMode.SingleWord),
+        new("фраза в примітці", "Ende Monat", InRemark, SearchMode.ExactPhrase),
+        new("інший порядок слів не знаходить", "Monat Ende", null, SearchMode.ExactPhrase),
+        new("слова не поруч не знаходять", "Montage Monat", null, SearchMode.ExactPhrase),
+        new("ті самі слова не поруч знаходять", "Montage Monat", InRemark),
+    ];
+
+    private static readonly SearchCase[] WordFormCases =
+    [
+        new("малі літери", "wärmepumpe", InName),
+        new("великі літери", "WÄRMEPUMPE", InName),
+        new("«ae» замість «ä» в назві", "Waermepumpe", InName),
+        new("«ae» замість «ä» в примітці", "Sanitaer", InRemark),
+        new("«ä» в середині складеного слова", "Lagergebäude", InName),
+        new("«ae» в середині складеного слова", "Lagergebaeude", InName),
+        new("частина слова з дефісами", "Meeting", InName),
+        new("слово з дефісами цілком", "Kick-off-Meeting", InName),
+        new("«a» замість «ä» не знаходить", "Warmepumpe", null),
+        new("множина не знаходить однину: основи слів Elasticsearch не виділяє", "Wärmepumpen", null),
+    ];
+
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
     public void Finden_TaskByNameWords()
     {
-        var (mainPage, task, number) = CreateTask();
+        var mainPage = LogInAndOpenDokumentation();
+        var task = CustomerCase.Random().NewTask();
+        var (number, _) = CreateTask(mainPage, task);
+        var search = OpenSearch(mainPage);
 
-        var search = mainPage.OpenSearchWindow();
-        OnCleanup(search.CloseIfOpen);
-        search.FindRecords(SearchWords(task.Name, notIn: task.Remark));
+        var result = search.WaitUntilFound(SearchWords(task.Name, notIn: task.Remark), number);
 
-        search.WaitForResult(number).ShouldBe(new SearchResult(number, "TASK", task.Name, "Name (Volltextsuche)", task.Remark));
+        ShouldBeTask(result, number, task, InName);
     }
 
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
     public void Finden_TaskByRemarkWords()
     {
-        var (mainPage, task, number) = CreateTask();
+        var mainPage = LogInAndOpenDokumentation();
+        var task = CustomerCase.Random().NewTask();
+        var (number, _) = CreateTask(mainPage, task);
+        var search = OpenSearch(mainPage);
 
-        var search = mainPage.OpenSearchWindow();
-        OnCleanup(search.CloseIfOpen);
-        search.FindRecords(SearchWords(task.Remark, notIn: task.Name));
+        var result = search.WaitUntilFound(SearchWords(task.Remark, notIn: task.Name), number);
 
-        search.WaitForResult(number).ShouldBe(new SearchResult(number, "TASK", task.Name, "Bemerkung (Volltextsuche)", task.Remark));
+        ShouldBeTask(result, number, task, InRemark);
     }
 
-    private (MainPage MainPage, TaskData Task, string Number) CreateTask()
+    /// <summary>Джокери «*Txt» і «Txt*» перед списком режимів: частини слів знаходяться лише з ними.</summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void Finden_Wildcards()
+    {
+        var (search, number) = CreateFixtureAndOpenSearch();
+        ShouldBehaveAsExpected(search, number, WildcardCases);
+    }
+
+    /// <summary>Режими «Alle Wörter», «Exakte Suche», «Einzelnes Wort» для кількох слів.</summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void Finden_SearchModes()
+    {
+        var (search, number) = CreateFixtureAndOpenSearch();
+        ShouldBehaveAsExpected(search, number, ModeCases);
+    }
+
+    /// <summary>
+    /// Як Elasticsearch нормалізує слова: регістр, «ä» ≡ «ae», дефіси. Без джокерів, щоб частина слова не знайшлася випадково.
+    /// Останні два випадки фіксують поточну поведінку: «a» ≠ «ä» і відсутність стемінгу.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.normal)]
+    public void Finden_WordForms()
+    {
+        var (search, number) = CreateFixtureAndOpenSearch();
+        ShouldBehaveAsExpected(search, number, WordFormCases);
+    }
+
+    /// <summary>
+    /// Значення в колонках рядка результату: пошук за номером знаходить рівно одне завдання, і кожна колонка
+    /// має збігатися з тим, що збережено в завданні. Підсумок для одного запису — в однині.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void Finden_ResultColumns()
     {
         var mainPage = LogInAndOpenDokumentation();
+        var task = FixtureTask();
+        var (number, created) = CreateTask(mainPage, task);
+        var search = OpenSearch(mainPage);
 
+        var result = search.WaitUntilFound(number, number, wildcardAfter: false);
+        var summary = search.ResultSummary;
+        var suffix = number[^4..];
+        var bySuffix = AllureApi.Step($"Знайти завдання за кінцем номера «{suffix}» з джокером спереду", () =>
+        {
+            search.FindRecords(suffix, wildcardBefore: true, wildcardAfter: false);
+            return search.ResultFor(number);
+        });
+
+        var createdAt = DateTime.ParseExact(created, "dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
+        result.ShouldSatisfyAllConditions(
+            () => result.Number.ShouldBe(number, "Nummer / Version"),
+            () => result.ClassType.ShouldBe("TASK", "Klassentyp"),
+            () => result.Name.ShouldBe(task.Name, "Betreff/Name"),
+            () => result.FoundIn.ShouldBe(InNumber, "Fundstelle"),
+            () => result.Remark.ShouldBe(task.Remark, "Bemerkung"),
+            () => result.Class.ShouldBeEmpty("Klasse"),
+            () => result.Subclass.ShouldBeEmpty("Unterklasse"),
+            () => result.Created.ShouldBe(created, "Erstelldatum"),
+            () => result.Id.ShouldMatch(@"^\d{12}TASK\d{6}$", "ID"),
+            () => result.Id[..6].ShouldBe(createdAt.ToString("yyMMdd", CultureInfo.InvariantCulture), "ID починається з дати створення"),
+            () => bySuffix.ShouldNotBeNull($"«*{suffix}» не знайшов завдання {number}").FoundIn.ShouldBe(InNumber, "Fundstelle"),
+            () => summary.ShouldBe("Es wurde 1 Datensatz gefunden.", "підсумок для одного запису"));
+    }
+
+    /// <summary>Назви режимів пошуку: мають бути німецькими словами латиницею.</summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.minor)]
+    public void Finden_SearchModeNames()
+    {
+        var mainPage = new LoginPage(Session).LoginAs(
+            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+        var search = OpenSearch(mainPage);
+
+        // Список режимів доступний, лише коли слів кілька.
+        search.SearchTerm.Fill("Wärmepumpe Montage");
+        Wait.Until(() => search.Mode.IsEnabled, "доступності режиму пошуку");
+        var names = search.Mode.Items;
+
+        names.ShouldBe(
+            new[] { "Alle Wörter", "Exakte Suche", "Einzelnes Wort" },
+            $"Режими пошуку. Символи не з латиниці: {string.Join("; ", names.Select(NonLatinLetters).Where(text => text.Length > 0))}");
+    }
+
+    private SearchWindow OpenSearch(MainPage mainPage)
+    {
+        var search = mainPage.OpenSearchWindow();
+        OnCleanup(search.CloseIfOpen);
+        return search;
+    }
+
+    private (SearchWindow Search, string Number) CreateFixtureAndOpenSearch()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var (number, _) = CreateTask(mainPage, FixtureTask());
+        var search = OpenSearch(mainPage);
+
+        // Пошук за номером чекає, доки Elasticsearch проіндексує нове завдання.
+        search.WaitUntilFound(number, number, wildcardAfter: false);
+        return (search, number);
+    }
+
+    // Дати й решта полів — з випадкової справи, назва й примітка — сталі.
+    private static TaskData FixtureTask() =>
+        CustomerCase.Random().NewTask() with { Name = FixtureName, Remark = FixtureRemark };
+
+    /// <summary>Створює завдання й повертає його номер і дату створення, як їх показує збережене завдання.</summary>
+    private (string Number, string Created) CreateTask(MainPage mainPage, TaskData task)
+    {
         var taskDialog = mainPage.OpenNewTaskDialog();
         OnCleanup(taskDialog.CancelIfOpen);
-        var task = CustomerCase.Random().NewTask();
         taskDialog.Form.Fill(task);
         var number = taskDialog.Form.Number.Text;
         taskDialog.Save();
-        mainPage.WaitForOpenedTask(number);
-        return (mainPage, task, number);
+
+        var savedTask = mainPage.WaitForOpenedTask(number);
+        return (number, savedTask.Created.Text);
     }
+
+    private static void ShouldBeTask(SearchResult result, string number, TaskData task, string foundIn) =>
+        result.ShouldSatisfyAllConditions(
+            () => result.Number.ShouldBe(number, "Nummer / Version"),
+            () => result.ClassType.ShouldBe("TASK", "Klassentyp"),
+            () => result.Name.ShouldBe(task.Name, "Betreff/Name"),
+            () => result.FoundIn.ShouldBe(foundIn, "Fundstelle"),
+            () => result.Remark.ShouldBe(task.Remark, "Bemerkung"));
+
+    /// <summary>Виконує всі випадки й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
+    private static void ShouldBehaveAsExpected(SearchWindow search, string number, SearchCase[] cases) =>
+        search.ShouldSatisfyAllConditions(cases.Select(searchCase => (Action)(() => Check(search, number, searchCase))).ToArray());
+
+    private static void Check(SearchWindow search, string number, SearchCase searchCase) =>
+        AllureApi.Step(searchCase.ToString(), () =>
+        {
+            search.FindRecords(searchCase.Words, searchCase.Mode, searchCase.WildcardBefore, searchCase.WildcardAfter);
+            var result = search.ResultFor(number);
+
+            if (searchCase.InField is null)
+            {
+                result.ShouldBeNull($"{searchCase}: знайшов завдання {number}");
+                return;
+            }
+
+            result.ShouldNotBeNull($"{searchCase}: не знайшов завдання {number}");
+            result.FoundIn.ShouldBe(searchCase.InField, $"{searchCase}: Fundstelle");
+        });
 
     /// <summary>
     /// Два найдовші слова тексту (від 5 літер, тож без службових «für», «mit»), яких немає в іншому полі запису:
@@ -73,6 +268,44 @@ public partial class SearchTests : AdaicaTestBase
 
     private static IEnumerable<string> Words(string text) => Word().Matches(text).Select(match => match.Value);
 
+    // Літери поза Latin-1 (німецькі там усі) з кодами: кирилична «Е» (U+0415) на вигляд не відрізняється від латинської «E».
+    private static string NonLatinLetters(string text)
+    {
+        var letters = text.Where(letter => char.IsLetter(letter) && letter > '\u00FF').ToList();
+        return letters.Count == 0
+            ? string.Empty
+            : $"«{text}»: {string.Join(", ", letters.Select(letter => $"«{letter}» U+{(int)letter:X4}"))}";
+    }
+
     [GeneratedRegex(@"\p{L}{5,}")]
     private static partial Regex Word();
+
+    /// <summary>Один пошук і очікуваний результат для нашого завдання.</summary>
+    /// <param name="Why">Що перевіряє випадок — для кроку звіту.</param>
+    /// <param name="Words">Що ввести в «Suchbegriff».</param>
+    /// <param name="InField">Очікувана «Fundstelle» або null, якщо завдання знаходитися не має.</param>
+    private sealed record SearchCase(
+        string Why,
+        string Words,
+        string? InField,
+        SearchMode Mode = SearchMode.AllWords,
+        bool WildcardBefore = false,
+        bool WildcardAfter = false)
+    {
+        public override string ToString()
+        {
+            // Режим має значення лише для кількох слів; назви — як у списку ADAICA.
+            var mode = Words.Contains(' ')
+                ? Mode switch
+                {
+                    SearchMode.AllWords => "Alle Wörter, ",
+                    SearchMode.ExactPhrase => "Exakte Suche, ",
+                    _ => "Einzelnes Wort, ",
+                }
+                : string.Empty;
+            var wildcards = (WildcardBefore ? "*" : "") + "слово" + (WildcardAfter ? "*" : "");
+            var expected = InField is null ? "не знаходить" : $"знаходить у «{InField}»";
+            return $"{Why}: «{Words}» ({mode}{wildcards}) → {expected}";
+        }
+    }
 }
