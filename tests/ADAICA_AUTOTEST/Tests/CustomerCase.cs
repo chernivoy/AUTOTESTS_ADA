@@ -50,6 +50,7 @@ public sealed class CustomerCase
     private readonly Customer _customer;
     private readonly Topic _topic;
     private readonly HashSet<DateTime> _usedDays = [];
+    private readonly HashSet<string> _usedFolderNames = [];
 
     private CustomerCase(Customer customer, Topic topic)
     {
@@ -87,15 +88,23 @@ public sealed class CustomerCase
                 $"Etappe mit {Contact.Dative} abgesprochen, Start nach Freigabe des Budgets."),
         };
 
-    /// <summary>Ordner для документів справи. Бланк у Ordner той самий, що й у проєкту, тому й дані — <see cref="ProjectData"/>.</summary>
+    /// <summary>
+    /// Ordner для документів справи. Бланк у Ordner той самий, що й у проєкту, тому й дані — <see cref="ProjectData"/>.
+    /// Назви Ordner у межах справи не повторюються, поки є з чого вибирати: вкладений Ordner не збігається з батьківським.
+    /// </summary>
     public ProjectData NewFolder()
     {
         var days = UniqueDays(2);
-        var (name, comment) = Pick(
+        (string Name, string Comment)[] folders =
+        [
             ($"Korrespondenz {_customer.Company}", $"E-Mails und Briefe von {Contact.Dative}, neueste zuerst."),
             ($"Pläne {_topic.Title}", "Nur freigegebene Pläne ablegen, Entwürfe bleiben im Projektordner."),
             ($"Verträge {_customer.Company}", $"Unterschriebene Verträge als PDF, die Originale liegen im Archiv in {_customer.City}."),
-            ("Sitzungsprotokolle", "Protokolle der Projektsitzungen, Ablage nach Datum."));
+            ("Sitzungsprotokolle", "Protokolle der Projektsitzungen, Ablage nach Datum."),
+        ];
+        var unused = folders.Where(folder => !_usedFolderNames.Contains(folder.Name)).ToArray();
+        var (name, comment) = Pick(unused.Length > 0 ? unused : folders);
+        _usedFolderNames.Add(name);
         return new ProjectData(
             Name: name,
             ShortName: ShortName,

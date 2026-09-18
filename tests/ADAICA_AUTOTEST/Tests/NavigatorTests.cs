@@ -150,8 +150,7 @@ public class NavigatorTests : AdaicaTestBase
     }
 
     /// <summary>
-    /// Підпроєкт, Ordner, завдання, термін та інфозапис, створені з контекстного меню проєкту.
-    /// Кожен збережений запис ADAICA виділяє в дереві під проєктом, у папці свого типу.
+    /// Проєкт, а під ним з його контекстного меню — підпроєкт, Ordner, завдання, термін та інфозапис.
     /// Усі записи стосуються однієї справи клієнта, як у реальному проєкті.
     /// </summary>
     [Test]
@@ -168,51 +167,30 @@ public class NavigatorTests : AdaicaTestBase
         var projectNumber = projectDialog.Form.Number.Text;
         projectDialog.Save();
         mainPage.WaitForOpenedProject(projectNumber);
-        var projectNode = NodeWithNumber(project.Name, projectNumber);
 
-        var subprojectDialog = mainPage.OpenNewChildProjectDialog(projectNode);
-        OnCleanup(subprojectDialog.CancelIfOpen);
-        var subproject = customer.NewSubproject();
-        subprojectDialog.Form.Fill(subproject);
-        var subprojectNumber = subprojectDialog.Form.Number.Text;
-        subprojectDialog.Save();
-        mainPage.WaitForOpenedProject(subprojectNumber).ShouldHaveValues(subproject);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Projekte", NodeWithNumber(subproject.Name, subprojectNumber));
+        CreateChildRecords(mainPage, customer, NodeWithNumber(project.Name, projectNumber));
+    }
 
-        var folderDialog = mainPage.OpenNewChildFolderDialog(projectNode);
+    /// <summary>
+    /// Ordner, а під ним з його контекстного меню — проєкт, вкладений Ordner, завдання, термін та інфозапис.
+    /// Усі записи стосуються однієї справи клієнта.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewFolderWithChildRecords()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var customer = CustomerCase.Random();
+
+        var folderDialog = mainPage.OpenNewFolderDialog();
         OnCleanup(folderDialog.CancelIfOpen);
         var folder = customer.NewFolder();
         folderDialog.Form.Fill(folder);
         var folderNumber = folderDialog.Form.Number.Text;
         folderDialog.Save();
-        mainPage.WaitForOpenedFolder(folderNumber).ShouldHaveValues(folder);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Ordner", NodeWithNumber(folder.Name, folderNumber));
+        mainPage.WaitForOpenedFolder(folderNumber);
 
-        var taskDialog = mainPage.OpenNewChildTaskDialog(projectNode);
-        OnCleanup(taskDialog.CancelIfOpen);
-        var task = customer.NewTask();
-        taskDialog.Form.Fill(task);
-        var taskNumber = taskDialog.Form.Number.Text;
-        taskDialog.Save();
-        mainPage.WaitForOpenedTask(taskNumber).ShouldHaveValues(task);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Aufgaben", task.Name);
-
-        var appointmentDialog = mainPage.OpenNewChildAppointmentDialog(projectNode);
-        OnCleanup(appointmentDialog.CancelIfOpen);
-        var appointment = customer.NewAppointment();
-        appointmentDialog.Form.Fill(appointment);
-        var appointmentNumber = appointmentDialog.Form.Number.Text;
-        appointmentDialog.Save();
-        mainPage.WaitForOpenedAppointment(appointmentNumber).ShouldHaveValues(appointment);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Termine", AppointmentNode(appointment));
-
-        var noteDialog = mainPage.OpenNewChildNoteDialog(projectNode);
-        OnCleanup(noteDialog.CancelIfOpen);
-        var note = customer.NewNote();
-        noteDialog.Form.Fill(note);
-        noteDialog.Save();
-        mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
-        ShouldBeSelectedInProject(mainPage, projectNode, "Notizen", NoteNode(note));
+        CreateChildRecords(mainPage, customer, NodeWithNumber(folder.Name, folderNumber));
     }
 
     private MainPage LogInAndOpenDokumentation()
@@ -229,11 +207,62 @@ public class NavigatorTests : AdaicaTestBase
         return mainPage;
     }
 
-    // Дочірній запис лежить у дереві під проєктом, у папці свого типу: «Проєкт → Aufgaben → Завдання».
-    private static void ShouldBeSelectedInProject(MainPage mainPage, string projectNode, string folder, string recordNode) =>
+    /// <summary>
+    /// Створює з контекстного меню вузла <paramref name="parentNode"/> (проєкту чи Ordner) проєкт, Ordner, завдання,
+    /// термін та інфозапис. Кожен збережений запис ADAICA має виділити в дереві під батьківським вузлом,
+    /// у папці свого типу: «Батько → Aufgaben → Завдання».
+    /// </summary>
+    private void CreateChildRecords(MainPage mainPage, CustomerCase customer, string parentNode)
+    {
+        var projectDialog = mainPage.OpenNewChildProjectDialog(parentNode);
+        OnCleanup(projectDialog.CancelIfOpen);
+        var project = customer.NewSubproject();
+        projectDialog.Form.Fill(project);
+        var projectNumber = projectDialog.Form.Number.Text;
+        projectDialog.Save();
+        mainPage.WaitForOpenedProject(projectNumber).ShouldHaveValues(project);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Projekte", NodeWithNumber(project.Name, projectNumber));
+
+        var folderDialog = mainPage.OpenNewChildFolderDialog(parentNode);
+        OnCleanup(folderDialog.CancelIfOpen);
+        var folder = customer.NewFolder();
+        folderDialog.Form.Fill(folder);
+        var folderNumber = folderDialog.Form.Number.Text;
+        folderDialog.Save();
+        mainPage.WaitForOpenedFolder(folderNumber).ShouldHaveValues(folder);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Ordner", NodeWithNumber(folder.Name, folderNumber));
+
+        var taskDialog = mainPage.OpenNewChildTaskDialog(parentNode);
+        OnCleanup(taskDialog.CancelIfOpen);
+        var task = customer.NewTask();
+        taskDialog.Form.Fill(task);
+        var taskNumber = taskDialog.Form.Number.Text;
+        taskDialog.Save();
+        mainPage.WaitForOpenedTask(taskNumber).ShouldHaveValues(task);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Aufgaben", task.Name);
+
+        var appointmentDialog = mainPage.OpenNewChildAppointmentDialog(parentNode);
+        OnCleanup(appointmentDialog.CancelIfOpen);
+        var appointment = customer.NewAppointment();
+        appointmentDialog.Form.Fill(appointment);
+        var appointmentNumber = appointmentDialog.Form.Number.Text;
+        appointmentDialog.Save();
+        mainPage.WaitForOpenedAppointment(appointmentNumber).ShouldHaveValues(appointment);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Termine", AppointmentNode(appointment));
+
+        var noteDialog = mainPage.OpenNewChildNoteDialog(parentNode);
+        OnCleanup(noteDialog.CancelIfOpen);
+        var note = customer.NewNote();
+        noteDialog.Form.Fill(note);
+        noteDialog.Save();
+        mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Notizen", NoteNode(note));
+    }
+
+    private static void ShouldBeSelectedUnder(MainPage mainPage, string parentNode, string folder, string recordNode) =>
         AllureApi.Step(
-            $"Перевірити, що в дереві виділено «{recordNode}» у «{projectNode} → {folder}»",
-            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { projectNode, folder, recordNode }));
+            $"Перевірити, що в дереві виділено «{recordNode}» у «{parentNode} → {folder}»",
+            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { parentNode, folder, recordNode }));
 
     // Як ADAICA підписує вузли записів у дереві навігатора. Проєкт і Ordner — «Назва (Номер)».
     private static string NodeWithNumber(string name, string number) => $"{name} ({number})";
