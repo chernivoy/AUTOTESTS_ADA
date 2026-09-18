@@ -23,6 +23,9 @@ public sealed partial class MainPage : AdaicaWindow
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
+    // Контекстне меню запису (наприклад, проєкту): «Neu» — підменю з типами дочірніх записів.
+    private const string NewChildMenuItemId = "mnuNew";
+
     public MainPage(AppSession session)
         : base(session)
     {
@@ -96,20 +99,45 @@ public sealed partial class MainPage : AdaicaWindow
     /// Вузол у дереві активного навігатора. До назви ADAICA може додавати діапазон записів,
     /// наприклад «Projekte (1-25)», тому порівнюємо лише саму назву.
     /// </summary>
-    public AutomationElement NavigatorNode(string nodeName)
-    {
-        var nameWithOptionalRange = new Regex($@"^{Regex.Escape(nodeName)}( \(\d+-\d+\))?$");
-        return Wait.For(
+    public AutomationElement NavigatorNode(string nodeName) =>
+        Wait.For(
             () => Element("treeView").FindAllChildren()
-                .FirstOrDefault(node => nameWithOptionalRange.IsMatch(NodeText(node)?.Name ?? string.Empty)),
+                .FirstOrDefault(node => NodeText(node) is { } text && WithoutRecordRange(text.Name) == nodeName),
             $"вузла «{nodeName}» у дереві навігатора");
-    }
 
     /// <summary>Назва вузла, виділеного в дереві навігатора, або null, якщо нічого не виділено.</summary>
     public string? SelectedNavigatorNodeName =>
         Element("treeView").Patterns.Selection.Pattern.Selection.Value
             .Select(node => NodeText(node)?.Name)
             .FirstOrDefault();
+
+    /// <summary>
+    /// Шлях до виділеного вузла: назви його предків від кореня дерева й назва самого вузла, без діапазонів записів.
+    /// У UI Automation дерево навігатора — плаский список, тому предка визначаємо за відступом:
+    /// це найближчий вузол вище, текст якого починається лівіше.
+    /// </summary>
+    public IReadOnlyList<string> SelectedNavigatorNodePath
+    {
+        get
+        {
+            var nodes = Element("treeView").FindAllChildren();
+            var selected = Array.FindLastIndex(nodes, node => node.Patterns.SelectionItem.Pattern.IsSelected.Value);
+
+            var path = new List<string>();
+            var indent = int.MaxValue;
+            for (var i = selected; i >= 0; i--)
+            {
+                var text = NodeText(nodes[i]);
+                if (text is null || text.BoundingRectangle.Left >= indent)
+                    continue;
+
+                path.Insert(0, WithoutRecordRange(text.Name));
+                indent = text.BoundingRectangle.Left;
+            }
+
+            return path;
+        }
+    }
 
     [AllureStep("Дочекатися відкриття проєкту {number}")]
     public ProjectForm WaitForOpenedProject(string number) =>
@@ -124,8 +152,8 @@ public sealed partial class MainPage : AdaicaWindow
         WaitForOpenedRecord(AppointmentForm.NumberId, number, view => new AppointmentForm(view));
 
     /// <summary>
-    /// Номера в інфозапису немає, тому його впізнаємо за текстом у полі «Bemerkung» —
-    /// тест записує туди унікальну мітку прогону.
+    /// Номера в інфозапису немає, тому його впізнаємо за текстом у полі «Bemerkung»,
+    /// який відрізняється від прогону до прогону (тест додає туди час запису).
     /// </summary>
     [AllureStep("Дочекатися відкриття інфозапису з Bemerkung {remark}")]
     public NoteForm WaitForOpenedNote(string remark) =>
@@ -165,6 +193,39 @@ public sealed partial class MainPage : AdaicaWindow
         return new NoteDialog(Window);
     }
 
+    [AllureStep("Відкрити нове вікно підпроєкту: вузол {parentNode} → контекстне меню → Neu → Projekt")]
+    public ProjectDialog OpenNewChildProjectDialog(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Projekt", "mnuNewProject").Click();
+        return new ProjectDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно дочірнього завдання: вузол {parentNode} → контекстне меню → Neu → Aufgabe → Neue Aufgabe")]
+    public TaskDialog OpenNewChildTaskDialog(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Aufgabe", "mnuNewTask").Expand();
+        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId).Click();
+        return new TaskDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно дочірнього терміну: вузол {parentNode} → контекстне меню → Neu → Termin")]
+    public AppointmentDialog OpenNewChildAppointmentDialog(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Termin", "mnuNewAppoint").Click();
+        return new AppointmentDialog(Window);
+    }
+
+    [AllureStep("Відкрити нове вікно дочірнього інфозапису: вузол {parentNode} → контекстне меню → Neu → Notiz")]
+    public NoteDialog OpenNewChildNoteDialog(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Notiz", "mnuNewHistory").Click();
+        return new NoteDialog(Window);
+    }
+
     /// <summary>
     /// Чекає, доки в області перегляду відкриється запис, у якому поле <paramref name="keyFieldId"/>
     /// має значення <paramref name="keyValue"/> (номер запису або інша унікальна ознака).
@@ -188,11 +249,19 @@ public sealed partial class MainPage : AdaicaWindow
         AtomicMouse.RightClick(NodeText(node) ?? node);
     }
 
+    private void OpenNewChildMenu(string parentNode)
+    {
+        OpenNodeContextMenu(parentNode);
+        PopupMenuItem("Neu", NewChildMenuItemId).Expand();
+    }
+
     private MenuItemControl PopupMenuItem(string name, string automationId) =>
         new(name, () => Wait.For(() => FindInPopups(automationId), $"пункту «{name}» у контекстному меню"));
 
     private static AutomationElement? NodeText(AutomationElement node) =>
         node.FindFirstChild(cf => cf.ByAutomationId("TextBlock"));
+
+    private static string WithoutRecordRange(string nodeText) => RecordRange().Replace(nodeText, string.Empty);
 
     // Списки й контекстні меню ADAICA відкриваються у WPF Popup — дочірньому вікні головного вікна.
     private AutomationElement? FindInPopups(string automationId) =>
@@ -226,4 +295,8 @@ public sealed partial class MainPage : AdaicaWindow
 
     [GeneratedRegex(@"\[(?<database>[^:\]]+):(?<schema>[^\]]+)\]")]
     private static partial Regex ConnectionInTitle();
+
+    // Діапазон записів, який ADAICA додає до назви вузла: «Projekte (1-25)».
+    [GeneratedRegex(@" \(\d+-\d+\)$")]
+    private static partial Regex RecordRange();
 }

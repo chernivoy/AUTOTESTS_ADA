@@ -7,9 +7,10 @@ using Allure.Net.Commons.Attributes;
 namespace ADAICA_AUTOTEST.Tests;
 
 /// <summary>
-/// Створення записів через навігатор Dokumentation. Збережені записи лишаються в базі;
-/// назви між прогонами повторюються, тому свій запис тест упізнає за номером
-/// (а інфозапис, у якого номера немає, — за міткою прогону в «Bemerkung»).
+/// Створення записів через навігатор Dokumentation. Збережені записи лишаються в базі.
+/// Дані беруться з випадкової справи клієнта (<see cref="CustomerCase"/>), тож назви можуть повторитися
+/// в іншому прогоні. Тому свій запис тест упізнає за номером, а інфозапис, у якого номера немає, —
+/// за «Bemerkung», де є час запису.
 /// </summary>
 [AllureSuite("Навігатори")]
 public class NavigatorTests : AdaicaTestBase
@@ -27,18 +28,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(projectDialog.CancelIfOpen);
 
-        var today = DateTime.Today;
-        var project = new ProjectData(
-            Name: "Main_autotest_project",
-            ShortName: "MAT",
-            BeginDate: today.AddDays(1),
-            EndDate: today.AddMonths(1),
-            Cost: 1500m,
-            CostCurrency: "USD",
-            Outlay: 8m,
-            OutlayUnit: "Tag(e)",
-            Comment: "Created by ADAICA_AUTOTEST");
-
+        var project = CustomerCase.Random().NewProject();
         projectDialog.Form.Fill(project);
 
         projectDialog.Form.ShouldHaveValues(project);
@@ -49,7 +39,7 @@ public class NavigatorTests : AdaicaTestBase
 
         // Після збереження ADAICA сама переходить до нового проєкту.
         var savedProject = mainPage.WaitForOpenedProject(number);
-        mainPage.SelectedNavigatorNodeName.ShouldBe($"{project.Name} ({number})");
+        mainPage.SelectedNavigatorNodeName.ShouldBe(ProjectNode(project, number));
         savedProject.ShouldHaveValues(project);
     }
 
@@ -64,33 +54,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(taskDialog.CancelIfOpen);
 
-        var start = DateTime.Today.AddDays(1);
-        var task = new TaskData(
-            Name: "Main_autotest_task",
-            ShortName: "MAT",
-            Begin: start.AddHours(9),
-            Due: start.AddDays(7).AddHours(17),
-            // Дати виконання й закриття переводять завдання в статус «Aufgabe erledigt».
-            Done: start.AddDays(5).AddHours(12),
-            ClosedOn: start.AddDays(6),
-            AcceptanceType: "Automatisch",
-            Priority: "hoch",
-            Importance: "mittel",
-            EstimatedDuration: 2m,
-            EstimatedDurationUnit: "Tag(e)",
-            ActualDuration: 6m,
-            ActualDurationUnit: "Stunde(n)",
-            OrderNumber: "AUF-001",
-            PurchaseOrderNumber: "BST-001",
-            PercentDone: 50m,
-            Location: "Unbekannt",
-            LocationText: "Autotest Standort",
-            CustomerBenefit: "Unbekannt",
-            CustomerBenefitText: "Autotest Kundennutzen",
-            Hint: "WF starten",
-            HintText: "Autotest Hinweis",
-            Remark: "Created by ADAICA_AUTOTEST");
-
+        var task = CustomerCase.Random().NewTask();
         taskDialog.Form.Fill(task);
 
         taskDialog.Form.ShouldHaveValues(task);
@@ -117,20 +81,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(appointmentDialog.CancelIfOpen);
 
-        var begin = DateTime.Today.AddDays(1).AddHours(10);
-        var appointment = new AppointmentData(
-            Name: "Main_autotest_appointment",
-            ShortName: "MAT",
-            Begin: begin,
-            End: begin.AddHours(2),
-            AllDay: false,
-            // Трудовитрати дорівнюють тривалості терміну, тому ADAICA не показує попередження.
-            Effort: 120m,
-            EffortUnit: "Minute(n)",
-            Importance: "hoch",
-            Location: "Autotest Ort",
-            Remark: "Created by ADAICA_AUTOTEST");
-
+        var appointment = CustomerCase.Random().NewAppointment();
         appointmentDialog.Form.Fill(appointment);
 
         appointmentDialog.Form.ShouldHaveValues(appointment);
@@ -142,9 +93,7 @@ public class NavigatorTests : AdaicaTestBase
         // Після збереження ADAICA сама переходить до нового терміну.
         // Вузол терміну в дереві — «ррММдд ГГ:хх/+Nh Назва», без номера, тому номер перевіряємо в бланку.
         var savedAppointment = mainPage.WaitForOpenedAppointment(number);
-        var hours = (int)(appointment.End - appointment.Begin).TotalHours;
-        var begins = appointment.Begin.ToString("yyMMdd HH:mm", CultureInfo.InvariantCulture);
-        mainPage.SelectedNavigatorNodeName.ShouldBe($"{begins}/+{hours}h {appointment.Name}");
+        mainPage.SelectedNavigatorNodeName.ShouldBe(AppointmentNode(appointment));
         savedAppointment.ShouldHaveValues(appointment);
     }
 
@@ -159,16 +108,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(noteDialog.CancelIfOpen);
 
-        var runId = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var note = new NoteData(
-            Name: "Main_autotest_note",
-            ShortName: "MAT",
-            // Дата інфозапису не може бути пізнішою за сьогодні.
-            Begin: DateTime.Today.AddDays(-1).AddHours(11).AddMinutes(30),
-            // У BLANK_IGOR список «Ergebnis» порожній.
-            Result: null,
-            Remark: $"Created by ADAICA_AUTOTEST, run {runId}");
-
+        var note = CustomerCase.Random().NewNote();
         noteDialog.Form.Fill(note);
 
         noteDialog.Form.ShouldHaveValues(note);
@@ -176,11 +116,67 @@ public class NavigatorTests : AdaicaTestBase
         noteDialog.Save();
 
         // Після збереження ADAICA сама переходить до нового інфозапису.
-        // Вузол у дереві — «дд.ММ.рр Назва»; номера немає, тому запис шукаємо за міткою в «Bemerkung».
+        // Номера немає, тому запис шукаємо за «Bemerkung».
         var savedNote = mainPage.WaitForOpenedNote(note.Remark);
-        var date = note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture);
-        mainPage.SelectedNavigatorNodeName.ShouldBe($"{date} {note.Name}");
+        mainPage.SelectedNavigatorNodeName.ShouldBe(NoteNode(note));
         savedNote.ShouldHaveValues(note);
+    }
+
+    /// <summary>
+    /// Підпроєкт, завдання, термін та інфозапис, створені з контекстного меню проєкту.
+    /// Кожен збережений запис ADAICA виділяє в дереві під проєктом, у папці свого типу.
+    /// Усі записи стосуються однієї справи клієнта, як у реальному проєкті.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewProjectWithChildRecords()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var customer = CustomerCase.Random();
+
+        var projectDialog = mainPage.OpenNewProjectDialog();
+        OnCleanup(projectDialog.CancelIfOpen);
+        var project = customer.NewProject();
+        projectDialog.Form.Fill(project);
+        var projectNumber = projectDialog.Form.Number.Text;
+        projectDialog.Save();
+        mainPage.WaitForOpenedProject(projectNumber);
+        var projectNode = ProjectNode(project, projectNumber);
+
+        var subprojectDialog = mainPage.OpenNewChildProjectDialog(projectNode);
+        OnCleanup(subprojectDialog.CancelIfOpen);
+        var subproject = customer.NewSubproject();
+        subprojectDialog.Form.Fill(subproject);
+        var subprojectNumber = subprojectDialog.Form.Number.Text;
+        subprojectDialog.Save();
+        mainPage.WaitForOpenedProject(subprojectNumber).ShouldHaveValues(subproject);
+        ShouldBeSelectedInProject(mainPage, projectNode, "Projekte", ProjectNode(subproject, subprojectNumber));
+
+        var taskDialog = mainPage.OpenNewChildTaskDialog(projectNode);
+        OnCleanup(taskDialog.CancelIfOpen);
+        var task = customer.NewTask();
+        taskDialog.Form.Fill(task);
+        var taskNumber = taskDialog.Form.Number.Text;
+        taskDialog.Save();
+        mainPage.WaitForOpenedTask(taskNumber).ShouldHaveValues(task);
+        ShouldBeSelectedInProject(mainPage, projectNode, "Aufgaben", task.Name);
+
+        var appointmentDialog = mainPage.OpenNewChildAppointmentDialog(projectNode);
+        OnCleanup(appointmentDialog.CancelIfOpen);
+        var appointment = customer.NewAppointment();
+        appointmentDialog.Form.Fill(appointment);
+        var appointmentNumber = appointmentDialog.Form.Number.Text;
+        appointmentDialog.Save();
+        mainPage.WaitForOpenedAppointment(appointmentNumber).ShouldHaveValues(appointment);
+        ShouldBeSelectedInProject(mainPage, projectNode, "Termine", AppointmentNode(appointment));
+
+        var noteDialog = mainPage.OpenNewChildNoteDialog(projectNode);
+        OnCleanup(noteDialog.CancelIfOpen);
+        var note = customer.NewNote();
+        noteDialog.Form.Fill(note);
+        noteDialog.Save();
+        mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
+        ShouldBeSelectedInProject(mainPage, projectNode, "Notizen", NoteNode(note));
     }
 
     private MainPage LogInAndOpenDokumentation()
@@ -196,4 +192,25 @@ public class NavigatorTests : AdaicaTestBase
         mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(Dokumentation));
         return mainPage;
     }
+
+    // Дочірній запис лежить у дереві під проєктом, у папці свого типу: «Проєкт → Aufgaben → Завдання».
+    private static void ShouldBeSelectedInProject(MainPage mainPage, string projectNode, string folder, string recordNode) =>
+        AllureApi.Step(
+            $"Перевірити, що в дереві виділено «{recordNode}» у «{projectNode} → {folder}»",
+            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { projectNode, folder, recordNode }));
+
+    // Як ADAICA підписує вузли записів у дереві навігатора.
+    private static string ProjectNode(ProjectData project, string number) => $"{project.Name} ({number})";
+
+    // «ррММдд ГГ:хх/+Nh Назва», наприклад «260918 10:00/+2h Besprechung mit Frau Keller».
+    private static string AppointmentNode(AppointmentData appointment)
+    {
+        var begins = appointment.Begin.ToString("yyMMdd HH:mm", CultureInfo.InvariantCulture);
+        var hours = (int)(appointment.End - appointment.Begin).TotalHours;
+        return $"{begins}/+{hours}h {appointment.Name}";
+    }
+
+    // «дд.ММ.рр Назва».
+    private static string NoteNode(NoteData note) =>
+        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}";
 }
