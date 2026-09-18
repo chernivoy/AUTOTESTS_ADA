@@ -50,7 +50,7 @@ public sealed class CustomerCase
     private readonly Customer _customer;
     private readonly Topic _topic;
     private readonly HashSet<DateTime> _usedDays = [];
-    private readonly HashSet<string> _usedFolderNames = [];
+    private readonly HashSet<string> _usedNames = [];
 
     private CustomerCase(Customer customer, Topic topic)
     {
@@ -90,7 +90,6 @@ public sealed class CustomerCase
 
     /// <summary>
     /// Ordner для документів справи. Бланк у Ordner той самий, що й у проєкту, тому й дані — <see cref="ProjectData"/>.
-    /// Назви Ordner у межах справи не повторюються, поки є з чого вибирати: вкладений Ordner не збігається з батьківським.
     /// </summary>
     public ProjectData NewFolder()
     {
@@ -102,9 +101,7 @@ public sealed class CustomerCase
             ($"Verträge {_customer.Company}", $"Unterschriebene Verträge als PDF, die Originale liegen im Archiv in {_customer.City}."),
             ("Sitzungsprotokolle", "Protokolle der Projektsitzungen, Ablage nach Datum."),
         ];
-        var unused = folders.Where(folder => !_usedFolderNames.Contains(folder.Name)).ToArray();
-        var (name, comment) = Pick(unused.Length > 0 ? unused : folders);
-        _usedFolderNames.Add(name);
+        var (name, comment) = PickUnused(folder => folder.Name, folders);
         return new ProjectData(
             Name: name,
             ShortName: ShortName,
@@ -124,7 +121,7 @@ public sealed class CustomerCase
         var due = Pick(1, 2, 3);
         var (done, closed) = due switch { 1 => (2, 3), 2 => (1, 3), _ => (1, 2) };
         return new TaskData(
-            Name: Pick(
+            Name: PickUnused(
                 $"Offerte für {_topic.Object} erstellen",
                 $"Kosten für {_topic.Object} mit {Contact.Dative} besprechen",
                 $"Unterlagen für {_topic.Object} zusammenstellen",
@@ -162,7 +159,7 @@ public sealed class CustomerCase
         // Термін триває 2 години й закінчується того самого дня.
         var begin = UniqueDays(1)[0] + WorkingTime(latestHour: 16);
         return new AppointmentData(
-            Name: Pick(
+            Name: PickUnused(
                 $"Kick-off-Meeting {_topic.Title}",
                 $"Besprechung mit {Contact.Dative}",
                 $"Begehung vor Ort in {_customer.City}",
@@ -190,7 +187,7 @@ public sealed class CustomerCase
     {
         var now = DateTime.Now;
         return new NoteData(
-            Name: Pick(
+            Name: PickUnused(
                 $"Telefonat mit {Contact.Dative}",
                 $"Rückfrage von {Contact.Dative}",
                 $"E-Mail von {Contact.Dative}",
@@ -200,7 +197,7 @@ public sealed class CustomerCase
             Begin: UniqueDays(1, toDay: -1)[0] + WorkingTime(),
             // У BLANK_IGOR список «Ergebnis» порожній.
             Result: null,
-            Remark: Pick(
+            Remark: PickUnused(
                     $"{Contact.Nominative} hat angerufen: Der Termin passt, die Unterlagen bitte vorab per E-Mail schicken.",
                     "Der Kunde ist mit dem Angebot grundsätzlich einverstanden, wünscht aber 5 % Rabatt.",
                     $"Die Lieferung verzögert sich um eine Woche, {Contact.Nominative} ist informiert.")
@@ -240,6 +237,20 @@ public sealed class CustomerCase
         TimeSpan.FromMinutes(System.Random.Shared.Next(7 * 4, latestHour * 4 + 1) * 15);
 
     private static T Pick<T>(params T[] items) => items[System.Random.Shared.Next(items.Length)];
+
+    /// <summary>
+    /// Назва, якої в цій справі ще не було, поки є з чого вибирати: дочірній запис не має збігатися з батьківським,
+    /// інакше в дереві не видно, де батько, а де дочірній запис.
+    /// </summary>
+    private string PickUnused(params string[] names) => PickUnused(name => name, names);
+
+    private T PickUnused<T>(Func<T, string> name, T[] candidates)
+    {
+        var unused = candidates.Where(candidate => !_usedNames.Contains(name(candidate))).ToArray();
+        var picked = Pick(unused.Length > 0 ? unused : candidates);
+        _usedNames.Add(name(picked));
+        return picked;
+    }
 
     private sealed record Customer(string Company, string City, Person Contact);
 

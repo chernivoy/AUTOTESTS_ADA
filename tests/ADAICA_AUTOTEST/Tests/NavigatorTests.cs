@@ -193,6 +193,68 @@ public class NavigatorTests : AdaicaTestBase
         CreateChildRecords(mainPage, customer, NodeWithNumber(folder.Name, folderNumber));
     }
 
+    /// <summary>
+    /// Завдання, а під ним з його контекстного меню — проєкт, Ordner, вкладене завдання, термін та інфозапис.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewTaskWithChildRecords()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var customer = CustomerCase.Random();
+
+        var taskDialog = mainPage.OpenNewTaskDialog();
+        OnCleanup(taskDialog.CancelIfOpen);
+        var task = customer.NewTask();
+        taskDialog.Form.Fill(task);
+        var taskNumber = taskDialog.Form.Number.Text;
+        taskDialog.Save();
+        mainPage.WaitForOpenedTask(taskNumber);
+
+        CreateChildRecords(mainPage, customer, task.Name);
+    }
+
+    /// <summary>
+    /// Термін, а під ним з його контекстного меню — проєкт, Ordner, завдання, вкладений термін та інфозапис.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewAppointmentWithChildRecords()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var customer = CustomerCase.Random();
+
+        var appointmentDialog = mainPage.OpenNewAppointmentDialog();
+        OnCleanup(appointmentDialog.CancelIfOpen);
+        var appointment = customer.NewAppointment();
+        appointmentDialog.Form.Fill(appointment);
+        var appointmentNumber = appointmentDialog.Form.Number.Text;
+        appointmentDialog.Save();
+        mainPage.WaitForOpenedAppointment(appointmentNumber);
+
+        CreateChildRecords(mainPage, customer, AppointmentNode(appointment));
+    }
+
+    /// <summary>
+    /// Інфозапис, а під ним з його контекстного меню — проєкт, Ordner, завдання, термін і вкладений інфозапис.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewNoteWithChildRecords()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+        var customer = CustomerCase.Random();
+
+        var noteDialog = mainPage.OpenNewNoteDialog();
+        OnCleanup(noteDialog.CancelIfOpen);
+        var note = customer.NewNote();
+        noteDialog.Form.Fill(note);
+        noteDialog.Save();
+        mainPage.WaitForOpenedNote(note.Remark);
+
+        CreateChildRecords(mainPage, customer, NoteNode(note));
+    }
+
     private MainPage LogInAndOpenDokumentation()
     {
         var mainPage = new LoginPage(Session).LoginAs(
@@ -208,7 +270,7 @@ public class NavigatorTests : AdaicaTestBase
     }
 
     /// <summary>
-    /// Створює з контекстного меню вузла <paramref name="parentNode"/> (проєкту чи Ordner) проєкт, Ordner, завдання,
+    /// Створює з контекстного меню вузла <paramref name="parentNode"/> (будь-якого запису) проєкт, Ordner, завдання,
     /// термін та інфозапис. Кожен збережений запис ADAICA має виділити в дереві під батьківським вузлом,
     /// у папці свого типу: «Батько → Aufgaben → Завдання».
     /// </summary>

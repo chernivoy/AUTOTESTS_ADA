@@ -114,31 +114,9 @@ public sealed partial class MainPage : AdaicaWindow
 
     /// <summary>
     /// Шлях до виділеного вузла: назви його предків від кореня дерева й назва самого вузла, без діапазонів записів.
-    /// У UI Automation дерево навігатора — плаский список, тому предка визначаємо за відступом:
-    /// це найближчий вузол вище, текст якого починається лівіше.
     /// </summary>
-    public IReadOnlyList<string> SelectedNavigatorNodePath
-    {
-        get
-        {
-            var nodes = Element("treeView").FindAllChildren();
-            var selected = Array.FindLastIndex(nodes, node => node.Patterns.SelectionItem.Pattern.IsSelected.Value);
-
-            var path = new List<string>();
-            var indent = int.MaxValue;
-            for (var i = selected; i >= 0; i--)
-            {
-                var text = NodeText(nodes[i]);
-                if (text is null || text.BoundingRectangle.Left >= indent)
-                    continue;
-
-                path.Insert(0, WithoutRecordRange(text.Name));
-                indent = text.BoundingRectangle.Left;
-            }
-
-            return path;
-        }
-    }
+    public IReadOnlyList<string> SelectedNavigatorNodePath =>
+        SelectedNodeWithAncestors().Select(node => WithoutRecordRange(NodeText(node)!.Name)).ToList();
 
     [AllureStep("Дочекатися відкриття проєкту {number}")]
     public ProjectForm WaitForOpenedProject(string number) =>
@@ -264,16 +242,45 @@ public sealed partial class MainPage : AdaicaWindow
             $"запису «{keyValue}» в області перегляду");
 
     // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
-    private void OpenNodeContextMenu(string nodeName)
-    {
-        var node = NavigatorNode(nodeName);
-        AtomicMouse.RightClick(NodeText(node) ?? node);
-    }
+    private void OpenNodeContextMenu(string nodeName) => OpenNodeContextMenu(NavigatorNode(nodeName));
 
+    private static void OpenNodeContextMenu(AutomationElement node) => AtomicMouse.RightClick(NodeText(node) ?? node);
+
+    /// <summary>
+    /// Відкриває підменю «Neu» батьківського запису. Назви записів можуть повторюватися (у завдання й інфозапису
+    /// немає номера), тому батька шукаємо серед виділеного вузла та його предків: після збереження ADAICA виділяє
+    /// новий запис, тож і сам батько, і його дочірні записи лежать на цьому ланцюжку.
+    /// </summary>
     private void OpenNewChildMenu(string parentNode)
     {
-        OpenNodeContextMenu(parentNode);
+        var parent = SelectedNodeWithAncestors().LastOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == parentNode)
+            ?? NavigatorNode(parentNode);
+        OpenNodeContextMenu(parent);
         PopupMenuItem("Neu", NewChildMenuItemId).Expand();
+    }
+
+    /// <summary>
+    /// Виділений вузол дерева та його предки, від кореня. У UI Automation дерево — плаский список, тому предка
+    /// визначаємо за відступом: це найближчий вузол вище, текст якого починається лівіше.
+    /// </summary>
+    private List<AutomationElement> SelectedNodeWithAncestors()
+    {
+        var nodes = Element("treeView").FindAllChildren();
+        var selected = Array.FindLastIndex(nodes, node => node.Patterns.SelectionItem.Pattern.IsSelected.Value);
+
+        var chain = new List<AutomationElement>();
+        var indent = int.MaxValue;
+        for (var i = selected; i >= 0; i--)
+        {
+            var text = NodeText(nodes[i]);
+            if (text is null || text.BoundingRectangle.Left >= indent)
+                continue;
+
+            chain.Insert(0, nodes[i]);
+            indent = text.BoundingRectangle.Left;
+        }
+
+        return chain;
     }
 
     private MenuItemControl PopupMenuItem(string name, string automationId) =>
