@@ -51,11 +51,12 @@ ADAICA_AUTOTEST.sln
    │  ├─ ProjectDialog.cs, ProjectForm.cs, ProjectData.cs   проєкт: вікно, бланк, дані
    │  ├─ TaskDialog.cs, TaskForm.cs, TaskData.cs            завдання: вікно, бланк, дані
    │  ├─ AppointmentDialog.cs, AppointmentForm.cs, AppointmentData.cs   термін: вікно, бланк, дані
+   │  ├─ NoteDialog.cs, NoteForm.cs, NoteData.cs            інфозапис (Notiz): вікно, бланк, дані
    │  └─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
    ├─ Tests/
    │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA
    │  ├─ LoginTests.cs                 вхід в ADAICA
-   │  └─ NavigatorTests.cs             навігатор Dokumentation → створення проєкту, завдання, терміну
+   │  └─ NavigatorTests.cs             навігатор Dokumentation → створення проєкту, завдання, терміну, інфозапису
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
    └─ allureConfig.json
@@ -117,14 +118,15 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Навігатори.** Кнопка «+» праворуч від вкладок (`PART_AddTab`) відкриває список навігаторів. Кожне відкриття додає нову вкладку в кінець смуги, а відкриті вкладки ADAICA запам'ятовує між сеансами, тож тест має закрити за собою те, що відкрив (див. `OnCleanup` нижче). Назва вкладки змінюється разом із вибраним вузлом, тому `CloseLastNavigatorTabs` закриває вкладки за кількістю, а не за назвою.
 - **Лише мишею.** Пункт списку навігаторів і контекстне меню вузла дерева реагують тільки на клік мишею: `SelectionItem`, Enter, Shift+F10, клавіша меню й `ShowContextMenu` з UI Automation не діють. Для таких кліків є `AtomicMouse`. Він переміщує курсор і натискає кнопку одним викликом `SendInput`. Звичайний клік FlaUI робить це двома кроками, і якщо між ними курсор зсуне користувач або програма віддаленого доступу, клік піде в довільне місце екрана, навіть в інший застосунок. Перед кліком `AtomicMouse` перевіряє, що в цій точці екрана саме вікно ADAICA. Якщо ADAICA перекрито, він виводить її на передній план, а якщо це не допомогло, скасовує клік. Під час прогону не рухайте мишею.
 - **Дерево навігатора.** До назв вузлів ADAICA додає діапазон записів («Projekte (1-25)»), тому `MainPage.NavigatorNode` порівнює лише назву.
-- **Вікна нових записів.** Це дочірні вікна без AutomationId. `RecordDialog` знаходить їх за головною вкладкою бланку (`tiMainRecordFolder` у проєкті, `tiMainRecordTask` у завданні, `tiMainRecordAppoint` у терміні). Вікно завдання відкривається до 7 с, тому таймаут на відкриття — 30 с.
+- **Вікна нових записів.** Це дочірні вікна без AutomationId. `RecordDialog` знаходить їх за головною вкладкою бланку (`tiMainRecordFolder` у проєкті, `tiMainRecordTask` у завданні, `tiMainRecordAppoint` у терміні, `tiMainRecordHistory` в інфозаписі). Вікно завдання відкривається до 7 с, тому таймаут на відкриття — 30 с.
 - **Вікно проєкту.** «Neu» у контекстному меню вузла Projekte одразу відкриває вікно. Редагуються лише Name, Kurzname, дати, Kosten/Aufwand з одиницями та Bemerkung: клас і відповідальний задаються окремими діалогами, решта полів заповнюється автоматично. Дати й числа ADAICA показує в німецькому форматі (`18.09.2026`, `1500,00`), тому `ProjectData` зберігає суми як `decimal`. Кожне відкриття вікна займає наступний номер проєкту, навіть якщо закрити його без збереження.
 - **Після збереження** (OK) ADAICA сама переходить до нового проєкту: виділяє в дереві вузол «Назва (Номер)» і показує той самий бланк в області перегляду (`InformationView`). `MainPage.WaitForOpenedProject` шукає бланк лише там, бо у відкритому діалозі є поля з тими самими AutomationId. Назви проєктів між прогонами повторюються, тож свій проєкт тест упізнає за номером.
 - **Вікно завдання.** На вузлі Aufgaben «Neu» — підменю, у ньому потрібен пункт «Neue Aufgabe» (`mnuNewTaskDefault`). Дати «Beginnt am», «Fällig am», «Erledigt am» складаються з дати й часу (`DateTimePickerControl`), «Geschlossen an» — лише дата. Поля Standort, Kundennutzen, Hinweis — це значення з довідника плюс довільний текст поруч. Примітку тест вводить на вкладці простого тексту, бо за замовчуванням може відкритися форматований редактор, який не приймає текст через UI Automation. Якщо заповнити «Erledigt am» і «Geschlossen an», статус стає «Aufgabe erledigt». У списку «Priorität» текст пунктів лежить лише в `Name`, і `ComboBoxControl` це враховує.
 - **Після збереження завдання** ADAICA виділяє в дереві вузол лише з назвою, без номера, тож номер тест перевіряє в бланку (`MainPage.WaitForOpenedTask`).
 - **Вікно терміну.** «Neu» на вузлі Termine одразу відкриває вікно. Beginn і Ende складаються з дати й часу. Поле «Aufwand» можна редагувати лише з увімкненим прапорцем «Aufwand (z.B. Arbeitszeit)». Без прапорця поле показує тривалість між Beginn і Ende. Якщо введені трудовитрати відрізняються від цієї тривалості, ADAICA підсвічує поле й пише попередження в HelpText, але зберегти дозволяє. Тест бере 120 Minute(n) для терміну на 2 години, тож попередження немає.
 - **Після збереження терміну** ADAICA виділяє в дереві вузол «ррММдд ГГ:хх/+Nh Назва» (наприклад, «260918 10:00/+2h Main_autotest_appointment»), без номера.
-- **Тестові дані лишаються.** `NavigatorTests` щоразу створює в базі новий проєкт `Main_autotest_project`, завдання `Main_autotest_task` і термін `Main_autotest_appointment` і не видаляє їх.
+- **Вікно інфозапису (Notiz).** «Neu» на вузлі Notizen одразу відкриває вікно «Neue Notiz». Номера в інфозапису немає, тому тест пише в «Bemerkung» унікальну мітку прогону і за нею знаходить збережений запис (`MainPage.WaitForOpenedNote`). Дата «Beginnt» не може бути пізнішою за сьогодні: ADAICA позначає поле зірочкою («Das angegebene Datum darf nicht später als Heute sein») і вимикає OK. Тому тест бере вчорашню дату. У BLANK_IGOR список «Ergebnis» порожній, тож у даних він `null`. Після збереження в дереві виділяється вузол «дд.ММ.рр Назва».
+- **Тестові дані лишаються.** `NavigatorTests` щоразу створює в базі новий проєкт `Main_autotest_project`, завдання `Main_autotest_task`, термін `Main_autotest_appointment` та інфозапис `Main_autotest_note` і не видаляє їх.
 - **Raw-дерево.** Звичайний пошук FlaUI не бачить елементів із шаблонів WPF, наприклад заголовка вкладки `PART_Text`. Для них є `FindFirstDescendantRaw` з `RawTree.cs`.
 - **Скріншоти й DPI.** `TestRunSetup` вмикає для тестового процесу per-monitor DPI awareness. Без цього на моніторах з масштабом понад 100% скріншоти падінь виходять обрізаними.
 - Нові елементи шукайте за `AutomationId`. Якщо в елемента його немає, попросіть розробників додати `AutomationProperties.AutomationId` у XAML. Пошук за текстом або індексом ламається від будь-якої зміни UI, а тексти ADAICA ще й залежать від мови.
@@ -173,27 +175,30 @@ public class MyTests : AdaicaTestBase      // ADAICA запускається п
   | `LabelControl` | `Text` | `ShouldHaveText` |
 
   Усі контроли мають `IsEnabled`, `ShouldBeEnabled()` і `ShouldBeDisabled()`. `Fill` і `Select` чекають, доки ADAICA покаже нове значення, тож окремо чекати не треба.
-- **Page Object** (`Pages/`) — вікно або його частина. Він оголошує поля як властивості-контроли, підписані так, як в ADAICA, і описує сценарії: `LoginAs`, `OpenNavigator`, `Save`. Бланк, що повторюється в кількох місцях, виносьте в окремий клас, як `ProjectForm`, `TaskForm` і `AppointmentForm`: вони працюють і у вікні нового запису (`dialog.Form`), і в огляді збереженого запису. Вікно нового запису успадковує `RecordDialog`, який уміє знайти вікно, зберегти (`Save`) і скасувати (`Cancel`).
-- **Дані** — record на кшталт `ProjectData`, `TaskData` чи `AppointmentData`. Бланк заповнює всі поля методом `Fill(data)` і перевіряє їх методом `ShouldHaveValues(data)`. Перевірка повідомляє про всі розбіжності одразу, а не лише про першу.
+- **Page Object** (`Pages/`) — вікно або його частина. Він оголошує поля як властивості-контроли, підписані так, як в ADAICA, і описує сценарії: `LoginAs`, `OpenNavigator`, `Save`. Бланк, що повторюється в кількох місцях, виносьте в окремий клас, як `ProjectForm`, `TaskForm`, `AppointmentForm` і `NoteForm`: вони працюють і у вікні нового запису (`dialog.Form`), і в огляді збереженого запису. Вікно нового запису успадковує `RecordDialog`, який уміє знайти вікно, зберегти (`Save`) і скасувати (`Cancel`).
+- **Дані** — record на кшталт `ProjectData`, `TaskData`, `AppointmentData` чи `NoteData`. Бланк заповнює всі поля методом `Fill(data)` і перевіряє їх методом `ShouldHaveValues(data)`. Перевірка повідомляє про всі розбіжності одразу, а не лише про першу.
 
-Новий бланк (наприклад, для інфозапису) оголошується так само, як `AppointmentForm`, а його вікно — так само, як `AppointmentDialog`:
+Найпростіший приклад бланку й вікна — інфозапис:
 
 ```csharp
 public class NoteForm(AutomationElement root)
 {
     public TextBoxControl Name { get; } = new("Name", Locate.ById(root, "txtRecordName"));
-    public DateTimePickerControl Date { get; } = new("Datum", Locate.ById(root, "dpDateRecordNote"));
-    public CheckBoxControl Private { get; } = new("Privat", Locate.ById(root, "chkPrivateRecordNote"));
+    public DateTimePickerControl Begin { get; } = new("Beginnt", Locate.ById(root, "dpBeginDateRecordHistory"));
+    public ComboBoxControl Result { get; } = new("Ergebnis", Locate.ById(root, "cmbResultRecordHistory"));
+    // ... Fill(NoteData) і ShouldHaveValues(NoteData)
 }
 
 public sealed class NoteDialog : RecordDialog
 {
-    public NoteDialog(Window owner) : base(owner, "tiMainRecordNote", "інфозапис") => Form = new NoteForm(Root);
+    public NoteDialog(Window owner) : base(owner, "tiMainRecordHistory", "інфозапис") => Form = new NoteForm(Root);
     public NoteForm Form { get; }
 }
 ```
 
-AutomationId у прикладі умовні: справжні беріть із FlaUInspect. Якщо AutomationId неунікальний, передайте в `Locate.ById` ланцюжок від контейнера, наприклад `Locate.ById(Window, "cmbDataBase", "combo")`. Якщо елемент треба шукати інакше, передайте в контрол власну функцію пошуку, як `MessageBoxDialog.Button`.
+Для нового типу запису потрібні такі самі три класи (`…Form`, `…Dialog`, `…Data`), метод `MainPage.OpenNew…Dialog` і `MainPage.WaitForOpened…`.
+
+AutomationId для нових бланків беріть із FlaUInspect. Якщо AutomationId неунікальний, передайте в `Locate.ById` ланцюжок від контейнера, наприклад `Locate.ById(Window, "cmbDataBase", "combo")`. Якщо елемент треба шукати інакше, передайте в контрол власну функцію пошуку, як `MessageBoxDialog.Button`.
 
 Усе, що тест змінює в збережених налаштуваннях користувача (вкладки, фільтри тощо), повертайте через `OnCleanup`, інакше наступні прогони почнуться з іншого стану.
 

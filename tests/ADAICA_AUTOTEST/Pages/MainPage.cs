@@ -19,6 +19,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string ProjectsNodeName = "Projekte";
     private const string TasksNodeName = "Aufgaben";
     private const string AppointmentsNodeName = "Termine";
+    private const string NotesNodeName = "Notizen";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
@@ -122,6 +123,14 @@ public sealed partial class MainPage : AdaicaWindow
     public AppointmentForm WaitForOpenedAppointment(string number) =>
         WaitForOpenedRecord(AppointmentForm.NumberId, number, view => new AppointmentForm(view));
 
+    /// <summary>
+    /// Номера в інфозапису немає, тому його впізнаємо за текстом у полі «Bemerkung» —
+    /// тест записує туди унікальну мітку прогону.
+    /// </summary>
+    [AllureStep("Дочекатися відкриття інфозапису з Bemerkung {remark}")]
+    public NoteForm WaitForOpenedNote(string remark) =>
+        WaitForOpenedRecord(NoteForm.RemarkId, remark, view => new NoteForm(view));
+
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
     public ProjectDialog OpenNewProjectDialog()
     {
@@ -148,20 +157,29 @@ public sealed partial class MainPage : AdaicaWindow
         return new AppointmentDialog(Window);
     }
 
+    [AllureStep("Відкрити нове вікно інфозапису: вузол Notizen → контекстне меню → Neu")]
+    public NoteDialog OpenNewNoteDialog()
+    {
+        OpenNodeContextMenu(NotesNodeName);
+        PopupMenuItem("Neu", NewRecordMenuItemId).Click();
+        return new NoteDialog(Window);
+    }
+
     /// <summary>
-    /// Чекає, доки в області перегляду відкриється запис із заданим номером.
+    /// Чекає, доки в області перегляду відкриється запис, у якому поле <paramref name="keyFieldId"/>
+    /// має значення <paramref name="keyValue"/> (номер запису або інша унікальна ознака).
     /// Шукаємо лише в області перегляду: у відкритому діалозі запису є поля з тими самими AutomationId.
     /// </summary>
-    private TForm WaitForOpenedRecord<TForm>(string numberId, string number, Func<AutomationElement, TForm> createForm)
+    private TForm WaitForOpenedRecord<TForm>(string keyFieldId, string keyValue, Func<AutomationElement, TForm> createForm)
         where TForm : class =>
         Wait.For(
             () =>
             {
                 var view = Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
-                var shownNumber = view?.FindFirstDescendant(cf => cf.ByAutomationId(numberId))?.AsTextBox().Text;
-                return shownNumber == number ? createForm(view!) : null;
+                var shownValue = view?.FindFirstDescendant(cf => cf.ByAutomationId(keyFieldId))?.AsTextBox().Text;
+                return shownValue == keyValue ? createForm(view!) : null;
             },
-            $"запису {number} в області перегляду");
+            $"запису «{keyValue}» в області перегляду");
 
     // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
     private void OpenNodeContextMenu(string nodeName)

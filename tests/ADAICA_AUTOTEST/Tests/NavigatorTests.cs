@@ -8,7 +8,8 @@ namespace ADAICA_AUTOTEST.Tests;
 
 /// <summary>
 /// Створення записів через навігатор Dokumentation. Збережені записи лишаються в базі;
-/// назви між прогонами повторюються, тому свій запис тест упізнає за номером.
+/// назви між прогонами повторюються, тому свій запис тест упізнає за номером
+/// (а інфозапис, у якого номера немає, — за міткою прогону в «Bemerkung»).
 /// </summary>
 [AllureSuite("Навігатори")]
 public class NavigatorTests : AdaicaTestBase
@@ -145,6 +146,41 @@ public class NavigatorTests : AdaicaTestBase
         var begins = appointment.Begin.ToString("yyMMdd HH:mm", CultureInfo.InvariantCulture);
         mainPage.SelectedNavigatorNodeName.ShouldBe($"{begins}/+{hours}h {appointment.Name}");
         savedAppointment.ShouldHaveValues(appointment);
+    }
+
+    [Test]
+    [Category("Smoke")]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DokumentationNavigator_NewNote()
+    {
+        var mainPage = LogInAndOpenDokumentation();
+
+        var noteDialog = mainPage.OpenNewNoteDialog();
+        // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
+        OnCleanup(noteDialog.CancelIfOpen);
+
+        var runId = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var note = new NoteData(
+            Name: "Main_autotest_note",
+            ShortName: "MAT",
+            // Дата інфозапису не може бути пізнішою за сьогодні.
+            Begin: DateTime.Today.AddDays(-1).AddHours(11).AddMinutes(30),
+            // У BLANK_IGOR список «Ergebnis» порожній.
+            Result: null,
+            Remark: $"Created by ADAICA_AUTOTEST, run {runId}");
+
+        noteDialog.Form.Fill(note);
+
+        noteDialog.Form.ShouldHaveValues(note);
+
+        noteDialog.Save();
+
+        // Після збереження ADAICA сама переходить до нового інфозапису.
+        // Вузол у дереві — «дд.ММ.рр Назва»; номера немає, тому запис шукаємо за міткою в «Bemerkung».
+        var savedNote = mainPage.WaitForOpenedNote(note.Remark);
+        var date = note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture);
+        mainPage.SelectedNavigatorNodeName.ShouldBe($"{date} {note.Name}");
+        savedNote.ShouldHaveValues(note);
     }
 
     private MainPage LogInAndOpenDokumentation()

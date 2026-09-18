@@ -61,8 +61,10 @@ public sealed class ComboBoxControl(string name, Func<AutomationElement> find) :
         Wait.Until(() => Text == text, $"значення «{text}» у списку «{Name}»");
     });
 
-    public void ShouldHaveSelected(string expected) =>
-        Step($"Перевірити «{Name}»: {expected}", () => SelectedText.ShouldBe(expected, $"Список «{Name}»"));
+    /// <param name="expected">Очікуваний пункт або null, якщо нічого не має бути вибрано.</param>
+    public void ShouldHaveSelected(string? expected) =>
+        Step($"Перевірити «{Name}»: {expected ?? "нічого не вибрано"}",
+            () => SelectedText.ShouldBe(expected, $"Список «{Name}»"));
 
     // FlaUI бере текст пункту WPF з першого вкладеного елемента. У пунктах з картинкою (Priorität)
     // це картинка без тексту, а сам текст лежить у Name.
