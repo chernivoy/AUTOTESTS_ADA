@@ -48,8 +48,9 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 - **Розгорнутий ComboBox блокує закриття вікна**, тому `ComboBoxControl` завжди згортає список.
 - **Зміна бази на формі входу скидає користувача й пароль**, тому `LoginAs` спершу вибирає базу й схему.
 - **Заголовки вкладок та інші елементи шаблонів** видно лише в raw-дереві (`RawTree.FindFirstDescendantRaw`).
-- **Результати пошуку «Finden» віртуалізовані:** у дереві лише видимі рядки, тому `SearchWindow` гортає список і бере комірки за заголовками колонок. Новий запис Elasticsearch індексує із затримкою: перед перевірками «не знаходить» викликайте `WaitUntilFound`. Поведінку пошуку (джокери, режими, умлаути, дефіси) описано в README.
-- **Два тести падають навмисно через баги ADAICA:** `Finden_ResultColumns` (підсумок «Es wurden 1 Datensätze» для одного запису) і `Finden_SearchModeNames` (кирилична «Е» в «Еinzelnes Wort»).
+- **Результати пошуку «Finden» віртуалізовані:** у дереві лише видимі рядки, тому `SearchWindow` гортає список і бере комірки за заголовками колонок. Новий запис Elasticsearch індексує із затримкою: перед перевірками «не знаходить» викликайте `WaitUntilFound`. Поведінку пошуку (джокери, режими, умлаути, ß/ss, розділові знаки, оператори, службові слова, числа) описано в таблиці README «Як шукає Elasticsearch». Тести пошуку розкладено за темами в `SearchTests.*.cs`; фікстури зі спецсимволами — сталі тексти в `SearchTests.cs`.
+- **Тести пошуку, що падають навмисно через баги ADAICA,** перелічено в README («Тести, що падають навмисно»): `Finden_ResultColumns`, `Finden_SearchModeNames`, а також імовірні баги, які ще має підтвердити розробник: `Finden_QuestionMarkForUmlautOrSharpS`, `Finden_DecomposedUmlaut`, `Finden_NumberInSingleWordMode`, `Finden_ChineseTextAsWritten`.
+- **Агент для тестування пошуку** — `.claude/agents/adaica-search-tester.md`. Для роботи з пошуком «Finden» (нові випадки, дослідження поведінки, розбір падінь) використовуйте його.
 - **Дерево навігатора в UI Automation — плаский `ListBox`:** вкладеність видно лише з відступу тексту вузла (`MainPage.SelectedNavigatorNodePath`).
 - **Дати й числа — у німецькому форматі** (`AdaicaFormat`, `dd.MM.yyyy`, `1500,00`).
 - **Скріншоти й координати** правильні лише з per-monitor DPI awareness, яку вмикає `TestRunSetup`.

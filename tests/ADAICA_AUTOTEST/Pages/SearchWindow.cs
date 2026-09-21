@@ -44,6 +44,7 @@ public sealed partial class SearchWindow
         FindButton = new ButtonControl("Finden", Locate.ById(Root, "btnSearchFindCreateRecord"));
         StopButton = new ButtonControl("Abbrechen", Locate.ById(Root, "btnStopFindCreateRecord"));
         CloseButton = new ButtonControl("Schließen", Locate.ById(Root, "btnClose"));
+        Filters = new SearchFilters(Root);
     }
 
     public TextBoxControl SearchTerm { get; }
@@ -64,6 +65,9 @@ public sealed partial class SearchWindow
 
     public ButtonControl CloseButton { get; }
 
+    /// <summary>Фільтри «Suchen nach (Klassentypen)» і «Suchen in (Suchkriterien)». ADAICA не запам'ятовує їх між відкриттями вікна.</summary>
+    public SearchFilters Filters { get; }
+
     /// <summary>Підсумок останнього пошуку внизу вікна, наприклад «Es wurden 5 Datensätze gefunden.», або null.</summary>
     public string? ResultSummary =>
         Root.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
@@ -75,7 +79,10 @@ public sealed partial class SearchWindow
 
     private Window Root { get; }
 
-    /// <summary>Шукає записи й чекає, доки пошук завершиться. Результати — <see cref="ResultFor"/> і <see cref="ResultSummary"/>.</summary>
+    /// <summary>
+    /// Шукає записи й чекає, доки пошук завершиться. Результати — <see cref="ResultFor"/> і <see cref="ResultSummary"/>.
+    /// Якщо замість результатів ADAICA показала повідомлення (наприклад, про помилку запиту), закриває його й падає з його текстом.
+    /// </summary>
     [AllureStep("Знайти {words}: {mode}, джокер спереду — {wildcardBefore}, ззаду — {wildcardAfter}")]
     public void FindRecords(string words, SearchMode mode = SearchMode.AllWords, bool wildcardBefore = false, bool wildcardAfter = true)
     {
@@ -83,18 +90,26 @@ public sealed partial class SearchWindow
         SetOn(WildcardBefore, wildcardBefore);
         SetOn(WildcardAfter, wildcardAfter);
 
-        // Режим можна вибрати, лише коли слів кілька.
+        // Режим можна вибрати, лише коли слів кілька. Слова можуть бути розділені й не пробілом (табуляцією,
+        // нерозривним пробілом), тому режим вибираємо щоразу, коли список доступний: інакше лишився б режим попереднього пошуку.
         if (words.Trim().Contains(' '))
-        {
             Wait.Until(() => Mode.IsEnabled, "доступності режиму пошуку");
+        if (Mode.IsEnabled)
             Mode.SelectAt((int)mode);
-        }
 
         FindButton.Click();
 
         // Поки пошук триває, доступна «Abbrechen»: чекаємо, доки пошук почнеться і закінчиться.
-        Retry.WhileFalse(() => StopButton.IsEnabled, SearchStartTimeout, ignoreException: true);
+        // Запит лише зі службових слів («und», «für») ADAICA завершує миттєво, і «Abbrechen» не встигає стати доступною.
+        Retry.WhileFalse(() => StopButton.IsEnabled || MessageBox() is not null, SearchStartTimeout, ignoreException: true);
         Wait.Until(() => !StopButton.IsEnabled, "завершення пошуку", SearchTimeout);
+
+        if (MessageBox() is { } message)
+        {
+            var text = message.Message.Text;
+            message.Button("OK").Click();
+            throw new InvalidOperationException($"Замість результатів пошуку «{words}» ADAICA показала повідомлення «{message.Title}»: {text}");
+        }
     }
 
     /// <summary>
@@ -104,52 +119,25 @@ public sealed partial class SearchWindow
     [AllureStep("Шукати {words}, доки не знайдеться запис {number}")]
     public SearchResult WaitUntilFound(
         string words, string number, SearchMode mode = SearchMode.AllWords, bool wildcardBefore = false, bool wildcardAfter = true) =>
-        Wait.For(
-            () =>
-            {
-                FindRecords(words, mode, wildcardBefore, wildcardAfter);
-                return ResultFor(number);
-            },
-            $"запису {number} у результатах пошуку «{words}»",
-            IndexTimeout);
+        WaitUntil(words, () => ResultFor(number), $"запису {number}", mode, wildcardBefore, wildcardAfter);
+
+    /// <summary>
+    /// Як <see cref="WaitUntilFound"/>, але для запису без номера (інфозапису): шукає рядок, у якому «Bemerkung»
+    /// дорівнює <paramref name="remark"/>.
+    /// </summary>
+    [AllureStep("Шукати {words}, доки не знайдеться запис з Bemerkung {remark}")]
+    public SearchResult WaitUntilFoundWithRemark(
+        string words, string remark, SearchMode mode = SearchMode.AllWords, bool wildcardBefore = false, bool wildcardAfter = true) =>
+        WaitUntil(words, () => ResultWithRemark(remark), $"запису з Bemerkung «{remark}»", mode, wildcardBefore, wildcardAfter);
 
     /// <summary>
     /// Рядок останнього пошуку із номером <paramref name="number"/> або null. Список віртуалізований: рядків поза
     /// видимою частиною в дереві UI Automation немає, тому список гортаємо від початку до кінця.
     /// </summary>
-    public SearchResult? ResultFor(string number)
-    {
-        var list = Root.FindByAutomationId("RecordTabControl").FindFirstDescendant(cf => cf.ByAutomationId("listView"));
-        var headers = list?.FindFirstChild(cf => cf.ByControlType(ControlType.Header));
-        if (list is null || headers is null)
-            return null;
+    public SearchResult? ResultFor(string number) => FindRow("Nummer / Version", number);
 
-        var columns = headers.FindAllChildren()
-            .Select(header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name ?? string.Empty)
-            .ToList();
-        var numberColumn = ColumnIndex(columns, "Nummer / Version");
-
-        var scroll = list.Patterns.Scroll.PatternOrDefault;
-        var scrollable = scroll?.VerticallyScrollable.Value == true;
-        if (scrollable)
-            scroll!.SetScrollPercent(NoScroll, 0);
-
-        while (true)
-        {
-            // Спершу читаємо лише номер: результатів може бути багато, а повний рядок — це 14 комірок.
-            var row = list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
-                .FirstOrDefault(candidate => CellText(candidate, numberColumn) == number);
-            if (row is not null)
-                return ReadRow(row, columns);
-            if (!scrollable)
-                return null;
-
-            var before = scroll!.VerticalScrollPercent.Value;
-            scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
-            if (scroll.VerticalScrollPercent.Value <= before)
-                return null;
-        }
-    }
+    /// <summary>Рядок останнього пошуку, у якому «Bemerkung» дорівнює <paramref name="remark"/>, або null (для записів без номера).</summary>
+    public SearchResult? ResultWithRemark(string remark) => FindRow("Bemerkung", remark);
 
     [AllureStep("Закрити вікно пошуку")]
     public void Close()
@@ -164,6 +152,54 @@ public sealed partial class SearchWindow
         if (IsOpen)
             Close();
     }
+
+    private SearchResult WaitUntil(
+        string words, Func<SearchResult?> find, string what, SearchMode mode, bool wildcardBefore, bool wildcardAfter) =>
+        Wait.For(
+            () =>
+            {
+                FindRecords(words, mode, wildcardBefore, wildcardAfter);
+                return find();
+            },
+            $"{what} у результатах пошуку «{words}»",
+            IndexTimeout);
+
+    private SearchResult? FindRow(string keyColumn, string keyValue)
+    {
+        var list = Root.FindByAutomationId("RecordTabControl").FindFirstDescendant(cf => cf.ByAutomationId("listView"));
+        var headers = list?.FindFirstChild(cf => cf.ByControlType(ControlType.Header));
+        if (list is null || headers is null)
+            return null;
+
+        var columns = headers.FindAllChildren()
+            .Select(header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name ?? string.Empty)
+            .ToList();
+        var keyIndex = ColumnIndex(columns, keyColumn);
+
+        var scroll = list.Patterns.Scroll.PatternOrDefault;
+        var scrollable = scroll?.VerticallyScrollable.Value == true;
+        if (scrollable)
+            scroll!.SetScrollPercent(NoScroll, 0);
+
+        while (true)
+        {
+            // Спершу читаємо лише ключову комірку: результатів може бути багато, а повний рядок — це 14 комірок.
+            var row = list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+                .FirstOrDefault(candidate => CellText(candidate, keyIndex) == keyValue);
+            if (row is not null)
+                return ReadRow(row, columns);
+            if (!scrollable)
+                return null;
+
+            var before = scroll!.VerticalScrollPercent.Value;
+            scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+            if (scroll.VerticalScrollPercent.Value <= before)
+                return null;
+        }
+    }
+
+    // Повідомлення ADAICA може бути дочірнім вікном і головного вікна, і вікна пошуку.
+    private MessageBoxDialog? MessageBox() => MessageBoxDialog.Find(Root) ?? MessageBoxDialog.Find(_owner);
 
     private static void SetOn(ToggleButtonControl toggle, bool on)
     {

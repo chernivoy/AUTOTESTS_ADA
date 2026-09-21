@@ -54,16 +54,18 @@ ADAICA_AUTOTEST.sln
    │  ├─ AppointmentDialog.cs, AppointmentForm.cs, AppointmentData.cs   термін: вікно, бланк, дані
    │  ├─ NoteDialog.cs, NoteForm.cs, NoteData.cs            інфозапис (Notiz): вікно, бланк, дані
    │  ├─ MessageBoxDialog.cs           стандартний діалог повідомлення ADAICA
-   │  └─ SearchWindow.cs, SearchResult.cs, SearchMode.cs   вікно пошуку «Finden», рядок результатів, режим пошуку
+   │  └─ SearchWindow.cs, SearchResult.cs, SearchMode.cs, SearchFilters.cs   вікно пошуку «Finden», рядок результатів, режим пошуку, фільтри
    ├─ Tests/
    │  ├─ AdaicaTestBase.cs             базовий клас тестів ADAICA: вхід, Dokumentation, прибирання
    │  ├─ LoginTests.cs                 вхід в ADAICA
    │  ├─ CustomerCase.cs               дані записів: природні назви й примітки, щоразу інші
-   │  ├─ SearchTests.cs                повнотекстовий пошук (Elasticsearch): джокери, режими, форми слів, колонки
+   │  ├─ SearchTests.cs                повнотекстовий пошук (Elasticsearch): джокери, режими, форми слів, колонки; фікстури
+   │  ├─ SearchTests.*.cs              те саме за темами: QuerySyntax, GermanLocale, TextSymbols, Numbers, RecordTypes, Filters
    │  └─ NavigatorTests.cs             навігатор Dokumentation → створення проєкту, Ordner, завдання, терміну, інфозапису; під кожним із них — дочірні записи
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
    └─ allureConfig.json
+.claude/agents/adaica-search-tester.md   агент Claude Code для тестування пошуку (див. «Агент для тестів пошуку»)
 Jenkinsfile
 ```
 
@@ -137,26 +139,44 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
   - поле «Suchbegriff» (`ctrRecordBox` → `txtBox`), кнопки «Finden» (`btnSearchFindCreateRecord`) і «Abbrechen» (`btnStopFindCreateRecord`);
   - джокери-перемикачі «*Txt» (`fbRecordTabItemPercentToBeginWndFindCreate`, джокер перед словом) і «Txt*» (`…PercentToEnd…`, джокер після слова). «Txt*» увімкнений за замовчуванням. Стан джокерів ADAICA не запам'ятовує;
   - режим (`cmbSearchRecordSearchOpt`), доступний лише для кількох слів: «Alle Wörter», «Exakte Suche», «Еinzelnes Wort». В останньому перша літера кирилична (U+0415), тому `ComboBoxControl.SelectAt` вибирає режим за позицією (`SearchMode`);
-  - фільтри «Suchen nach (Klassentypen)» і «Suchen in (Suchkriterien)», де Name, Bemerkung, Kommentar і Text позначені «Volltextsuche»;
+  - фільтри «Suchen nach (Klassentypen)» (Aufgaben, Notizen, Ordner, Projekte, Termine тощо) і «Suchen in (Suchkriterien)» (Name, Bemerkung, Kommentar і Text позначені «Volltextsuche», а ще Kurzname, Nummer, ID). Це дерева з прапорцем у кожному пункті, без AutomationId, тому `SearchFilters` шукає прапорець за підписом. Прапорці перемикаються через UI Automation, а стан фільтрів ADAICA між відкриттями вікна не запам'ятовує. Прапорець «Alle auswählen» через UI Automation змінюється лише сам, без дочірніх, після чого ADAICA вважає, що полів не вибрано («Wählen Sie die Suchkriterien der zu findenden Datensätze»), тому тести знімають прапорці окремих пунктів;
   - таблиця результатів `listView` на вкладці «Übersicht» і підсумок внизу вікна («Es wurden 5 Datensätze gefunden.», без AutomationId).
 
-  Пошук триває близько 3 с, і поки він іде, «Abbrechen» доступна: так `FindRecords` визначає, що пошук завершився. Новий запис Elasticsearch індексує не одразу, тому `WaitUntilFound` повторює пошук. Перевірки «не знаходить» можна робити лише після цього. Список результатів віртуалізований (у дереві лише видимі рядки, наприклад 12 з 21), тому `ResultFor` гортає його. Колонки «Fundstelle» і «Fundtext» на екрані сховані, але в UI Automation є.
-- **Як шукає Elasticsearch** (перевірено вручну й у `SearchTests`):
+  Пошук триває близько 3 с, і поки він іде, «Abbrechen» доступна: так `FindRecords` визначає, що пошук завершився. Запит лише зі службових слів ADAICA завершує миттєво, і «Abbrechen» не встигає стати доступною. Якщо замість результатів з'явилося повідомлення ADAICA, `FindRecords` закриває його й падає з його текстом. Новий запис Elasticsearch індексує не одразу, тому `WaitUntilFound` (для інфозапису без номера — `WaitUntilFoundWithRemark`) повторює пошук. Перевірки «не знаходить» можна робити лише після цього. Список результатів віртуалізований (у дереві лише видимі рядки, наприклад 12 з 21), тому `ResultFor` гортає його. Колонки «Fundstelle» і «Fundtext» на екрані сховані, але в UI Automation є. Кому в кінці запиту поле «Suchbegriff» прибирає само.
+- **Як шукає Elasticsearch** (перевірено в застосунку; випадки — у таблицях `SearchTests*.cs`):
 
   | Що | Поведінка |
   |---|---|
-  | Регістр | не важливий: «umzug» = «UMZUG» |
-  | Джокери | без них шукається ціле слово: «Wärme» і «pumpe» не знаходять «Wärmepumpe». «Txt*» знаходить початок слова, «*Txt» — кінець, обидва — середину |
-  | Складені слова | не розбиваються: «plan» без джокера не знаходить «Terminplan» |
-  | Умлаути | «ä» = «ae» («Mueller» знаходить «Müller»), але «ä» ≠ «a» («Muller» — ні) |
-  | Основа слова | не виділяється: «Unterlage» не знаходить «Unterlagen» |
-  | Дефіси | ділять слово: «Meeting» знаходить «Kick-off-Meeting» |
-  | «Alle Wörter» | потрібні всі слова в **одному** полі; слово в назві й слово в примітці разом запис не знаходять |
-  | «Exakte Suche» | слова поруч і в тому самому порядку |
-  | «Einzelnes Wort» | вистачає будь-якого зі слів |
-  | Номер | шукається як слово («Fundstelle» = Nummer), із «*Txt» — за кінцем номера |
+  | Регістр | не важливий: «umzug» = «UMZUG», також із джокерами й умлаутами («WÄRME*») |
+  | Джокери-перемикачі | без них шукається ціле слово: «Wärme» і «pumpe» не знаходять «Wärmepumpe». «Txt*» знаходить початок слова, «*Txt» — кінець, обидва — середину. Для кількох слів джокер додається до кожного слова |
+  | Джокери в запиті | «*» — будь-скільки літер на початку, в середині й у кінці («Wär*pumpe»); «?» — рівно одна літера; «%» працює як «*»; «_» — не джокер. «?» — завжди джокер: «Montag?», скопійоване з тексту, без «Txt*» не знаходить «Montag?», зате знаходить «Montage» |
+  | Складені слова | не розбиваються: «plan» без джокера не знаходить «Terminplan», «Wärme pumpe» не знаходить «Wärmepumpe» |
+  | Умлаути | в індексі «ä» = «ae» в обидва боки: «Müller» знаходить «Mueller», «Mueller» — «Müller», «Göthestraße» — «Goethestrasse». Але «ä» ≠ «a» («Muller» — ні). Тому «?» замість умлаута не спрацьовує (див. нижче) |
+  | ß і ss | «ß» = «ss» = «ẞ» у будь-якому поєднанні: «Hauptstrasse» знаходить «Hauptstraße», «Größe» — швейцарське «Grösse». «Masse» знаходить «Maße» |
+  | Акценти | «é», «è» = «e»: «Cafe» знаходить «Café», «Creme» — «Crème»; «e» + U+0301 теж знаходить |
+  | Основа слова | не виділяється: «Unterlage» не знаходить «Unterlagen», «Parkplatz» — «Parkplätzen», «Tor» — «Tors» |
+  | Дефіси й тире | ділять слово: «Meeting» і «off» знаходять «Kick-off-Meeting», «Kick off» — теж, зокрема як фраза; «Kickoff» — ні. «–» і «—» працюють як дефіс, «-слово» не виключає слова |
+  | Пробіли | зайві пробіли, табуляція й нерозривний пробіл нічого не змінюють; кома чи крапка з комою між словами — як пробіл |
+  | Розділові знаки | «? ! . , ; = ' "», дужки й лапки („…“, «…», "…") навколо слова ігноруються; «&», «:», «/», «*», «^» всередині слова ділять його на слова («Kund:innen» → «Kund» і «innen»). Символи «€», «×», емодзі не індексуються |
+  | Оператори | OR, NOT, «-», «+», «~», «^», «поле:», `/регулярний вираз/` не діють; AND/OR/NOT пропускаються як службові слова. Нечіткого пошуку немає |
+  | Службові слова | «und», «für», «die», «im», «zur», а також англійські «and», «or», «not», «the» окремо не знаходять нічого, поруч з іншими словами пропускаються, у фразі займають своє місце |
+  | Числа | дата «30.09.2026», сума «1'250.50» чи «1.250,50», номер будинку «5a» — одне слово (частина — лише з джокером); час «14:30» ділиться на «14» і «30» |
+  | Email | знаходиться цілком і частинами: «empfang», «alpenrose», «alpenrose.ch», «hotel-alpenrose» |
+  | Ієрогліфи | кожен ієрогліф — окреме слово: «深» знаходить «深圳». Фраза з ієрогліфами не знаходить свій текст, а «深海» знаходить запис без «海» (див. нижче) |
+  | «Alle Wörter» | потрібні всі слова в **одному** полі; слово в назві й слово в примітці разом запис не знаходять. Лапки не роблять фрази |
+  | «Exakte Suche» | слова поруч і в тому самому порядку; розділові знаки між ними не заважають |
+  | «Einzelnes Wort» | вистачає будь-якого зі слів, але лише в повнотекстових полях: номер, ID і Kurzname з кількома словами не шукаються (див. нижче) |
+  | Номер | шукається як ціле слово без урахування регістру («Fundstelle» = Nummer); цифри без префікса — лише з «*Txt». ID шукається так само («Fundstelle» = ID), Kurzname — теж («MAT» знаходить усі тестові записи) |
+  | Лише джокер чи знак | «*», «**», «%», «-», `""` і порожній запит повертають усі записи (зараз 400+) з «Fundstelle» = «Kommentar (Volltextsuche)», хоча коментарів у них немає. Потребує підтвердження розробників, тестом не зафіксовано |
 
-- **Колонки результатів.** «Nummer / Version» — номер (в інфозапису порожній). «Klassentyp» — технічний код (TASK, APPOINT, HISTORY, OPERATION, PROJECT), а не німецька назва. «Fundstelle» — поле, де знайдено слова. «Fundtext» зараз завжди дорівнює «Bemerkung», навіть коли слова знайдено в назві. «Erstelldatum» збігається з датою створення в записі. «ID» — `ррММддГГххсс` + тип + 6 цифр. Для одного запису підсумок помилково в множині: «Es wurden 1 Datensätze gefunden.». Через цю помилку й кириличну «Е» в «Еinzelnes Wort» тести `Finden_ResultColumns` і `Finden_SearchModeNames` зараз падають навмисно: це баги ADAICA, а не тестів.
+- **Колонки результатів.** «Nummer / Version» — номер (в інфозапису порожній). «Klassentyp» — технічний код (TASK, APPOINT, HISTORY, OPERATION, PROJECT), а не німецька назва. «Fundstelle» — поле, де знайдено слова. «Fundtext» зараз завжди дорівнює «Bemerkung», навіть коли слова знайдено в назві. «Erstelldatum» збігається з датою створення в записі. «ID» — `ррММддГГххсс` + тип + 6 цифр.
+- **Тести, що падають навмисно.** Це баги ADAICA, а не тестів. Коли баг виправлять, тест стане зеленим без змін. Якщо розробники скажуть, що поведінка задумана, змініть очікування в таблиці випадків.
+  - `Finden_ResultColumns` — для одного запису підсумок у множині: «Es wurden 1 Datensätze gefunden.».
+  - `Finden_SearchModeNames` — «Еinzelnes Wort» починається з кириличної «Е» (U+0415).
+  - `Finden_QuestionMarkForUmlautOrSharpS` — «?» не замінює умлаут чи «ß»: «Hauptstra?e», «Aussent?r», «Gr?sse», «W?rmepumpe» не знаходять запис, а «Hauptstra??e» знаходить (в індексі «ß» — це «ss»). Імовірний баг.
+  - `Finden_DecomposedUmlaut` — «a» + U+0308 (так «ä» потрапляє з macOS чи PDF) не знаходить «Wärmepumpe», хоча «e» + U+0301 знаходить «Café». Імовірний баг: запит варто нормалізувати (NFC).
+  - `Finden_NumberInSingleWordMode` — у режимі «Einzelnes Wort» номер не шукається: «TAS0000046 Heizkessel» не знаходить TAS0000046. Імовірний баг.
+  - `Finden_ChineseTextAsWritten` — фраза «Shenzhen 深圳» не знаходить свій текст, а «深海» знаходить запис лише з «深». Імовірний баг.
 - **Raw-дерево.** Звичайний пошук FlaUI не бачить елементів із шаблонів WPF, наприклад заголовка вкладки `PART_Text`. Для них є `FindFirstDescendantRaw` з `RawTree.cs`.
 - **Скріншоти й DPI.** `TestRunSetup` вмикає для тестового процесу per-monitor DPI awareness. Без цього на моніторах з масштабом понад 100% скріншоти падінь виходять обрізаними.
 - Нові елементи шукайте за `AutomationId`. Якщо в елемента його немає, попросіть розробників додати `AutomationProperties.AutomationId` у XAML. Пошук за текстом або індексом ламається від будь-якої зміни UI, а тексти ADAICA ще й залежать від мови.
@@ -236,6 +256,12 @@ AutomationId для нових бланків беріть із FlaUInspect. Я�
 - Позначайте сценарії Page Object атрибутом `[AllureStep("...")]`, щоб у звіті було видно кроки. Секрети в параметрах позначайте `[AllureParameter(Ignore = true)]`. Атрибут загортає винятки в `TargetInvocationException`, тому для перевірок краще `AllureApi.Step(назва, дія)`, як у `ProjectForm.ShouldHaveValues`.
 - Тести не запускаються паралельно (`AssemblyInfo.cs`), бо робочий стіл один.
 - Дерево елементів зручно дивитися в **FlaUInspect** (режим UIA3), **Accessibility Insights for Windows** або `Inspect.exe` з Windows SDK. ADAICA для цього запускайте зі змінною `AutomationTests__AutomationPeerFeatureEnabled=true`.
+
+## Агент для тестів пошуку
+
+У `.claude/agents/adaica-search-tester.md` описано агента Claude Code, який тестує пошук «Finden»: придумує випадки за матрицею (поле, тип запису, кількість слів і режим, джокери, регістр, умлаути, ß/ss, акценти, дефіси, пробіли, розділові знаки, синтаксис Elasticsearch, числа, інші алфавіти, фільтри), спершу перевіряє поведінку в застосунку тимчасовим дослідним тестом, відрізняє баги від задуманої поведінки, дописує таблиці в `SearchTests*.cs` і README, проганяє тести. Він дотримується тих самих правил, що й тести: закриває лише свій процес ADAICA, бере пароль лише зі змінної `ADAICA_PASSWORD`.
+
+У Claude Code агента викликають, коли просять протестувати пошук, або явно: «використай агента adaica-search-tester, щоб перевірити пошук інфозаписів за приміткою».
 
 ## Jenkins
 

@@ -2,7 +2,7 @@
 <RunSettings>
   <RunConfiguration>
     <!-- Максимальна тривалість усього прогону, мс. -->
-    <TestSessionTimeout>3600000</TestSessionTimeout>
+    <TestSessionTimeout>10800000</TestSessionTimeout>
   </RunConfiguration>
 
   <!--
