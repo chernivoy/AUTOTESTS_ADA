@@ -31,14 +31,23 @@ public sealed class CustomerCase
 
     private static readonly Customer[] Customers =
     [
-        new("Keller Treuhand AG", "Winterthur", new Person("Keller", IsWoman: true)),
-        new("Bäckerei Huber GmbH", "St. Gallen", new Person("Huber", IsWoman: false)),
-        new("Schreinerei Brunner", "Luzern", new Person("Brunner", IsWoman: false)),
-        new("Praxis Dr. Meier", "Zürich", new Person("Dr. Meier", IsWoman: true)),
-        new("Gemeindeverwaltung Wil", "Wil", new Person("Fässler", IsWoman: false)),
-        new("Garage Steiner AG", "Chur", new Person("Steiner", IsWoman: false)),
-        new("Hotel Seeblick", "Thun", new Person("Gerber", IsWoman: true)),
-        new("Müller Logistik AG", "Basel", new Person("Müller", IsWoman: true)),
+        new("Keller Treuhand AG", "Winterthur", new Person("Keller", IsWoman: true), "Treuhand und Steuerberatung", "Zürich", "52", "8400", "keller-treuhand.ch"),
+        new("Bäckerei Huber GmbH", "St. Gallen", new Person("Huber", IsWoman: false), "Bäckerei und Konditorei", "St. Gallen", "71", "9000", "baeckerei-huber.ch"),
+        new("Schreinerei Brunner", "Luzern", new Person("Brunner", IsWoman: false), "Möbel und Innenausbau", "Luzern", "41", "6003", "schreinerei-brunner.ch"),
+        new("Praxis Dr. Meier", "Zürich", new Person("Dr. Meier", IsWoman: true), "Allgemeinmedizin", "Zürich", "44", "8001", "praxis-meier.ch"),
+        new("Gemeindeverwaltung Wil", "Wil", new Person("Fässler", IsWoman: false), "Einwohnerdienste und Steuern", "St. Gallen", "71", "9500", "stadtwil.ch"),
+        new("Garage Steiner AG", "Chur", new Person("Steiner", IsWoman: false), "Autowerkstatt und Carrosserie", "Graubünden", "81", "7000", "garage-steiner.ch"),
+        new("Hotel Seeblick", "Thun", new Person("Gerber", IsWoman: true), "Hotel und Restaurant", "Bern", "33", "3600", "seeblick-thun.ch"),
+        new("Müller Logistik AG", "Basel", new Person("Müller", IsWoman: true), "Transport und Lagerung", "Basel-Stadt", "61", "4051", "mueller-logistik.ch"),
+    ];
+
+    // Банки з довідника ADAICA (німецький, за BLZ): назва й SWIFT-BIC такі, як їх заповнює вибір банку.
+    private static readonly (string Code, string Name, string Bic)[] Banks =
+    [
+        ("37040044", "Commerzbank", "COBADEFFXXX"),
+        ("39060180", "Aachener Bank", "GENODED1AAC"),
+        ("70120600", "Airbus Bank", "AGBMDEMMXXX"),
+        ("10030400", "ABK Allgemeine Beamten Bank", "ABKBDEB1XXX"),
     ];
 
     private static readonly Topic[] Topics =
@@ -72,6 +81,59 @@ public sealed class CustomerCase
     public CompanyData NewCompany() => new(
         Name: $"{_customer.Company} {NewCustomerNumber()}",
         ShortName: ShortName);
+
+    /// <summary>
+    /// Дані, якими тест заповнює картку фірми після створення: усе про ту саму фірму клієнта — її діяльність, місто,
+    /// кантон, контактну особу. Номери (телефон, UID, рахунок) щоразу інші.
+    /// </summary>
+    public CompanyEditData EditCompany()
+    {
+        var uid = $"CHE-{Digits(3)}.{Digits(3)}.{Digits(3)}";
+        var bank = Pick(Banks);
+        var accountNumber = Digits(10);
+        return new CompanyEditData(
+            new CompanyGeneralData(
+                NameLine2: _customer.Trade,
+                NameLine3: Pick($"Filiale {_customer.City}", $"Hauptsitz {_customer.City}"),
+                AddressLine: $"{_customer.Company}, z. H. {Contact.Dative}",
+                Salutation: $"{(Contact.IsWoman ? "Sehr geehrte Frau" : "Sehr geehrter Herr")} {Contact.Surname},",
+                CompanyType: "Firma",
+                TradeRegister: $"Handelsregister des Kantons {_customer.Canton}",
+                TradeRegisterNumber: uid,
+                TaxNumber: $"{Digits(3)}.{Digits(3)}.{Digits(3)}",
+                VatNumber: $"{uid} MWST",
+                Communications:
+                [
+                    new("Telefon", PhoneNumber(), "Telefon Zentrale", Pick("Zentrale, Mo–Fr 8–17 Uhr", $"Empfang, {Contact.Nominative}")),
+                    new("Fax", PhoneNumber(), "Fax Zentrale", string.Empty),
+                    new("E-Mail", $"info@{_customer.Domain}", "E-Mail", "Allgemeine Anfragen"),
+                    new("Webseite", $"www.{_customer.Domain}", "Website", string.Empty),
+                    new("Sonstige", $"Postfach {System.Random.Shared.Next(100, 1000)}, {_customer.PostalCode} {_customer.City}", "Unbekannt", string.Empty),
+                ],
+                Remark: Pick(
+                    $"Stammkunde, Ansprechperson ist {Contact.Nominative}. Rechnungen bitte per E-Mail.",
+                    $"Rahmenvertrag bis Ende Jahr. Termine immer mit {Contact.Dative} abstimmen.",
+                    "Zahlt zuverlässig innert 30 Tagen, Skonto wird nicht gewährt."),
+                Category: Pick("Eigentümer", "Wartungsfirma", "Kostenträger"),
+                CorrespondencePreference: "Firma",
+                ElectronicContact: Pick("Ja", "Nein"),
+                NoAdvertisingEmails: true,
+                NoAdvertisingLetters: true,
+                NoAdvertisingCalls: true,
+                PrivacyStatementOk: true),
+            new CompanyDetailsData(
+                Turnover: System.Random.Shared.Next(5, 500) * 10000m,
+                TurnoverCurrency: "USD",
+                Creditworthiness: "Unbekannt"),
+            new BankAccountData(
+                Holder: _customer.Company,
+                Iban: GermanIban(bank.Code, accountNumber),
+                BankCode: bank.Code,
+                BankName: bank.Name,
+                Bic: bank.Bic,
+                AccountNumber: accountNumber,
+                IsPrimary: true));
+    }
 
     public ProjectData NewProject()
     {
@@ -259,6 +321,20 @@ public sealed class CustomerCase
         }
     }
 
+    // Швейцарський номер у місті фірми: «+41 81 252 34 17».
+    private string PhoneNumber() => $"+41 {_customer.AreaCode} {Digits(3)} {Digits(2)} {Digits(2)}";
+
+    private static string Digits(int count) =>
+        string.Concat(Enumerable.Range(0, count).Select(_ => System.Random.Shared.Next(10).ToString(CultureInfo.InvariantCulture)));
+
+    /// <summary>Правильний німецький IBAN: «DE», контрольні цифри за ISO 7064 (mod 97), BLZ і номер рахунку.</summary>
+    private static string GermanIban(string bankCode, string accountNumber)
+    {
+        // «DE00» переноситься в кінець, а літери стають числами: D = 13, E = 14.
+        var remainder = $"{bankCode}{accountNumber}131400".Aggregate(0, (current, digit) => (current * 10 + (digit - '0')) % 97);
+        return $"DE{98 - remainder:00}{bankCode}{accountNumber}";
+    }
+
     // Час, який людина вибрала б сама: робочі години з 07:00, кратно 15 хвилинам.
     private static TimeSpan WorkingTime(int latestHour = 17) =>
         TimeSpan.FromMinutes(System.Random.Shared.Next(7 * 4, latestHour * 4 + 1) * 15);
@@ -279,7 +355,10 @@ public sealed class CustomerCase
         return picked;
     }
 
-    private sealed record Customer(string Company, string City, Person Contact);
+    /// <param name="Trade">Діяльність фірми — другий рядок її назви.</param>
+    /// <param name="AreaCode">Телефонний код міста без нуля: «+41 81 …».</param>
+    private sealed record Customer(
+        string Company, string City, Person Contact, string Trade, string Canton, string AreaCode, string PostalCode, string Domain);
 
     /// <param name="Object">Тема в знахідному відмінку, для «Offerte für …».</param>
     private sealed record Topic(string Title, string Object);

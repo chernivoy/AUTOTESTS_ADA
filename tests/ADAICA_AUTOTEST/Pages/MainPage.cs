@@ -23,6 +23,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string AppointmentsNodeName = "Termine";
     private const string NotesNodeName = "Notizen";
     private const string ContactsRootNodeName = "Gesamtliste";
+    private const string ContactFavoritesNodeName = "Favoriten";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
@@ -144,10 +145,51 @@ public sealed partial class MainPage : AdaicaWindow
     public NoteForm WaitForOpenedNote(string remark) =>
         WaitForOpenedRecord(NoteForm.RemarkId, remark, view => new NoteForm(view));
 
-    /// <summary>Фірму впізнаємо за назвою: тест дає кожній фірмі унікальну назву, а номера в картці фірми немає.</summary>
+    /// <summary>
+    /// Фірму впізнаємо за назвою: тест дає кожній фірмі унікальну назву, а номера в картці фірми немає.
+    /// Картка відкривається на вкладці, яку відкривали останньою, а поле назви є лише на Allgemein, тож її відкриваємо.
+    /// </summary>
     [AllureStep("Дочекатися відкриття фірми {name}")]
-    public CompanyForm WaitForOpenedCompany(string name) =>
-        WaitForOpenedRecord(CompanyForm.NameId, name, view => new CompanyForm(view));
+    public CompanyForm WaitForOpenedCompany(string name)
+    {
+        var view = Wait.For(
+            () => Window.FindFirstDescendant(cf => cf.ByClassName("InformationView")) is { } information
+                && information.FindFirstDescendant(cf => cf.ByAutomationId(CompanyForm.TabsId)) is not null
+                    ? information
+                    : null,
+            "картки фірми в області перегляду");
+        new CompanyForm(Window, view).GeneralTab.Select();
+        return WaitForOpenedRecord(CompanyForm.NameId, name, information => new CompanyForm(Window, information));
+    }
+
+    /// <summary>
+    /// Перевідкриває фірму з дерева навігатора Kontakte, щоб картка показала збережені значення, а не те, що
+    /// лишилося в ній після редагування. Вузол «Favoriten» показує список без картки, тож видно, що картку закрито.
+    /// </summary>
+    /// <param name="nodeName">Вузол фірми в дереві.</param>
+    /// <param name="name">Повна назва фірми в картці.</param>
+    [AllureStep("Перевідкрити фірму {nodeName}")]
+    public CompanyForm ReopenCompany(string nodeName, string name)
+    {
+        SelectNavigatorNode(ContactFavoritesNodeName);
+        Wait.Until(
+            () => Window.FindFirstDescendant(cf => cf.ByAutomationId(CompanyForm.TabsId)) is null,
+            "закриття картки фірми");
+        SelectNavigatorNode(nodeName);
+        return WaitForOpenedCompany(name);
+    }
+
+    /// <summary>Виділяє вузол у дереві навігатора. Дерево реагує лише на клік мишею.</summary>
+    [AllureStep("Вибрати вузол {nodeName} у дереві навігатора")]
+    public MainPage SelectNavigatorNode(string nodeName)
+    {
+        var node = NavigatorNode(nodeName);
+        AtomicMouse.LeftClick(NodeText(node) ?? node);
+        Wait.Until(
+            () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == nodeName,
+            $"виділення вузла «{nodeName}»");
+        return this;
+    }
 
     [AllureStep("Відкрити вікно пошуку: System → Finden…")]
     public SearchWindow OpenSearchWindow()
