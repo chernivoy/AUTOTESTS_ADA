@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Infrastructure;
 using FlaUI.Core.AutomationElements;
 
 namespace ADAICA_AUTOTEST.Controls;
@@ -9,4 +10,8 @@ public sealed class LabelControl(string name, Func<AutomationElement> find) : Co
 
     public void ShouldHaveText(string expected) =>
         Step($"Перевірити «{Name}»: {expected}", () => Text.ShouldBe(expected, $"Текст «{Name}»"));
+
+    /// <summary>Для тексту, який ADAICA оновлює не одразу, а із затримкою після дії користувача.</summary>
+    public void WaitForText(string expected) =>
+        Step($"Дочекатися «{Name}»: {expected}", () => Wait.Until(() => Text == expected, $"тексту «{expected}» у «{Name}»"));
 }

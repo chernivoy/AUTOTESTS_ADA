@@ -3,6 +3,7 @@ using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons.Attributes;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 
 namespace ADAICA_AUTOTEST.Pages;
 
@@ -21,6 +22,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string TasksNodeName = "Aufgaben";
     private const string AppointmentsNodeName = "Termine";
     private const string NotesNodeName = "Notizen";
+    private const string ContactsRootNodeName = "Gesamtliste";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
@@ -102,14 +104,14 @@ public sealed partial class MainPage : AdaicaWindow
     /// </summary>
     public AutomationElement NavigatorNode(string nodeName) =>
         Wait.For(
-            () => Element("treeView").FindAllChildren()
+            () => NavigatorTree.FindAllChildren()
                 .FirstOrDefault(node => NodeText(node) is { } text && WithoutRecordRange(text.Name) == nodeName),
             $"вузла «{nodeName}» у дереві навігатора");
 
     /// <summary>Назва вузла, виділеного в дереві навігатора, або null, якщо нічого не виділено.</summary>
     public string? SelectedNavigatorNodeName =>
-        Element("treeView").Patterns.Selection.Pattern.Selection.Value
-            .Select(node => NodeText(node)?.Name)
+        NavigatorTree.Patterns.Selection.Pattern.Selection.Value
+            .Select(node => NodeText(node)?.Name.TrimEnd())
             .FirstOrDefault();
 
     /// <summary>
@@ -141,6 +143,11 @@ public sealed partial class MainPage : AdaicaWindow
     [AllureStep("Дочекатися відкриття інфозапису з Bemerkung {remark}")]
     public NoteForm WaitForOpenedNote(string remark) =>
         WaitForOpenedRecord(NoteForm.RemarkId, remark, view => new NoteForm(view));
+
+    /// <summary>Фірму впізнаємо за назвою: тест дає кожній фірмі унікальну назву, а номера в картці фірми немає.</summary>
+    [AllureStep("Дочекатися відкриття фірми {name}")]
+    public CompanyForm WaitForOpenedCompany(string name) =>
+        WaitForOpenedRecord(CompanyForm.NameId, name, view => new CompanyForm(view));
 
     [AllureStep("Відкрити вікно пошуку: System → Finden…")]
     public SearchWindow OpenSearchWindow()
@@ -190,6 +197,17 @@ public sealed partial class MainPage : AdaicaWindow
         OpenNodeContextMenu(NotesNodeName);
         PopupMenuItem("Neu", NewRecordMenuItemId).Click();
         return new NoteDialog(Window);
+    }
+
+    /// <summary>
+    /// У навігаторі Kontakte нову фірму створюють через вікно «Finden &amp; Erstellen»: спершу пошук, чи її ще немає.
+    /// </summary>
+    [AllureStep("Відкрити вікно нової фірми: вузол Gesamtliste → контекстне меню → Neue Firma")]
+    public ContactFindCreateWindow OpenNewCompanyWindow()
+    {
+        OpenNodeContextMenu(ContactsRootNodeName);
+        PopupMenuItem("Neue Firma", "MnuCompanyNew").Click();
+        return new ContactFindCreateWindow(Window);
     }
 
     [AllureStep("Відкрити нове вікно підпроєкту: вузол {parentNode} → контекстне меню → Neu → Projekt")]
@@ -273,7 +291,7 @@ public sealed partial class MainPage : AdaicaWindow
     /// </summary>
     private List<AutomationElement> SelectedNodeWithAncestors()
     {
-        var nodes = Element("treeView").FindAllChildren();
+        var nodes = NavigatorTree.FindAllChildren();
         var selected = Array.FindLastIndex(nodes, node => node.Patterns.SelectionItem.Pattern.IsSelected.Value);
 
         var chain = new List<AutomationElement>();
@@ -291,13 +309,20 @@ public sealed partial class MainPage : AdaicaWindow
         return chain;
     }
 
+    // Дерево навігатора — ListBox «treeView». Той самий AutomationId має TreeView категорій у картці контакту.
+    private AutomationElement NavigatorTree =>
+        Wait.For(
+            () => Window.FindFirstDescendant(cf => cf.ByAutomationId("treeView").And(cf.ByControlType(ControlType.List))),
+            "дерева навігатора");
+
     private MenuItemControl PopupMenuItem(string name, string automationId) =>
         new(name, () => Wait.For(() => FindInPopups(automationId), $"пункту «{name}» у контекстному меню"));
 
     private static AutomationElement? NodeText(AutomationElement node) =>
         node.FindFirstChild(cf => cf.ByAutomationId("TextBlock"));
 
-    private static string WithoutRecordRange(string nodeText) => RecordRange().Replace(nodeText, string.Empty);
+    // Вузли контактів ADAICA підписує з пробілами в кінці: «Keller Treuhand AG  ».
+    private static string WithoutRecordRange(string nodeText) => RecordRange().Replace(nodeText.TrimEnd(), string.Empty);
 
     // Списки й контекстні меню ADAICA відкриваються у WPF Popup — дочірньому вікні головного вікна.
     private AutomationElement? FindInPopups(string automationId) =>

@@ -24,6 +24,11 @@ public sealed class CustomerCase
     // Дні, уже зайняті датами записів у цьому прогоні тестів, щоб дати різних тестів теж не збігалися.
     private static readonly HashSet<DateTime> DaysUsedInRun = [];
 
+    private static readonly Lock CustomerNumberLock = new();
+
+    // Останній номер клієнта, виданий у цьому прогоні (див. NewCompany).
+    private static long _lastCustomerNumber;
+
     private static readonly Customer[] Customers =
     [
         new("Keller Treuhand AG", "Winterthur", new Person("Keller", IsWoman: true)),
@@ -59,6 +64,14 @@ public sealed class CustomerCase
     }
 
     public static CustomerCase Random() => new(Pick(Customers), Pick(Topics));
+
+    /// <summary>
+    /// Фірма клієнта для навігатора Kontakte. Назва завжди унікальна, щоб потім знаходити саме цю фірму пошуком:
+    /// до назви фірми додається номер клієнта з дати й часу створення, як його дописують у CRM («Keller Treuhand AG 260923161021»).
+    /// </summary>
+    public CompanyData NewCompany() => new(
+        Name: $"{_customer.Company} {NewCustomerNumber()}",
+        ShortName: ShortName);
 
     public ProjectData NewProject()
     {
@@ -229,6 +242,20 @@ public sealed class CustomerCase
             DaysUsedInRun.UnionWith(days);
             _usedDays.UnionWith(days);
             return days;
+        }
+    }
+
+    /// <summary>
+    /// Номер ррММддГГххсс з поточного часу. Якщо в ту саму секунду вже видано номер, береться наступний,
+    /// тож у межах прогону номери не повторюються, а між прогонами їх розводить час.
+    /// </summary>
+    private static string NewCustomerNumber()
+    {
+        var fromClock = long.Parse(DateTime.Now.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        lock (CustomerNumberLock)
+        {
+            _lastCustomerNumber = Math.Max(fromClock, _lastCustomerNumber + 1);
+            return _lastCustomerNumber.ToString(CultureInfo.InvariantCulture);
         }
     }
 

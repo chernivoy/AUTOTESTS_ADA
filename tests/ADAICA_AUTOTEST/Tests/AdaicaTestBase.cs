@@ -21,19 +21,23 @@ public abstract class AdaicaTestBase : UiTestBase
     /// Входить в ADAICA й відкриває навігатор Dokumentation у новій вкладці. Після тесту вкладку буде закрито,
     /// бо відкриті вкладки ADAICA запам'ятовує для користувача.
     /// </summary>
-    protected MainPage LogInAndOpenDokumentation()
-    {
-        const string dokumentation = "Dokumentation";
+    protected MainPage LogInAndOpenDokumentation() => LogInAndOpenNavigator("Dokumentation");
 
+    /// <summary>
+    /// Входить в ADAICA й відкриває навігатор <paramref name="navigatorName"/> у новій вкладці. Після тесту вкладку
+    /// буде закрито, бо відкриті вкладки ADAICA запам'ятовує для користувача.
+    /// </summary>
+    protected MainPage LogInAndOpenNavigator(string navigatorName)
+    {
         var mainPage = new LoginPage(Session).LoginAs(
             TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
         var tabsBefore = mainPage.NavigatorTabNames;
         OnCleanup(() => mainPage.CloseLastNavigatorTabs(keep: tabsBefore.Count));
 
-        mainPage.OpenNavigator(dokumentation);
+        mainPage.OpenNavigator(navigatorName);
 
-        mainPage.NavigatorTitle.ShouldHaveText(dokumentation);
-        mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(dokumentation));
+        mainPage.NavigatorTitle.ShouldHaveText(navigatorName);
+        mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(navigatorName));
         return mainPage;
     }
 
