@@ -22,6 +22,7 @@ public sealed record CompanyGeneralData(
     string TaxNumber,
     string VatNumber,
     IReadOnlyList<CommunicationData> Communications,
+    AddressData Address,
     string Remark,
     string Category,
     string CorrespondencePreference,
@@ -30,6 +31,32 @@ public sealed record CompanyGeneralData(
     bool NoAdvertisingLetters,
     bool NoAdvertisingCalls,
     bool PrivacyStatementOk);
+
+/// <summary>
+/// Нова адреса у списку «Adressen». Адресу створюють у вікні «Finden &amp; Erstellen»: якщо така вже є в довіднику адрес,
+/// ADAICA її знаходить і «Neu» недоступна, тому для нової адреси тест бере інший номер будинку.
+/// </summary>
+/// <param name="Category">Пункт меню «+» біля «Adressen» і колонка «Kategorie»: Straßenanschrift, Lieferanschrift, Zweigstelle, …</param>
+/// <param name="Country">Єдина країна в довіднику адрес тестової бази — Deutschland.</param>
+/// <param name="District">Ortsteil.</param>
+public sealed record AddressData(
+    string Category,
+    string Country,
+    string State,
+    string PostalCode,
+    string City,
+    string District,
+    string Street,
+    string HouseNumber)
+{
+    /// <summary>
+    /// Рядок у списку «Adressen»: Kategorie, Land, Postleitzahl, Ort, Ortsteil, Straße, Hausnummer.
+    /// Bundesland список не показує.
+    /// </summary>
+    public string ListRow => string.Join(" | ", Category, Country, PostalCode, City, District, Street, HouseNumber);
+
+    public override string ToString() => $"{Street} {HouseNumber}, {PostalCode} {City}";
+}
 
 /// <summary>Рядок у списку «Verbindung».</summary>
 /// <param name="Kind">Пункт меню «+» і група в списку: Telefon, Fax, E-Mail, Webseite, Sonstige.</param>

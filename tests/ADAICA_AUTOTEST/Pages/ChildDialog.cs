@@ -15,7 +15,7 @@ public abstract class ChildDialog
     private readonly Window _owner;
     private readonly string _title;
 
-    /// <param name="owner">Головне вікно ADAICA.</param>
+    /// <param name="owner">Вікно, дочірнім для якого є це вікно: зазвичай головне вікно ADAICA.</param>
     /// <param name="title">Заголовок вікна для звіту.</param>
     protected ChildDialog(Window owner, string windowId, string title, string okButtonId, string cancelButtonId)
     {
@@ -32,7 +32,21 @@ public abstract class ChildDialog
     public ButtonControl CancelButton { get; }
 
     // IsAvailable для закритого вікна WPF лишається true, тому перевіряємо, чи вікно ще серед дочірніх.
-    public bool IsOpen => _owner.FindAllChildren(cf => cf.ByControlType(ControlType.Window)).Contains(Root);
+    // Власник теж може закритися разом із вікном (як «Finden & Erstellen» після нової адреси), тоді пошук кидає виняток.
+    public bool IsOpen
+    {
+        get
+        {
+            try
+            {
+                return _owner.FindAllChildren(cf => cf.ByControlType(ControlType.Window)).Contains(Root);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
 
     protected Window Root { get; }
 

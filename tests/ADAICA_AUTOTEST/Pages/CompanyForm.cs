@@ -108,6 +108,70 @@ public class CompanyForm(Window owner, AutomationElement root)
         return new BankAccountDialog(owner);
     }
 
+    /// <summary>Рядки списку «Adressen» (див. <see cref="AddressData.ListRow"/>).</summary>
+    public IReadOnlyList<string> AddressRows =>
+        root.FindByAutomationId("addressesCompany").FindByAutomationId("listView")
+            .FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+            // Перша колонка — значок без тексту; далі Kategorie, Land, Postleitzahl, Ort, Ortsteil, Straße, Hausnummer,
+            // Postfach, Adresszusatz, Bemerkung.
+            .Select(row => string.Join(" | ", row.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Take(7).Select(text => text.Name)))
+            .ToList();
+
+    /// <summary>
+    /// «+» біля «Adressen» → категорія адреси: відкриває вікно «Finden &amp; Erstellen» на вкладці Adressen.
+    /// Кнопка відкриває меню лише на клік мишею: InvokePattern вона не підтримує.
+    /// </summary>
+    [AllureStep("Відкрити вікно нової адреси: «+» біля «Adressen» → {category}")]
+    public AddressFindCreateWindow OpenNewAddressWindow(string category)
+    {
+        GeneralTab.Select();
+        AtomicMouse.LeftClick(root.FindByAutomationId("tbtnAddSpecifyCompanyAddress"));
+        new MenuItemControl(
+                category,
+                () => Wait.For(
+                    () => owner.FindAllChildren(cf => cf.ByClassName("Popup"))
+                        .Select(popup => popup.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(category))))
+                        .FirstOrDefault(item => item is not null),
+                    $"пункту «{category}» у меню «Adressen»"))
+            .Click();
+        return new AddressFindCreateWindow(owner);
+    }
+
+    /// <summary>
+    /// Створює нову адресу й додає її до фірми. Якщо таку адресу вже створив попередній прогін, бере іншу
+    /// з <paramref name="anotherAddress"/>.
+    /// </summary>
+    /// <returns>Адреса, яку справді створено.</returns>
+    public AddressData AddAddress(AddressData address, Func<AddressData, AddressData> anotherAddress) =>
+        AllureApi.Step($"Додати адресу «{address.Category}»", () =>
+        {
+            var window = OpenNewAddressWindow(address.Category);
+            try
+            {
+                const int attempts = 5;
+                for (var attempt = 1; !window.FillNew(address); attempt++)
+                {
+                    if (attempt == attempts)
+                        throw new InvalidOperationException($"За {attempts} спроби не знайшлося адреси, якої ще немає в довіднику.");
+
+                    address = anotherAddress(address);
+                }
+
+                var dialog = window.OpenNewAddressDialog();
+                dialog.ShouldHaveValues(address);
+                dialog.Confirm();
+                window.WaitUntilClosed();
+            }
+            finally
+            {
+                window.CloseIfOpen();
+            }
+
+            AllureApi.Step($"Перевірити, що адреса «{address}» з'явилася в списку «Adressen»",
+                () => Wait.Until(() => AddressRows.Contains(address.ListRow), $"адреси «{address}» у списку «Adressen»"));
+            return address;
+        });
+
     /// <summary>Рахунки на вкладці Bankverbindungen у порядку показу.</summary>
     public IReadOnlyList<BankAccountData> BankAccounts =>
         root.FindByAutomationId(BankAccountsListId).FindByAutomationId("listView")
@@ -127,15 +191,21 @@ public class CompanyForm(Window owner, AutomationElement root)
     /// <summary>
     /// Змінює всі поля трьох вкладок, які ADAICA дає редагувати в тестовій базі, і зберігає картку кнопкою OK.
     /// </summary>
-    public void Edit(CompanyEditData data) => AllureApi.Step("Змінити поля фірми", () =>
-    {
-        EditGeneral(data.General);
-        EditDetails(data.Details);
-        AddBankAccount(data.BankAccount);
-        Save();
-    });
+    /// <param name="anotherAddress">Інша адреса, якщо задана вже є в довіднику адрес.</param>
+    /// <returns>Збережені дані: адреса може відрізнятися від заданої.</returns>
+    public CompanyEditData Edit(CompanyEditData data, Func<AddressData, AddressData> anotherAddress) =>
+        AllureApi.Step("Змінити поля фірми", () =>
+        {
+            var general = EditGeneral(data.General, anotherAddress);
+            EditDetails(data.Details);
+            AddBankAccount(data.BankAccount);
+            Save();
+            return data with { General = general };
+        });
 
-    public void EditGeneral(CompanyGeneralData general) => AllureApi.Step("Змінити поля на вкладці Allgemein", () =>
+    /// <returns>Збережені дані вкладки: адреса може відрізнятися від заданої.</returns>
+    public CompanyGeneralData EditGeneral(CompanyGeneralData general, Func<AddressData, AddressData> anotherAddress) =>
+        AllureApi.Step("Змінити поля на вкладці Allgemein", () =>
     {
         GeneralTab.Select();
 
@@ -152,6 +222,8 @@ public class CompanyForm(Window owner, AutomationElement root)
         foreach (var communication in general.Communications)
             Communications.Add(communication);
 
+        var address = AddAddress(general.Address, anotherAddress);
+
         Remark.Fill(general.Remark);
 
         var categoriesDialog = OpenCategoriesDialog();
@@ -164,6 +236,7 @@ public class CompanyForm(Window owner, AutomationElement root)
         NoAdvertisingLetters.SetChecked(general.NoAdvertisingLetters);
         NoAdvertisingCalls.SetChecked(general.NoAdvertisingCalls);
         PrivacyStatementOk.SetChecked(general.PrivacyStatementOk);
+        return general with { Address = address };
     });
 
     public void EditDetails(CompanyDetailsData details) => AllureApi.Step("Змінити поля на вкладці Details", () =>
@@ -218,6 +291,8 @@ public class CompanyForm(Window owner, AutomationElement root)
                 () => TaxNumber.ShouldHaveText(general.TaxNumber),
                 () => VatNumber.ShouldHaveText(general.VatNumber),
                 () => Communications.ShouldHaveItems(general.Communications),
+                () => AllureApi.Step($"Перевірити «Adressen»: {general.Address.ListRow}",
+                    () => AddressRows.ShouldBe(new[] { general.Address.ListRow }, "Adressen")),
                 () => Remark.ShouldHaveText(general.Remark),
                 () => AllureApi.Step($"Перевірити «Kategorie»: {general.Category}",
                     () => Categories.ShouldBe(new[] { general.Category }, "Kategorie")),

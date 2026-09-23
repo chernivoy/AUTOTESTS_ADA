@@ -40,7 +40,7 @@ public class ContactTests : AdaicaTestBase
         var savedCompany = CreateCompany(mainPage, company);
         // Якщо тест упаде посеред редагування, незбережені зміни буде відкинуто.
         OnCleanup(savedCompany.CancelIfEditing);
-        savedCompany.Edit(edit);
+        edit = savedCompany.Edit(edit, CustomerCase.AnotherAddress);
 
         // Вузол фірми в дереві — повна назва й категорія в дужках.
         var fullName = CompanyForm.FullName(company.Name, edit.General);

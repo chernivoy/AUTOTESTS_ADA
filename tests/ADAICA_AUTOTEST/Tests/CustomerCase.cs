@@ -41,6 +41,18 @@ public sealed class CustomerCase
         new("Müller Logistik AG", "Basel", new Person("Müller", IsWoman: true), "Transport und Lagerung", "Basel-Stadt", "61", "4051", "mueller-logistik.ch"),
     ];
 
+    // Німецькі міста для адрес фірми: у довіднику адрес тестової бази є лише Deutschland, тож фірма зі Швейцарії
+    // має тут філію чи адресу доставки. Вулиці — справжні вулиці цих районів.
+    private static readonly GermanPlace[] GermanPlaces =
+    [
+        new("Bayern", "80331", "München", "Altstadt", ["Sendlinger Straße", "Rosenstraße", "Tal"]),
+        new("Baden-Württemberg", "70173", "Stuttgart", "Mitte", ["Königstraße", "Calwer Straße", "Eberhardstraße"]),
+        new("Hessen", "60311", "Frankfurt am Main", "Innenstadt", ["Zeil", "Töngesgasse", "Fahrgasse"]),
+        new("Nordrhein-Westfalen", "50667", "Köln", "Altstadt-Nord", ["Hohe Straße", "Schildergasse", "Breite Straße"]),
+        new("Hamburg", "20095", "Hamburg", "Altstadt", ["Mönckebergstraße", "Spitalerstraße", "Rathausstraße"]),
+        new("Sachsen", "01067", "Dresden", "Innere Altstadt", ["Wilsdruffer Straße", "Schloßstraße", "Seestraße"]),
+    ];
+
     // Банки з довідника ADAICA (німецький, за BLZ): назва й SWIFT-BIC такі, як їх заповнює вибір банку.
     private static readonly (string Code, string Name, string Bic)[] Banks =
     [
@@ -110,6 +122,7 @@ public sealed class CustomerCase
                     new("Webseite", $"www.{_customer.Domain}", "Website", string.Empty),
                     new("Sonstige", $"Postfach {System.Random.Shared.Next(100, 1000)}, {_customer.PostalCode} {_customer.City}", "Unbekannt", string.Empty),
                 ],
+                Address: NewAddress(),
                 Remark: Pick(
                     $"Stammkunde, Ansprechperson ist {Contact.Nominative}. Rechnungen bitte per E-Mail.",
                     $"Rahmenvertrag bis Ende Jahr. Termine immer mit {Contact.Dative} abstimmen.",
@@ -133,6 +146,33 @@ public sealed class CustomerCase
                 Bic: bank.Bic,
                 AccountNumber: accountNumber,
                 IsPrimary: true));
+    }
+
+    /// <summary>Філія або адреса доставки фірми в Німеччині.</summary>
+    public static AddressData NewAddress()
+    {
+        var place = Pick(GermanPlaces);
+        return new AddressData(
+            Category: Pick("Zweigstelle", "Lieferanschrift"),
+            Country: "Deutschland",
+            State: place.State,
+            PostalCode: place.PostalCode,
+            City: place.City,
+            District: place.District,
+            Street: Pick(place.Streets),
+            HouseNumber: HouseNumber());
+    }
+
+    /// <summary>
+    /// Та сама адреса з іншим номером будинку — коли задану вже створив попередній прогін
+    /// (адреси лишаються в довіднику, а нову ADAICA дає створити лише таку, якої там ще немає).
+    /// </summary>
+    public static AddressData AnotherAddress(AddressData address)
+    {
+        var another = address;
+        while (another.HouseNumber == address.HouseNumber)
+            another = address with { HouseNumber = HouseNumber() };
+        return another;
     }
 
     public ProjectData NewProject()
@@ -324,6 +364,10 @@ public sealed class CustomerCase
     // Швейцарський номер у місті фірми: «+41 81 252 34 17».
     private string PhoneNumber() => $"+41 {_customer.AreaCode} {Digits(3)} {Digits(2)} {Digits(2)}";
 
+    // Номер будинку, як його пишуть у Німеччині: зазвичай число, іноді з літерою.
+    private static string HouseNumber() =>
+        $"{System.Random.Shared.Next(1, 200)}{Pick("", "", "", "a", "b")}";
+
     private static string Digits(int count) =>
         string.Concat(Enumerable.Range(0, count).Select(_ => System.Random.Shared.Next(10).ToString(CultureInfo.InvariantCulture)));
 
@@ -357,6 +401,8 @@ public sealed class CustomerCase
 
     /// <param name="Trade">Діяльність фірми — другий рядок її назви.</param>
     /// <param name="AreaCode">Телефонний код міста без нуля: «+41 81 …».</param>
+    private sealed record GermanPlace(string State, string PostalCode, string City, string District, string[] Streets);
+
     private sealed record Customer(
         string Company, string City, Person Contact, string Trade, string Canton, string AreaCode, string PostalCode, string Domain);
 
