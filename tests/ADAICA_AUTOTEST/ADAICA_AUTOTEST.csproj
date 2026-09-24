@@ -6,6 +6,9 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\ADAICA_AUTOTEST.runsettings</RunSettingsFilePath>
+    <!-- Опис тестів із коментарів показує веб-запускач tools/TestRunner. Документувати кожен публічний член чи параметр не вимагаємо. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

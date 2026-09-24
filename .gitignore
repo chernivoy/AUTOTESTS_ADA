@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 allure-results/
 allure-report/
 artifacts/
+
+# Дані веб-запускача тестів (tools/TestRunner): звіти Allure й результати прогонів
+.testrunner/

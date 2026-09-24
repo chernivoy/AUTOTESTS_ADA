@@ -19,7 +19,12 @@ dotnet test tests/ADAICA_AUTOTEST --filter "Category=Smoke"
 
 # звіт після прогону
 allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
+
+# веб-запускач: вибір тестів чекбоксами, запуск у порядку вибору, звіт Allure (http://127.0.0.1:5080)
+dotnet run --project tools/TestRunner
 ```
+
+Веб-запускач (`tools/TestRunner`) запускає кожен тест окремим `dotnet test` з фільтром `NUnit.Where` і передає тестам `ADAICA_KEEP_ALLURE_RESULTS=true`, щоб `TestRunSetup` не чистив allure-results між тестами. Описи тестів він бере з XML-документації збірки, тож `/// <summary>` над тестом видно на сторінці.
 
 Тести керують реальними вікнами: під час прогону не можна рухати мишею й друкувати. Кожен тест запускає власний процес ADAICA і закриває його після себе.
 

@@ -75,6 +75,11 @@ ADAICA_AUTOTEST.sln
    ├─ TestRunSetup.cs                  дії перед усім прогоном (DPI, очищення Allure)
    ├─ ADAICA_AUTOTEST.runsettings      параметри прогону
    └─ allureConfig.json
+tools/TestRunner/                      веб-запускач: вибір тестів у браузері, запуск у заданому порядку, звіт Allure
+   ├─ Program.cs                       сервер на 127.0.0.1:5080 і API
+   ├─ TestCatalog.cs                   список тестів зі збірки та їхні описи з XML-документації
+   ├─ RunManager.cs                    прогін: збирання, dotnet test для кожного тесту, TRX, allure generate
+   └─ wwwroot/                         сторінка (index.html, app.css, app.js)
 .claude/agents/adaica-search-tester.md   агент Claude Code для тестування пошуку (див. «Агент для тестів пошуку»)
 Jenkinsfile
 ```
@@ -104,6 +109,20 @@ dotnet test tests/ADAICA_AUTOTEST --filter "FullyQualifiedName=ADAICA_AUTOTEST.T
 ```powershell
 allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 ```
+
+### Веб-запускач
+
+Замість команд тести можна вибрати й запустити на сторінці в браузері:
+
+```powershell
+dotnet run --project tools/TestRunner
+```
+
+Запускач відкриває http://127.0.0.1:5080 (сторінка доступна лише з цієї машини). Зліва — усі тести, згруповані за класами, з описами з коментарів `/// <summary>` і позначками Smoke. Праворуч — користувач, пароль, база й схема, заповнені тим самим, що бачать тести: `ADAICA_AUTOTEST.runsettings` і змінні `ADAICA_USER`, `ADAICA_PASSWORD`, `ADAICA_DATABASE`, `ADAICA_SCHEMA`. Під ними — черга: тести йдуть у тому порядку, в якому їх позначено, порядок можна змінити стрілками. Черга й поля (крім пароля) зберігаються в браузері.
+
+«Запустити» збирає тести, а потім запускає кожен окремим `dotnet test` у порядку черги, передаючи параметри входу змінними середовища. Порядок тримає сам запускач: в одному `dotnet test` NUnit упорядкував би тести по-своєму. Кожен тест вибирається фільтром NUnit `NUnit.Where=class == … && method == …`, тож разом з усіма випадками TestCase і без тестів зі схожими назвами. Щоб звіт Allure був один на весь прогін, запускач сам очищає `allure-results` перед прогоном і передає тестам `ADAICA_KEEP_ALLURE_RESULTS=true` (тоді `TestRunSetup` теку не чистить). Унизу сторінки видно статус кожного тесту, а після прогону — «Тести завершились», час кожного тесту за TRX, перша помилка й кнопка «Відкрити Allure-звіт». Звіт генерує `allure generate` у `.testrunner/reports/<прогін>`, і запускач віддає його сам. «Зупинити» завершує поточний `dotnet test` разом з ADAICA, яку запустив тест; інші екземпляри ADAICA не зачіпаються. TRX і підсумок кожного прогону лежать у `.testrunner/runs/<прогін>`.
+
+«Оновити список» перезбирає тести й перечитує список — наприклад, після додавання нового тесту. Інший порт: `dotnet run --project tools/TestRunner -- --urls http://127.0.0.1:5090`; без автоматичного відкриття браузера — `-- --no-browser=true`.
 
 ## Налаштування
 

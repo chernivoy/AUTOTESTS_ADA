@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Веб-запускач тестів: сторінка на http://127.0.0.1:5080, з якої вибирають і запускають тести ADAICA_AUTOTEST. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>TestRunner</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Читає тести зі збірки ADAICA_AUTOTEST, не завантажуючи її для виконання. -->
+    <PackageReference Include="System.Reflection.MetadataLoadContext" />
+  </ItemGroup>
+
+</Project>

@@ -7,6 +7,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ADAICA_AUTOTEST", "tests\ADAICA_AUTOTEST\ADAICA_AUTOTEST.csproj", "{AFB278F3-7820-4C65-863B-43733D9D5346}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestRunner", "tools\TestRunner\TestRunner.csproj", "{9E12B528-80E9-4D38-A105-D68326B19CBD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,11 +33,24 @@ Global
 		{AFB278F3-7820-4C65-863B-43733D9D5346}.Release|x64.Build.0 = Release|Any CPU
 		{AFB278F3-7820-4C65-863B-43733D9D5346}.Release|x86.ActiveCfg = Release|Any CPU
 		{AFB278F3-7820-4C65-863B-43733D9D5346}.Release|x86.Build.0 = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|x64.Build.0 = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Debug|x86.Build.0 = Debug|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|x64.ActiveCfg = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|x64.Build.0 = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|x86.ActiveCfg = Release|Any CPU
+		{9E12B528-80E9-4D38-A105-D68326B19CBD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AFB278F3-7820-4C65-863B-43733D9D5346} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{9E12B528-80E9-4D38-A105-D68326B19CBD} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Запуск тестів ADAICA</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M12 9l11 7-11 7z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">▶</span>
+      <div>
+        <h1>Запуск тестів ADAICA</h1>
+        <p class="muted" id="build-info">Завантаження списку тестів…</p>
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="refresh" type="button" title="Перезібрати тести й оновити список">
+      <span aria-hidden="true">↻</span> Оновити список
+    </button>
+  </header>
+
+  <main class="layout">
+    <section class="panel tests-panel" aria-labelledby="tests-title">
+      <div class="panel-head">
+        <h2 id="tests-title">Тести</h2>
+        <span class="counter" id="selected-counter">0 вибрано</span>
+      </div>
+      <div class="toolbar">
+        <input class="input search" id="search" type="search" placeholder="Пошук за назвою чи описом…" autocomplete="off">
+        <button class="btn btn-small" id="expand-all" type="button">Розгорнути все</button>
+        <button class="btn btn-small" id="collapse-all" type="button">Згорнути все</button>
+        <button class="btn btn-small" id="select-smoke" type="button" title="Додати в чергу всі тести з категорією Smoke">+ Smoke</button>
+        <button class="btn btn-small btn-danger-ghost" id="clear-selection" type="button">Зняти все</button>
+      </div>
+      <div id="catalog-error" class="alert alert-error" hidden></div>
+      <div id="groups" class="groups"></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" aria-labelledby="connection-title">
+        <h2 id="connection-title">Підключення</h2>
+        <form id="connection" class="form" autocomplete="off">
+          <label class="field">
+            <span>Користувач</span>
+            <input class="input" id="user" name="user" required>
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <span class="password">
+              <input class="input" id="password" name="password" type="password" required>
+              <button class="btn btn-icon" id="toggle-password" type="button" title="Показати пароль" aria-label="Показати пароль">👁</button>
+            </span>
+            <small class="muted">Зі змінної ADAICA_PASSWORD; ніде не зберігається.</small>
+          </label>
+          <label class="field">
+            <span>База даних</span>
+            <input class="input" id="database" name="database" list="database-options" required>
+          </label>
+          <label class="field">
+            <span>Схема</span>
+            <input class="input" id="schema" name="schema" list="schema-options" required>
+          </label>
+          <datalist id="database-options"></datalist>
+          <datalist id="schema-options"></datalist>
+          <button class="btn btn-small btn-ghost" id="reset-connection" type="button">Повернути значення за замовчуванням</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="queue-title">
+        <div class="panel-head">
+          <h2 id="queue-title">Черга запуску</h2>
+          <span class="muted small">у порядку вибору</span>
+        </div>
+        <ol id="queue" class="queue"></ol>
+        <p id="queue-empty" class="muted small">Позначте тести зліва — вони стануть у чергу в тому порядку, в якому ви їх позначите.</p>
+        <div class="actions">
+          <button class="btn btn-primary" id="run" type="button">▶ Запустити</button>
+          <button class="btn btn-danger" id="stop" type="button" hidden>■ Зупинити</button>
+        </div>
+        <p class="hint">Під час прогону не рухайте мишею й нічого не друкуйте: тести керують вікнами ADAICA.</p>
+        <div id="run-error" class="alert alert-error" hidden></div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel results" id="results" hidden aria-live="polite">
+    <div class="results-head">
+      <div>
+        <h2 id="results-title">Прогін</h2>
+        <p class="muted" id="results-subtitle"></p>
+      </div>
+      <a class="btn btn-primary" id="report" target="_blank" rel="noopener" hidden>📊 Відкрити Allure-звіт</a>
+    </div>
+    <div class="progress" id="progress"><div class="progress-bar" id="progress-bar"></div></div>
+    <div id="results-error" class="alert alert-error" hidden></div>
+    <table class="results-table">
+      <thead>
+        <tr><th>#</th><th>Тест</th><th>Статус</th><th>Випадки</th><th class="num">Час</th></tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+      <tfoot id="results-foot"></tfoot>
+    </table>
+    <details class="log">
+      <summary>Журнал</summary>
+      <pre id="log"></pre>
+    </details>
+  </section>
+
+  <template id="group-template">
+    <article class="group">
+      <header class="group-head">
+        <input type="checkbox" class="group-check" aria-label="Вибрати всі тести класу">
+        <button class="group-toggle" type="button" aria-expanded="true">
+          <span class="chevron" aria-hidden="true">▾</span>
+          <span class="group-name"></span>
+          <span class="badge suite"></span>
+          <span class="group-count muted small"></span>
+        </button>
+      </header>
+      <p class="group-summary muted small"></p>
+      <ul class="test-list"></ul>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -402,10 +402,10 @@ public sealed class CustomerCase
         return picked;
     }
 
-    /// <param name="Trade">Діяльність фірми — другий рядок її назви.</param>
-    /// <param name="AreaCode">Телефонний код міста без нуля: «+41 81 …».</param>
     private sealed record GermanPlace(string State, string PostalCode, string City, string District, string[] Streets);
 
+    /// <param name="Trade">Діяльність фірми — другий рядок її назви.</param>
+    /// <param name="AreaCode">Телефонний код міста без нуля: «+41 81 …».</param>
     private sealed record Customer(
         string Company, string City, Person Contact, string Trade, string Canton, string AreaCode, string PostalCode, string Domain);
 
