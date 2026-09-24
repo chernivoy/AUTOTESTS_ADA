@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using ADAICA_AUTOTEST.Pages;
 
@@ -128,6 +129,8 @@ public sealed class CustomerCase
                     $"Rahmenvertrag bis Ende Jahr. Termine immer mit {Contact.Dative} abstimmen.",
                     "Zahlt zuverlässig innert 30 Tagen, Skonto wird nicht gewährt."),
                 Category: Pick("Eigentümer", "Wartungsfirma", "Kostenträger"),
+                // Логотип: назва фірми на кольоровому тлі. Кольори насичені, щоб не сплутати їх із сірим тлом картки.
+                Photo: new PhotoData(_customer.Company, Pick(Color.SteelBlue, Color.SeaGreen, Color.DarkOrange, Color.Crimson)),
                 CorrespondencePreference: "Firma",
                 ElectronicContact: Pick("Ja", "Nein"),
                 NoAdvertisingEmails: true,

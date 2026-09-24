@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
@@ -37,10 +38,21 @@ public class ContactTests : AdaicaTestBase
         var company = customer.NewCompany();
         var edit = customer.EditCompany();
 
+        // Фото тест малює сам; файл прибирається, щойно фото збережено, а якщо тест упаде раніше, — після тесту.
+        var photo = TestImageFile.CreateJpeg(edit.General.Photo.Caption, edit.General.Photo.Background);
+        OnCleanup(photo.Dispose);
+
         var savedCompany = CreateCompany(mainPage, company);
         // Якщо тест упаде посеред редагування, незбережені зміни буде відкинуто.
         OnCleanup(savedCompany.CancelIfEditing);
-        edit = savedCompany.Edit(edit, CustomerCase.AnotherAddress);
+        edit = savedCompany.Edit(edit, CustomerCase.AnotherAddress, photo.Path);
+
+        // Фото зберігається в ADAICA, а не посиланням на файл: після видалення файлу воно лишається у фірмі.
+        AllureApi.Step($"Видалити файл фото {photo.Path}", () =>
+        {
+            photo.Delete();
+            photo.Exists.ShouldBeFalse($"Файл фото {photo.Path} не видалено");
+        });
 
         // Вузол фірми в дереві — повна назва й категорія в дужках.
         var fullName = CompanyForm.FullName(company.Name, edit.General);

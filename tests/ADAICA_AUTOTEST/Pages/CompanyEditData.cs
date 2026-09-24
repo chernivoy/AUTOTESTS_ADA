@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>Усе, що тест змінює в картці збереженої фірми: вкладки Allgemein, Details і Bankverbindungen.</summary>
@@ -25,6 +27,7 @@ public sealed record CompanyGeneralData(
     AddressData Address,
     string Remark,
     string Category,
+    PhotoData Photo,
     string CorrespondencePreference,
     string ElectronicContact,
     bool NoAdvertisingEmails,
@@ -57,6 +60,14 @@ public sealed record AddressData(
 
     public override string ToString() => $"{Street} {HouseNumber}, {PostalCode} {City}";
 }
+
+/// <summary>
+/// Фото фірми: JPG, який тест малює сам (тло <paramref name="Background"/> з підписом) і прибирає після того, як
+/// фото збережено. За кольором тла на знімку картки тест перевіряє, що показано саме це фото.
+/// </summary>
+public sealed record PhotoData(
+    string Caption,
+    Color Background);
 
 /// <summary>Рядок у списку «Verbindung».</summary>
 /// <param name="Kind">Пункт меню «+» і група в списку: Telefon, Fax, E-Mail, Webseite, Sonstige.</param>

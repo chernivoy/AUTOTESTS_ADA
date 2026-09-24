@@ -64,6 +64,9 @@ public class CompanyForm(Window owner, AutomationElement root)
 
     public CheckBoxControl PrivacyStatementOk { get; } = new("Datenschutzerklärung ok", Locate.ById(root, "chkPrivacyStatementOkCtrCompanyGeneral"));
 
+    /// <summary>Фото фірми праворуч угорі.</summary>
+    public ImagePickerControl Photo { get; } = new("Foto", Locate.ById(root, "imageCompany"));
+
     /// <summary>Категорії фірми під фото (лише для читання; змінюються у вікні «Kategorie»).</summary>
     public IReadOnlyList<string> Categories =>
         root.FindByAutomationId("lstCategories").FindAllChildren(cf => cf.ByControlType(ControlType.ListItem)).Select(item => item.Name).ToList();
@@ -192,11 +195,12 @@ public class CompanyForm(Window owner, AutomationElement root)
     /// Змінює всі поля трьох вкладок, які ADAICA дає редагувати в тестовій базі, і зберігає картку кнопкою OK.
     /// </summary>
     /// <param name="anotherAddress">Інша адреса, якщо задана вже є в довіднику адрес.</param>
+    /// <param name="photoFile">JPG для фото фірми, намальований за <see cref="CompanyGeneralData.Photo"/>.</param>
     /// <returns>Збережені дані: адреса може відрізнятися від заданої.</returns>
-    public CompanyEditData Edit(CompanyEditData data, Func<AddressData, AddressData> anotherAddress) =>
+    public CompanyEditData Edit(CompanyEditData data, Func<AddressData, AddressData> anotherAddress, string photoFile) =>
         AllureApi.Step("Змінити поля фірми", () =>
         {
-            var general = EditGeneral(data.General, anotherAddress);
+            var general = EditGeneral(data.General, anotherAddress, photoFile);
             EditDetails(data.Details);
             AddBankAccount(data.BankAccount);
             Save();
@@ -204,7 +208,7 @@ public class CompanyForm(Window owner, AutomationElement root)
         });
 
     /// <returns>Збережені дані вкладки: адреса може відрізнятися від заданої.</returns>
-    public CompanyGeneralData EditGeneral(CompanyGeneralData general, Func<AddressData, AddressData> anotherAddress) =>
+    public CompanyGeneralData EditGeneral(CompanyGeneralData general, Func<AddressData, AddressData> anotherAddress, string photoFile) =>
         AllureApi.Step("Змінити поля на вкладці Allgemein", () =>
     {
         GeneralTab.Select();
@@ -229,6 +233,8 @@ public class CompanyForm(Window owner, AutomationElement root)
         var categoriesDialog = OpenCategoriesDialog();
         categoriesDialog.Check(general.Category);
         categoriesDialog.Confirm();
+
+        Photo.AddFromFile(photoFile);
 
         CorrespondencePreference.Select(general.CorrespondencePreference);
         ElectronicContact.Select(general.ElectronicContact);
@@ -296,6 +302,8 @@ public class CompanyForm(Window owner, AutomationElement root)
                 () => Remark.ShouldHaveText(general.Remark),
                 () => AllureApi.Step($"Перевірити «Kategorie»: {general.Category}",
                     () => Categories.ShouldBe(new[] { general.Category }, "Kategorie")),
+                () => Photo.ShouldHaveImage(),
+                () => Photo.ShouldShowImageWithBackground(general.Photo.Background),
                 () => CorrespondencePreference.ShouldHaveSelected(general.CorrespondencePreference),
                 () => ElectronicContact.ShouldHaveSelected(general.ElectronicContact),
                 () => NoAdvertisingEmails.ShouldBeChecked(general.NoAdvertisingEmails),
