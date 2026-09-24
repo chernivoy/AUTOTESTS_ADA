@@ -4,12 +4,14 @@ namespace TestRunner;
 
 /// <summary>Параметри запуску зі сторінки.</summary>
 /// <param name="Tests">Id тестів у тому порядку, в якому їх позначили.</param>
+/// <param name="AppPath">Повний шлях до ADAICA.exe, яку запускатимуть тести.</param>
 public sealed record RunRequest(
     IReadOnlyList<string> Tests,
     string User,
     string Password,
     string Database,
-    string Schema);
+    string Schema,
+    string AppPath);
 
 public enum RunStatus
 {
@@ -50,6 +52,7 @@ public sealed record RunSnapshot(
     string User,
     string Database,
     string Schema,
+    string AppPath,
     IReadOnlyList<RunItem> Items,
     IReadOnlyList<string> Log,
     string? ReportUrl,
@@ -108,6 +111,7 @@ public sealed class RunManager(RunnerPaths paths, ILogger<RunManager> logger)
                 request.User,
                 request.Database,
                 request.Schema,
+                request.AppPath,
                 request.Tests.Select(id => new RunItem(id, testNames.GetValueOrDefault(id, id), TestStatus.Pending, null, 0, 0, 0, null)).ToList(),
                 [],
                 null,
@@ -152,6 +156,7 @@ public sealed class RunManager(RunnerPaths paths, ILogger<RunManager> logger)
                 ["ADAICA_PASSWORD"] = request.Password,
                 ["ADAICA_DATABASE"] = request.Database,
                 ["ADAICA_SCHEMA"] = request.Schema,
+                ["ADAICA_APP_PATH"] = request.AppPath,
                 ["ADAICA_KEEP_ALLURE_RESULTS"] = "true",
             };
 

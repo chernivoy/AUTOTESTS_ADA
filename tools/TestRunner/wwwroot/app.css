@@ -17,11 +17,15 @@
   --shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 4px 16px rgb(15 23 42 / 6%);
   --radius: 12px;
   --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-  color-scheme: light dark;
+  --topbar: rgb(255 255 255 / 88%);
+  color-scheme: light;
 }
 
+/* Темна тема: системна (якщо світлу не вибрано явно) або вибрана перемикачем. Змінні однакові в обох блоках. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --topbar: rgb(17 24 39 / 88%);
     --bg: #0b1120;
     --panel: #111827;
     --panel-soft: #0f172a;
@@ -39,6 +43,27 @@
     --warning-soft: #78350f66;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 20px rgb(0 0 0 / 30%);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --topbar: rgb(17 24 39 / 88%);
+  --bg: #0b1120;
+  --panel: #111827;
+  --panel-soft: #0f172a;
+  --border: #1f2a3d;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-soft: #1e3a8a55;
+  --success: #22c55e;
+  --success-soft: #14532d66;
+  --danger: #f87171;
+  --danger-soft: #7f1d1d66;
+  --warning: #fbbf24;
+  --warning-soft: #78350f66;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 20px rgb(0 0 0 / 30%);
 }
 
 * { box-sizing: border-box; }
@@ -69,12 +94,37 @@ h2 { font-size: 16px; }
   justify-content: space-between;
   gap: 16px;
   padding: 14px 24px;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  background: var(--topbar);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
 
 .topbar p { margin: 2px 0 0; font-size: 12px; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+.theme-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-soft);
+}
+
+.theme-switch button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.theme-switch button:hover { color: var(--text); }
+.theme-switch button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
 
 .brand { display: flex; align-items: center; gap: 12px; }
 
@@ -132,6 +182,8 @@ h2 { font-size: 16px; }
   font: inherit;
   transition: border-color .15s, box-shadow .15s;
 }
+
+.input.mono { font-family: var(--mono); font-size: 12px; }
 
 .input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 
@@ -332,5 +384,5 @@ h2 { font-size: 16px; }
   .layout { grid-template-columns: 1fr; padding: 16px 16px 0; }
   .side { position: static; }
   .results { margin: 16px; }
-  .topbar { padding: 12px 16px; }
+  .topbar { padding: 12px 16px; flex-wrap: wrap; }
 }

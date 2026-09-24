@@ -116,8 +116,10 @@ app.MapPost("/api/run", (RunRequest request, RunManager runs) =>
 {
     if (request.Tests.Count == 0)
         return Results.BadRequest(new { error = "Не вибрано жодного тесту." });
-    if (new[] { request.User, request.Password, request.Database, request.Schema }.Any(string.IsNullOrWhiteSpace))
-        return Results.BadRequest(new { error = "Заповніть користувача, пароль, базу й схему." });
+    if (new[] { request.User, request.Password, request.Database, request.Schema, request.AppPath }.Any(string.IsNullOrWhiteSpace))
+        return Results.BadRequest(new { error = "Заповніть користувача, пароль, базу, схему й шлях до ADAICA.exe." });
+    if (!File.Exists(request.AppPath))
+        return Results.BadRequest(new { error = $"ADAICA.exe не знайдено: {request.AppPath}" });
 
     var known = (catalog ?? []).SelectMany(group => group.Tests).ToDictionary(test => test.Id, test => test.Name);
     var unknown = request.Tests.Where(id => !known.ContainsKey(id)).ToList();

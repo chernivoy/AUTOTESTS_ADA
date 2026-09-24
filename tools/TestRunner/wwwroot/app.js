@@ -6,6 +6,7 @@ const STORAGE = {
   queue: 'adaica-runner.queue',
   connection: 'adaica-runner.connection',
   collapsed: 'adaica-runner.collapsed',
+  theme: 'adaica-runner.theme',
 };
 
 const STATUS_TEXT = {
@@ -295,7 +296,7 @@ function queueButton(text, title, onClick) {
 
 // ---------- Підключення ----------
 
-const CONNECTION_FIELDS = ['user', 'database', 'schema'];
+const CONNECTION_FIELDS = ['user', 'database', 'schema', 'appPath'];
 
 async function loadConnection() {
   try {
@@ -311,6 +312,8 @@ async function loadConnection() {
 
   fillOptions('database-options', [state.defaults.database, saved.database]);
   fillOptions('schema-options', [state.defaults.schema, saved.schema]);
+  fillOptions('app-path-options', [state.defaults.appPath, saved.appPath]);
+  showFullPath();
 }
 
 function fillOptions(id, values) {
@@ -321,6 +324,11 @@ function fillOptions(id, values) {
     option.value = value;
     list.append(option);
   }
+}
+
+// Шлях довгий і в полі обрізається, тому повністю він видно в підказці.
+function showFullPath() {
+  $('appPath').title = $('appPath').value;
 }
 
 function saveConnection() {
@@ -356,6 +364,7 @@ async function startRun() {
         password: $('password').value,
         database: $('database').value.trim(),
         schema: $('schema').value.trim(),
+        appPath: $('appPath').value.trim(),
       }),
     });
     renderRun();
@@ -412,7 +421,7 @@ function renderRun() {
   const passed = run.items.filter((item) => item.status === 'Passed').length;
   $('results-title').textContent = RUN_TITLE[run.status] ?? run.status;
   const started = new Date(run.startedAt).toLocaleString('uk-UA');
-  const connection = `${run.user} · ${run.database}:${run.schema}`;
+  const connection = `${run.user} · ${run.database}:${run.schema} · ${run.appPath}`;
   $('results-subtitle').textContent = done
     ? `${passed} з ${run.items.length} пройшли · початок ${started} · тривалість ${formatDuration(elapsed(run))} · ${connection}`
     : `${finishedCount} з ${run.items.length} виконано · початок ${started} · ${connection}`;
@@ -509,6 +518,41 @@ function hideError(id) {
   $(id).hidden = true;
 }
 
+// ---------- Тема ----------
+
+// «auto» — як у системі (prefers-color-scheme), «light»/«dark» — вибрано явно.
+function applyTheme(choice) {
+  if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+  else delete document.documentElement.dataset.theme;
+
+  for (const button of document.querySelectorAll('[data-theme-choice]')) {
+    button.setAttribute('aria-checked', String(button.dataset.themeChoice === choice));
+  }
+}
+
+function initTheme() {
+  let saved = 'auto';
+  try {
+    saved = localStorage.getItem(STORAGE.theme) ?? 'auto';
+  } catch {
+    // Без localStorage — системна тема.
+  }
+
+  applyTheme(saved);
+  for (const button of document.querySelectorAll('[data-theme-choice]')) {
+    button.addEventListener('click', () => {
+      const choice = button.dataset.themeChoice;
+      applyTheme(choice);
+      try {
+        // Рядок, а не JSON: його читає й скрипт у <head> ще до завантаження app.js.
+        localStorage.setItem(STORAGE.theme, choice);
+      } catch {
+        // Не збереглося — тема діє до перезавантаження.
+      }
+    });
+  }
+}
+
 // ---------- Події ----------
 
 function selectSmoke() {
@@ -537,9 +581,11 @@ $('clear-selection').addEventListener('click', () => {
 $('run').addEventListener('click', startRun);
 $('stop').addEventListener('click', stopRun);
 $('connection').addEventListener('change', saveConnection);
+$('appPath').addEventListener('input', showFullPath);
 $('reset-connection').addEventListener('click', () => {
   for (const field of CONNECTION_FIELDS) $(field).value = state.defaults?.[field] ?? '';
   $('password').value = state.defaults?.password ?? '';
+  showFullPath();
   saveConnection();
 });
 $('toggle-password').addEventListener('click', () => {
@@ -548,6 +594,8 @@ $('toggle-password').addEventListener('click', () => {
   input.type = show ? 'text' : 'password';
   $('toggle-password').title = show ? 'Сховати пароль' : 'Показати пароль';
 });
+
+initTheme();
 
 (async function init() {
   await Promise.all([loadTests(), loadConnection()]);

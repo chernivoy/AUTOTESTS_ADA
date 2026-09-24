@@ -6,6 +6,13 @@
   <title>Запуск тестів ADAICA</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M12 9l11 7-11 7z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="app.css">
+  <script>
+    // Тема до першого малювання, щоб сторінка не блимала: збережена світла/темна або системна.
+    try {
+      const theme = localStorage.getItem('adaica-runner.theme');
+      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+    } catch { /* без localStorage — системна тема */ }
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -16,9 +23,16 @@
         <p class="muted" id="build-info">Завантаження списку тестів…</p>
       </div>
     </div>
-    <button class="btn btn-ghost" id="refresh" type="button" title="Перезібрати тести й оновити список">
-      <span aria-hidden="true">↻</span> Оновити список
-    </button>
+    <div class="topbar-actions">
+      <div class="theme-switch" role="radiogroup" aria-label="Тема">
+        <button type="button" role="radio" data-theme-choice="auto" title="Як у системі">🖥 Авто</button>
+        <button type="button" role="radio" data-theme-choice="light" title="Світла тема">☀ Світла</button>
+        <button type="button" role="radio" data-theme-choice="dark" title="Темна тема">🌙 Темна</button>
+      </div>
+      <button class="btn btn-ghost" id="refresh" type="button" title="Перезібрати тести й оновити список">
+        <span aria-hidden="true">↻</span> Оновити список
+      </button>
+    </div>
   </header>
 
   <main class="layout">
@@ -62,6 +76,12 @@
             <span>Схема</span>
             <input class="input" id="schema" name="schema" list="schema-options" required>
           </label>
+          <label class="field">
+            <span>Шлях до ADAICA.exe</span>
+            <input class="input mono" id="appPath" name="appPath" list="app-path-options" required spellcheck="false">
+            <small class="muted">Цю ADAICA запускатиме кожен тест.</small>
+          </label>
+          <datalist id="app-path-options"></datalist>
           <datalist id="database-options"></datalist>
           <datalist id="schema-options"></datalist>
           <button class="btn btn-small btn-ghost" id="reset-connection" type="button">Повернути значення за замовчуванням</button>
