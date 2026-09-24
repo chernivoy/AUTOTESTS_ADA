@@ -65,6 +65,23 @@ public class ContactTests : AdaicaTestBase
     }
 
     /// <summary>
+    /// Нова фірма, а під нею з її контекстного меню («Neu») — проєкт, Ordner, завдання, термін та інфозапис.
+    /// Усі записи стосуються тієї самої справи клієнта, що й фірма.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void KontakteNavigator_NewCompanyWithChildRecords()
+    {
+        var mainPage = LogInAndOpenNavigator("Kontakte");
+        var customer = CustomerCase.Random();
+        var company = customer.NewCompany();
+
+        CreateCompany(mainPage, company);
+
+        CreateChildRecords(mainPage, customer, company.Name);
+    }
+
+    /// <summary>
     /// Створює фірму: Gesamtliste → «Neue Firma» → «Finden &amp; Erstellen» → «Neue Person/Firma» → OK.
     /// Після збереження ADAICA сама відкриває фірму у вузлі Aktuelle.
     /// </summary>

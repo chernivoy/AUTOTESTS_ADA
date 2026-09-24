@@ -66,7 +66,7 @@ allure serve tests/ADAICA_AUTOTEST/bin/Debug/net10.0-windows/allure-results
 
 1. Знайти AutomationId у FlaUInspect (застосунок запустити зі змінною вище).
 2. Створити `…Form` (контроли + `Fill` + `ShouldHaveValues`), `…Data` (record) і `…Dialog : RecordDialog`.
-3. Додати в `MainPage` методи `OpenNew…Dialog` і `WaitForOpened…`, а якщо запис створюється і під іншим записом, — `OpenNewChild…Dialog` (меню запису «Neu» → тип запису) і крок у `NavigatorTests.CreateChildRecords`.
+3. Додати в `MainPage` методи `OpenNew…Dialog` і `WaitForOpened…`, а якщо запис створюється і під іншим записом, — `OpenNewChild…Dialog` (меню запису «Neu» → тип запису) і крок у `AdaicaTestBase.CreateChildRecords` (його використовують тести дочірніх записів і в Dokumentation, і у фірми в Kontakte).
 4. Додати тест у `NavigatorTests`; прибирання — через `OnCleanup`.
 
 ## Що варто знати про звіти

@@ -1,5 +1,7 @@
+using System.Globalization;
 using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
+using Allure.Net.Commons;
 
 namespace ADAICA_AUTOTEST.Tests;
 
@@ -40,6 +42,78 @@ public abstract class AdaicaTestBase : UiTestBase
         mainPage.NavigatorTabNames.ShouldBe(tabsBefore.Append(navigatorName));
         return mainPage;
     }
+
+    /// <summary>
+    /// Створює з контекстного меню вузла <paramref name="parentNode"/> (будь-якого запису) проєкт, Ordner, завдання,
+    /// термін та інфозапис. Кожен збережений запис ADAICA має виділити в дереві під батьківським вузлом,
+    /// у папці свого типу: «Батько → Aufgaben → Завдання».
+    /// </summary>
+    protected void CreateChildRecords(MainPage mainPage, CustomerCase customer, string parentNode)
+    {
+        var projectDialog = mainPage.OpenNewChildProjectDialog(parentNode);
+        OnCleanup(projectDialog.CancelIfOpen);
+        var project = customer.NewSubproject();
+        projectDialog.Form.Fill(project);
+        var projectNumber = projectDialog.Form.Number.Text;
+        projectDialog.Save();
+        mainPage.WaitForOpenedProject(projectNumber).ShouldHaveValues(project);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Projekte", NodeWithNumber(project.Name, projectNumber));
+
+        var folderDialog = mainPage.OpenNewChildFolderDialog(parentNode);
+        OnCleanup(folderDialog.CancelIfOpen);
+        var folder = customer.NewFolder();
+        folderDialog.Form.Fill(folder);
+        var folderNumber = folderDialog.Form.Number.Text;
+        folderDialog.Save();
+        mainPage.WaitForOpenedFolder(folderNumber).ShouldHaveValues(folder);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Ordner", NodeWithNumber(folder.Name, folderNumber));
+
+        var taskDialog = mainPage.OpenNewChildTaskDialog(parentNode);
+        OnCleanup(taskDialog.CancelIfOpen);
+        var task = customer.NewTask();
+        taskDialog.Form.Fill(task);
+        var taskNumber = taskDialog.Form.Number.Text;
+        taskDialog.Save();
+        mainPage.WaitForOpenedTask(taskNumber).ShouldHaveValues(task);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Aufgaben", task.Name);
+
+        var appointmentDialog = mainPage.OpenNewChildAppointmentDialog(parentNode);
+        OnCleanup(appointmentDialog.CancelIfOpen);
+        var appointment = customer.NewAppointment();
+        appointmentDialog.Form.Fill(appointment);
+        var appointmentNumber = appointmentDialog.Form.Number.Text;
+        appointmentDialog.Save();
+        mainPage.WaitForOpenedAppointment(appointmentNumber).ShouldHaveValues(appointment);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Termine", AppointmentNode(appointment));
+
+        var noteDialog = mainPage.OpenNewChildNoteDialog(parentNode);
+        OnCleanup(noteDialog.CancelIfOpen);
+        var note = customer.NewNote();
+        noteDialog.Form.Fill(note);
+        noteDialog.Save();
+        mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Notizen", NoteNode(note));
+    }
+
+    private static void ShouldBeSelectedUnder(MainPage mainPage, string parentNode, string folder, string recordNode) =>
+        AllureApi.Step(
+            $"Перевірити, що в дереві виділено «{recordNode}» у «{parentNode} → {folder}»",
+            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { parentNode, folder, recordNode }));
+
+    // Як ADAICA підписує вузли записів у дереві навігатора. Проєкт і Ordner — «Назва (Номер)».
+    protected static string NodeWithNumber(string name, string number) => $"{name} ({number})";
+
+    // «ррММдд ГГ:хх/+Nh Назва», наприклад «260918 10:00/+2h Besprechung mit Frau Keller».
+    protected static string AppointmentNode(AppointmentData appointment)
+    {
+        var begins = appointment.Begin.ToString("yyMMdd HH:mm", CultureInfo.InvariantCulture);
+        var hours = (int)(appointment.End - appointment.Begin).TotalHours;
+        return $"{begins}/+{hours}h {appointment.Name}";
+    }
+
+    // «дд.ММ.рр Назва».
+    protected static string NoteNode(NoteData note) =>
+        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}";
 
     protected override void CloseApplication()
     {
