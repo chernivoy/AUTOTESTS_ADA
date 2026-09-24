@@ -63,6 +63,17 @@ public sealed class CustomerCase
         ("10030400", "ABK Allgemeine Beamten Bank", "ABKBDEB1XXX"),
     ];
 
+    // Відділи, які бувають у невеликої фірми.
+    private static readonly string[] Departments =
+        ["Buchhaltung", "Geschäftsleitung", "Verkauf", "Einkauf", "Personalwesen", "Kundendienst", "Technik"];
+
+    private static readonly string[] WomenFirstNames = ["Sabine", "Andrea", "Claudia", "Nicole", "Petra", "Sandra", "Monika"];
+
+    private static readonly string[] MenFirstNames = ["Thomas", "Daniel", "Markus", "Stefan", "Andreas", "Peter", "Martin"];
+
+    private static readonly string[] Surnames =
+        ["Hartmann", "Brandt", "Schneider", "Fischer", "Weber", "Zimmermann", "Baumann", "Frei", "Graf", "Lehmann"];
+
     private static readonly Topic[] Topics =
     [
         new("Umbau Empfangsbereich", "den Umbau des Empfangsbereichs"),
@@ -94,6 +105,24 @@ public sealed class CustomerCase
     public CompanyData NewCompany() => new(
         Name: $"{_customer.Company} {NewCustomerNumber()}",
         ShortName: ShortName);
+
+    /// <summary>Відділ (Organisationseinheit) фірми клієнта.</summary>
+    public string NewDepartment() => PickUnused(Departments);
+
+    /// <summary>
+    /// Співробітник фірми клієнта. Ім'я й Anrede узгоджені, бо ADAICA вгадує Anrede за ім'ям. Прізвище не збігається
+    /// з контактною особою фірми, щоб співробітник був іншою людиною.
+    /// </summary>
+    public EmployeeData NewEmployee()
+    {
+        var isWoman = System.Random.Shared.Next(2) == 0;
+        return new EmployeeData(
+            FirstName: Pick(isWoman ? WomenFirstNames : MenFirstNames),
+            LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
+            Salutation: isWoman ? "Frau" : "Herr",
+            ShortName: ShortName,
+            Function: "Mitarbeiter");
+    }
 
     /// <summary>
     /// Дані, якими тест заповнює картку фірми після створення: усе про ту саму фірму клієнта — її діяльність, місто,

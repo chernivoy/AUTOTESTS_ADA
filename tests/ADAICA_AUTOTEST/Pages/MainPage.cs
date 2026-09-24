@@ -24,6 +24,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string NotesNodeName = "Notizen";
     private const string ContactsRootNodeName = "Gesamtliste";
     private const string ContactFavoritesNodeName = "Favoriten";
+    private const string EmployeesNodeName = "Mitarbeiter";
     private const string NewRecordMenuItemId = "mnuFolderNewRecords";
     private const string NewTaskMenuItemId = "mnuNewTaskDefault";
 
@@ -162,6 +163,27 @@ public sealed partial class MainPage : AdaicaWindow
         return WaitForOpenedRecord(CompanyForm.NameId, name, information => new CompanyForm(Window, information));
     }
 
+    [AllureStep("Дочекатися відкриття відділу {name}")]
+    public DepartmentForm WaitForOpenedDepartment(string name) =>
+        WaitForOpenedRecord(DepartmentForm.NameId, name, view => new DepartmentForm(view));
+
+    /// <summary>
+    /// Персону впізнаємо за повним ім'ям: номера в картці персони немає, а тест створює її під новою фірмою.
+    /// Картка відкривається на вкладці, яку відкривали останньою, а поле імені є лише на Allgemein, тож її відкриваємо.
+    /// </summary>
+    [AllureStep("Дочекатися відкриття персони {fullName}")]
+    public PersonForm WaitForOpenedPerson(string fullName)
+    {
+        var view = Wait.For(
+            () => Window.FindFirstDescendant(cf => cf.ByClassName("InformationView")) is { } information
+                && information.FindFirstDescendant(cf => cf.ByAutomationId(PersonForm.TabsId)) is not null
+                    ? information
+                    : null,
+            "картки персони в області перегляду");
+        new PersonForm(view).GeneralTab.Select();
+        return WaitForOpenedRecord(PersonForm.NameId, fullName, information => new PersonForm(information));
+    }
+
     /// <summary>
     /// Перевідкриває фірму з дерева навігатора Kontakte, щоб картка показала збережені значення, а не те, що
     /// лишилося в ній після редагування. Вузол «Favoriten» показує список без картки, тож видно, що картку закрито.
@@ -252,6 +274,30 @@ public sealed partial class MainPage : AdaicaWindow
         return new ContactFindCreateWindow(Window);
     }
 
+    /// <summary>
+    /// Нова організаційна одиниця (відділ) фірми: з контекстного меню вузла «Mitarbeiter» фірми. Вузол фірми
+    /// розгортаємо, якщо він згорнутий. Фірму шукаємо серед виділеного вузла та його предків, як і в OpenNewChildMenu.
+    /// </summary>
+    [AllureStep("Відкрити вікно нового відділу: вузол {companyNode} → Mitarbeiter → контекстне меню → Neue Organisationseinheit hinzufügen")]
+    public DepartmentDialog OpenNewDepartmentDialog(string companyNode)
+    {
+        OpenNodeContextMenu(ChildNode(SelectedOrAnyNode(companyNode), EmployeesNodeName));
+        PopupMenuItem("Neue Organisationseinheit hinzufügen", "MnuEmployeesDepartmentNew").Click();
+        return new DepartmentDialog(Window);
+    }
+
+    /// <summary>
+    /// Новий співробітник відділу: ADAICA спершу відкриває пошук персони «Finden &amp; Erstellen», щоб не створити її двічі.
+    /// Відділи різних фірм можуть називатися однаково, тому відділ шукаємо серед виділеного вузла та його предків.
+    /// </summary>
+    [AllureStep("Відкрити вікно нового співробітника: вузол {departmentNode} → контекстне меню → Mitarbeiter zur Organisationseinheit hinzufügen")]
+    public ContactFindCreateWindow OpenNewDepartmentEmployeeWindow(string departmentNode)
+    {
+        OpenNodeContextMenu(SelectedOrAnyNode(departmentNode));
+        PopupMenuItem("Mitarbeiter zur Organisationseinheit hinzufügen", "MnuDepartmentEmployeeNew").Click();
+        return new ContactFindCreateWindow(Window);
+    }
+
     [AllureStep("Відкрити нове вікно підпроєкту: вузол {parentNode} → контекстне меню → Neu → Projekt")]
     public ProjectDialog OpenNewChildProjectDialog(string parentNode)
     {
@@ -321,10 +367,38 @@ public sealed partial class MainPage : AdaicaWindow
     /// </summary>
     private void OpenNewChildMenu(string parentNode)
     {
-        var parent = SelectedNodeWithAncestors().LastOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == parentNode)
-            ?? NavigatorNode(parentNode);
-        OpenNodeContextMenu(parent);
+        OpenNodeContextMenu(SelectedOrAnyNode(parentNode));
         PopupMenuItem("Neu", NewChildMenuItemId).Expand();
+    }
+
+    // Вузол з такою назвою серед виділеного вузла та його предків, а якщо там його немає, — перший у дереві.
+    private AutomationElement SelectedOrAnyNode(string nodeName) =>
+        SelectedNodeWithAncestors().LastOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == nodeName)
+            ?? NavigatorNode(nodeName);
+
+    /// <summary>
+    /// Дочірній вузол <paramref name="parent"/> з назвою <paramref name="nodeName"/>. Згорнутий батьківський вузол
+    /// розгортає кліком по трикутнику. Дочірні вузли — ті, що йдуть за батьком і мають більший відступ.
+    /// </summary>
+    private AutomationElement ChildNode(AutomationElement parent, string nodeName)
+    {
+        var parentName = WithoutRecordRange(NodeText(parent)!.Name);
+        var toggle = parent.FindFirstChild(cf => cf.ByAutomationId("ToggleButton"))
+            ?? throw new InvalidOperationException($"Вузол «{parentName}» не має дочірніх вузлів.");
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.On)
+            AtomicMouse.LeftClick(toggle);
+
+        return Wait.For(
+            () =>
+            {
+                var nodes = NavigatorTree.FindAllChildren();
+                var index = Array.IndexOf(nodes, parent);
+                var indent = NodeText(parent)!.BoundingRectangle.Left;
+                return nodes.Skip(index + 1)
+                    .TakeWhile(node => NodeText(node) is { } text && text.BoundingRectangle.Left > indent)
+                    .FirstOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == nodeName);
+            },
+            $"вузла «{nodeName}» під «{parentName}»");
     }
 
     /// <summary>

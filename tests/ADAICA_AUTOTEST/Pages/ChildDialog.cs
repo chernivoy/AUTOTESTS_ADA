@@ -18,10 +18,16 @@ public abstract class ChildDialog
     /// <param name="owner">Вікно, дочірнім для якого є це вікно: зазвичай головне вікно ADAICA.</param>
     /// <param name="title">Заголовок вікна для звіту.</param>
     protected ChildDialog(Window owner, string windowId, string title, string okButtonId, string cancelButtonId)
+        : this(owner, window => window.FindFirstChild(cf => cf.ByAutomationId(windowId)), title, okButtonId, cancelButtonId)
+    {
+    }
+
+    /// <param name="findWindow">Шукає вікно серед дочірніх вікон власника: для вікон без власного AutomationId.</param>
+    protected ChildDialog(Window owner, Func<Window, AutomationElement?> findWindow, string title, string okButtonId, string cancelButtonId)
     {
         _owner = owner;
         _title = title;
-        Root = Wait.For(() => owner.FindFirstChild(cf => cf.ByAutomationId(windowId))?.AsWindow(), $"вікна «{title}»");
+        Root = Wait.For(() => findWindow(owner)?.AsWindow(), $"вікна «{title}»");
 
         OkButton = new ButtonControl("OK", Locate.ById(Root, okButtonId));
         CancelButton = new ButtonControl("Abbrechen", Locate.ById(Root, cancelButtonId));
@@ -50,8 +56,12 @@ public abstract class ChildDialog
 
     protected Window Root { get; }
 
+    /// <summary>Вікна, дочірнім вікном яких ADAICA може показати повідомлення про помилку збереження.</summary>
+    protected virtual IEnumerable<Window> MessageOwners => [Root, _owner];
+
     /// <summary>Натискає OK і чекає, доки вікно закриється; якщо ADAICA показала повідомлення, падає з його текстом.</summary>
-    public void Confirm() => AllureApi.Step($"Підтвердити вікно «{_title}»", () =>
+    /// <param name="timeout">Скільки чекати закриття, якщо збереження триває довше за звичайне очікування.</param>
+    public void Confirm(TimeSpan? timeout = null) => AllureApi.Step($"Підтвердити вікно «{_title}»", () =>
     {
         OkButton.Click();
 
@@ -61,13 +71,13 @@ public abstract class ChildDialog
             if (!IsOpen)
                 return true;
 
-            var message = MessageBoxDialog.Find(Root) ?? MessageBoxDialog.Find(_owner);
+            var message = MessageOwners.Select(MessageBoxDialog.Find).FirstOrDefault(found => found is not null);
             if (message is null)
                 return false;
 
             error = $"{message.Title}: {message.Message.Text}";
             return true;
-        }, $"закриття вікна «{_title}»");
+        }, $"закриття вікна «{_title}»", timeout);
 
         if (error is not null)
             throw new InvalidOperationException($"Вікно «{_title}» не закрилося, ADAICA показала діалог «{error}».");
