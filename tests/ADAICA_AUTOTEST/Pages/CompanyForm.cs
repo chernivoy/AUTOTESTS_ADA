@@ -112,8 +112,12 @@ public class CompanyForm(Window owner, AutomationElement root)
     }
 
     /// <summary>Рядки списку «Adressen» (див. <see cref="AddressData.ListRow"/>).</summary>
-    public IReadOnlyList<string> AddressRows =>
-        root.FindByAutomationId("addressesCompany").FindByAutomationId("listView")
+    public IReadOnlyList<string> AddressRows => AddressRowsIn(root.FindByAutomationId("addressesCompany"));
+
+    /// <summary>Рядки списку «Adressen» картки контакту (фірми чи персони).</summary>
+    /// <param name="addressBox">Контрол AddressBox зі списком адрес.</param>
+    public static IReadOnlyList<string> AddressRowsIn(AutomationElement addressBox) =>
+        addressBox.FindByAutomationId("listView")
             .FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
             // Перша колонка — значок без тексту; далі Kategorie, Land, Postleitzahl, Ort, Ortsteil, Straße, Hausnummer,
             // Postfach, Adresszusatz, Bemerkung.
@@ -340,6 +344,23 @@ public class CompanyForm(Window owner, AutomationElement root)
 
     /// <summary>Назва, яку ADAICA показує в картці: рядки назви через пробіл.</summary>
     public static string FullName(string name, CompanyGeneralData general) => $"{name} {general.NameLine2} {general.NameLine3}";
+
+    /// <summary>
+    /// Перевіряє фірму, створену разом із персоною. Телефон і e-mail ADAICA записує персоні, тож «Verbindung» фірми
+    /// порожній, а адреса — фірми.
+    /// </summary>
+    public void ShouldHaveValues(NewContactData expected) => AllureApi.Step("Перевірити поля фірми", () =>
+    {
+        GeneralTab.Select();
+        this.ShouldSatisfyAllConditions(
+            () => Name.ShouldHaveText(expected.Company.Name),
+            () => ShortName.ShouldHaveText(expected.Company.ShortName),
+            () => TradeRegisterNumber.ShouldHaveText(expected.TradeRegisterNumber),
+            () => CorrespondencePreference.ShouldHaveSelected(expected.CorrespondencePreference),
+            () => Communications.ShouldHaveItems([]),
+            () => AllureApi.Step($"Перевірити «Adressen»: {expected.Address.ListRow}",
+                () => AddressRows.ShouldBe(new[] { expected.Address.ListRow }, "Adressen")));
+    });
 
     /// <summary>Перевіряє поля нової фірми, заданої у вікні «Neue Person/Firma».</summary>
     public void ShouldHaveValues(CompanyData expected) => AllureApi.Step("Перевірити поля фірми", () =>

@@ -121,6 +121,48 @@ public class ContactTests : AdaicaTestBase
     }
 
     /// <summary>
+    /// Нова персона й нова фірма разом: у рядку пошуку «Finden &amp; Erstellen» — персона, фірма, адреса фірми, телефон
+    /// і e-mail. Вікно «Neue Person/Firma» має взяти все це з рядка пошуку; решту порожніх полів тест доповнює
+    /// (Kurzname, HRG-Nr., Titel, Namenszusatz, Geburtstag, Geburtsname, Funktion тощо). Після збереження персона —
+    /// співробітник фірми у відділі «andere Tätigkeiten»; перевіряються обидві картки.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void KontakteNavigator_NewPersonWithNewCompany()
+    {
+        var mainPage = LogInAndOpenNavigator("Kontakte");
+        var contact = CustomerCase.Random().NewContact();
+        var person = contact.Person;
+
+        var findCreateWindow = mainPage.OpenNewPersonWindow();
+        // Якщо тест упаде до збереження, вікна закриються без створення фірми й персони.
+        OnCleanup(findCreateWindow.CloseIfOpen);
+
+        findCreateWindow.FocusedField.ShouldHaveText("Vorname Nachname");
+        findCreateWindow.Fill(contact);
+        // Дію під рядком пошуку ADAICA визначає за введеними даними, не одразу після введення.
+        findCreateWindow.Action.WaitForText("Firma erstellen, Person erstellen, Mitarbeiter zur Firma hinzufügen");
+
+        var dialog = findCreateWindow.OpenNewPersonDialog();
+        OnCleanup(dialog.CancelIfOpen);
+
+        dialog.ShouldHaveSearchLineValues(contact);
+        dialog.FillMissing(contact);
+        dialog.ShouldHaveValues(contact);
+
+        dialog.Save();
+
+        findCreateWindow.WaitUntilClosed();
+        mainPage.WaitForOpenedPerson(person.FullName).ShouldHaveValues(contact);
+        var personPath = new[] { "Aktuelle", contact.Company.Name, "Mitarbeiter", NewContactData.Department, person.NodeName };
+        AllureApi.Step($"Перевірити, що в дереві виділено «{string.Join(" → ", personPath)}»",
+            () => mainPage.SelectedNavigatorNodePath.ShouldBe(personPath));
+
+        mainPage.SelectNavigatorNode(contact.Company.Name);
+        mainPage.WaitForOpenedCompany(contact.Company.Name).ShouldHaveValues(contact);
+    }
+
+    /// <summary>
     /// Під фірмою створює відділ (вузол «Mitarbeiter» → «Neue Organisationseinheit hinzufügen»), а в ньому —
     /// співробітника як нову персону (меню відділу → «Finden &amp; Erstellen» → «Neue Person/Firma»).
     /// Після збереження ADAICA виділяє співробітника в дереві під відділом і відкриває його картку.
@@ -152,8 +194,7 @@ public class ContactTests : AdaicaTestBase
 
         personDialog.Save();
 
-        AllureApi.Step("Перевірити, що вікно «Finden & Erstellen» закрилося",
-            () => findCreateWindow.IsOpen.ShouldBeFalse("Вікно «Finden & Erstellen» не закрилося після збереження персони"));
+        findCreateWindow.WaitUntilClosed();
         mainPage.WaitForOpenedPerson(employee.FullName).ShouldHaveValues(employee);
         AllureApi.Step($"Перевірити, що в дереві виділено «{companyName} → Mitarbeiter → {department} → {employee.NodeName}»",
             () => mainPage.SelectedNavigatorNodePath.TakeLast(4)
@@ -183,8 +224,7 @@ public class ContactTests : AdaicaTestBase
 
         companyDialog.Save();
 
-        AllureApi.Step("Перевірити, що вікно «Finden & Erstellen» закрилося",
-            () => findCreateWindow.IsOpen.ShouldBeFalse("Вікно «Finden & Erstellen» не закрилося після збереження фірми"));
+        findCreateWindow.WaitUntilClosed();
         var savedCompany = mainPage.WaitForOpenedCompany(company.Name);
         AllureApi.Step($"Перевірити, що в дереві виділено «Aktuelle → {company.Name}»",
             () => mainPage.SelectedNavigatorNodePath.ShouldBe(new[] { "Aktuelle", company.Name }));

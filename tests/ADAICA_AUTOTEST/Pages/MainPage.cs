@@ -180,8 +180,8 @@ public sealed partial class MainPage : AdaicaWindow
                     ? information
                     : null,
             "картки персони в області перегляду");
-        new PersonForm(view).GeneralTab.Select();
-        return WaitForOpenedRecord(PersonForm.NameId, fullName, information => new PersonForm(information));
+        new PersonForm(Window, view).GeneralTab.Select();
+        return WaitForOpenedRecord(PersonForm.NameId, fullName, information => new PersonForm(Window, information));
     }
 
     /// <summary>
@@ -295,6 +295,18 @@ public sealed partial class MainPage : AdaicaWindow
     {
         OpenNodeContextMenu(SelectedOrAnyNode(departmentNode));
         PopupMenuItem("Mitarbeiter zur Organisationseinheit hinzufügen", "MnuDepartmentEmployeeNew").Click();
+        return new ContactFindCreateWindow(Window);
+    }
+
+    /// <summary>
+    /// Нова персона в навігаторі Kontakte: як і для фірми, ADAICA спершу відкриває пошук «Finden &amp; Erstellen».
+    /// Якщо в рядку пошуку є й фірма, «Neu» створює персону разом із фірмою.
+    /// </summary>
+    [AllureStep("Відкрити вікно нової персони: вузол Gesamtliste → контекстне меню → Neue Person")]
+    public ContactFindCreateWindow OpenNewPersonWindow()
+    {
+        OpenNodeContextMenu(ContactsRootNodeName);
+        PopupMenuItem("Neue Person", "MnuPersonNew").Click();
         return new ContactFindCreateWindow(Window);
     }
 

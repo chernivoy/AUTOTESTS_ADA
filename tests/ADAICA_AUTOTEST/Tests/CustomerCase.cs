@@ -125,6 +125,39 @@ public sealed class CustomerCase
     }
 
     /// <summary>
+    /// Нова фірма клієнта разом із її контактною особою: адреса фірми в Німеччині, телефон і e-mail контактної особи
+    /// на домені фірми, а також титул, Namenszusatz, дата народження й Geburtsname — усе, що дає заповнити вікно
+    /// «Neue Person/Firma». Назва фірми унікальна, як у <see cref="NewCompany"/>.
+    /// </summary>
+    public NewContactData NewContact()
+    {
+        // «Dr. Meier» — титул і прізвище разом, як їх пишуть у справі клієнта.
+        var titled = Contact.Surname.StartsWith("Dr. ", StringComparison.Ordinal);
+        var lastName = titled ? Contact.Surname["Dr. ".Length..] : Contact.Surname;
+        var firstName = Pick(Contact.IsWoman ? WomenFirstNames : MenFirstNames);
+        var person = new EmployeeData(
+            FirstName: firstName,
+            LastName: lastName,
+            Salutation: Contact.IsWoman ? "Frau" : "Herr",
+            ShortName: ShortName,
+            Function: "Mitarbeiter",
+            Title: titled ? "Dr." : Pick("Dr.", "Prof.", "Dipl.-Ing."),
+            NameSuffix: "von",
+            // З 1981 року: літні дати до 1980-го ADAICA зберігає на день раніше (імовірний баг, див. README «Нова персона з фірмою»).
+            Birthday: new DateTime(1981, 1, 1).AddDays(System.Random.Shared.Next(18 * 365)),
+            // Geburtsname — прізвище до шлюбу; у чоловіків зазвичай те саме.
+            MaidenName: Contact.IsWoman ? Pick(Surnames.Where(surname => surname != lastName).ToArray()) : lastName);
+        return new NewContactData(
+            Company: NewCompany(),
+            TradeRegisterNumber: $"CHE-{Digits(3)}.{Digits(3)}.{Digits(3)}",
+            CorrespondencePreference: Pick("Firma", "Primärer Briefempfänger"),
+            Person: person,
+            Address: NewAddress() with { Category = "Straßenanschrift" },
+            Phone: new CommunicationData("Telefon", PhoneNumber(), Pick("Telefon", "Handy dienstlich"), string.Empty),
+            Email: new CommunicationData("E-Mail", $"{EmailPart(firstName)}.{EmailPart(lastName)}@{_customer.Domain}", "E-Mail", string.Empty));
+    }
+
+    /// <summary>
     /// Дані, якими тест заповнює картку фірми після створення: усе про ту саму фірму клієнта — її діяльність, місто,
     /// кантон, контактну особу. Номери (телефон, UID, рахунок) щоразу інші.
     /// </summary>
@@ -399,6 +432,10 @@ public sealed class CustomerCase
     // Номер будинку, як його пишуть у Німеччині: зазвичай число, іноді з літерою.
     private static string HouseNumber() =>
         $"{System.Random.Shared.Next(1, 200)}{Pick("", "", "", "a", "b")}";
+
+    // Частина e-mail з імені: малими літерами, умлаути як «ae», «oe», «ue».
+    private static string EmailPart(string name) =>
+        name.ToLowerInvariant().Replace("ä", "ae").Replace("ö", "oe").Replace("ü", "ue").Replace("ß", "ss").Replace(' ', '-');
 
     private static string Digits(int count) =>
         string.Concat(Enumerable.Range(0, count).Select(_ => System.Random.Shared.Next(10).ToString(CultureInfo.InvariantCulture)));

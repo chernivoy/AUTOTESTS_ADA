@@ -11,10 +11,9 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Новий рядок додається кнопкою «+» і редагується просто в списку: два поля, список типу й кнопка збереження.
 /// Ні рядки, ні їхні поля не мають AutomationId, тому беремо їх за порядком.
 /// </summary>
-public sealed class CommunicationsList(Window owner, AutomationElement root)
+/// <param name="listId">Список у картці: «lvCommunicationCompany» у фірми, «communications» у персони.</param>
+public sealed class CommunicationsList(Window owner, AutomationElement root, string listId = "lvCommunicationCompany")
 {
-    private const string ListId = "lvCommunicationCompany";
-
     /// <summary>Додає рядок і зберігає його кнопкою в самому рядку. Некоректне значення ADAICA не приймає й показує повідомлення.</summary>
     public void Add(CommunicationData communication) =>
         AllureApi.Step($"Додати у «Verbindung» {communication.Kind}: {communication.Value}", () =>
@@ -71,7 +70,7 @@ public sealed class CommunicationsList(Window owner, AutomationElement root)
             Items.ShouldBe(expected, ignoreOrder: true, "Список «Verbindung»"));
 
     private AutomationElement List =>
-        Wait.For(() => root.FindByAutomationId(ListId).FindFirstChild(cf => cf.ByControlType(ControlType.Tree)), "списку «Verbindung»");
+        Wait.For(() => root.FindByAutomationId(listId).FindFirstChild(cf => cf.ByControlType(ControlType.Tree)), "списку «Verbindung»");
 
     // Рядок, що редагується, має поля вводу; збережений — лише текст.
     private AutomationElement? EditedRow() =>
