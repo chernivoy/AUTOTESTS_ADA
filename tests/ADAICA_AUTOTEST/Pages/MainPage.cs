@@ -206,7 +206,7 @@ public sealed partial class MainPage : AdaicaWindow
     public MainPage SelectNavigatorNode(string nodeName)
     {
         var node = NavigatorNode(nodeName);
-        AtomicMouse.LeftClick(NodeText(node) ?? node);
+        AtomicMouse.LeftClick(NodeText(ScrolledIntoView(node)) ?? node);
         Wait.Until(
             () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == nodeName,
             $"виділення вузла «{nodeName}»");
@@ -370,7 +370,18 @@ public sealed partial class MainPage : AdaicaWindow
     // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
     private void OpenNodeContextMenu(string nodeName) => OpenNodeContextMenu(NavigatorNode(nodeName));
 
-    private static void OpenNodeContextMenu(AutomationElement node) => AtomicMouse.RightClick(NodeText(node) ?? node);
+    private static void OpenNodeContextMenu(AutomationElement node) => AtomicMouse.RightClick(NodeText(ScrolledIntoView(node)) ?? node);
+
+    /// <summary>
+    /// Прокручує дерево до вузла: у довгому дереві (фірма з відділами, співробітниками й записами) вузол може бути
+    /// поза видимою областю, і клік мишею влучив би в інше вікно.
+    /// </summary>
+    private static AutomationElement ScrolledIntoView(AutomationElement node)
+    {
+        if (node.IsOffscreen && node.Patterns.ScrollItem.TryGetPattern(out var scrollItem))
+            scrollItem.ScrollIntoView();
+        return node;
+    }
 
     /// <summary>
     /// Відкриває підменю «Neu» батьківського запису. Назви записів можуть повторюватися (у завдання й інфозапису
@@ -398,7 +409,7 @@ public sealed partial class MainPage : AdaicaWindow
         var toggle = parent.FindFirstChild(cf => cf.ByAutomationId("ToggleButton"))
             ?? throw new InvalidOperationException($"Вузол «{parentName}» не має дочірніх вузлів.");
         if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.On)
-            AtomicMouse.LeftClick(toggle);
+            AtomicMouse.LeftClick(ScrolledIntoView(parent).FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) ?? toggle);
 
         return Wait.For(
             () =>
