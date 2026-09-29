@@ -85,6 +85,7 @@ public sealed partial class AddressFindCreateWindow
     /// <returns>true, якщо «Neu» доступна; false, якщо така адреса вже є в довіднику.</returns>
     public bool FillNew(AddressData address) => AllureApi.Step($"Ввести адресу «{address}»", () =>
     {
+        OptionalLineFields.Show(Root);
         Country.Fill(address.Country);
         State.Fill(address.State);
         PostalCodeAndCity.Fill($"{address.PostalCode} {address.City}");

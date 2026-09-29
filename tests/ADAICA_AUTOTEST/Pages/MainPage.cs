@@ -31,6 +31,9 @@ public sealed partial class MainPage : AdaicaWindow
     // Контекстне меню запису (наприклад, проєкту): «Neu» — підменю з типами дочірніх записів.
     private const string NewChildMenuItemId = "mnuNew";
 
+    // UIA_ScrollPatternNoScroll: не змінювати прокрутку по цій осі.
+    private const double NoScroll = -1;
+
     public MainPage(AppSession session)
         : base(session)
     {
@@ -106,9 +109,35 @@ public sealed partial class MainPage : AdaicaWindow
     /// </summary>
     public AutomationElement NavigatorNode(string nodeName) =>
         Wait.For(
-            () => NavigatorTree.FindAllChildren()
-                .FirstOrDefault(node => NodeText(node) is { } text && WithoutRecordRange(text.Name) == nodeName),
+            () => RealizedNode(nodeName) ?? ScrolledToNode(nodeName),
             $"вузла «{nodeName}» у дереві навігатора");
+
+    private AutomationElement? RealizedNode(string nodeName) =>
+        NavigatorTree.FindAllChildren()
+            .FirstOrDefault(node => NodeText(node) is { } text && WithoutRecordRange(text.Name) == nodeName);
+
+    /// <summary>
+    /// Дерево віртуалізоване: вузлів поза видимою областю в UI Automation немає. Тому гортаємо дерево від початку,
+    /// доки вузол не з'явиться. Після цього він у видимій області.
+    /// </summary>
+    private AutomationElement? ScrolledToNode(string nodeName)
+    {
+        var scroll = NavigatorTree.Patterns.Scroll.PatternOrDefault;
+        if (scroll?.VerticallyScrollable.Value != true)
+            return null;
+
+        scroll.SetScrollPercent(NoScroll, 0);
+        while (true)
+        {
+            if (RealizedNode(nodeName) is { } node)
+                return node;
+
+            var before = scroll.VerticalScrollPercent.Value;
+            scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+            if (scroll.VerticalScrollPercent.Value <= before)
+                return null;
+        }
+    }
 
     /// <summary>Назва вузла, виділеного в дереві навігатора, або null, якщо нічого не виділено.</summary>
     public string? SelectedNavigatorNodeName =>

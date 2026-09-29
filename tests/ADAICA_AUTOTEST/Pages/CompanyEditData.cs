@@ -58,6 +58,19 @@ public sealed record AddressData(
     /// </summary>
     public string ListRow => string.Join(" | ", Category, Country, PostalCode, City, District, Street, HouseNumber);
 
+    /// <summary>Колонки рядка <see cref="ListRow"/> у списку «Adressen».</summary>
+    public static IReadOnlyList<string> ListColumns { get; } =
+        ["Kategorie", "Land", "Postleitzahl", "Ort", "Ortsteil", "Straße", "Hausnummer"];
+
+    /// <summary>Рядок у списку «Adressen», який показує лише колонки <paramref name="columns"/> (див. <see cref="ListColumns"/>).</summary>
+    public string ListRowIn(IReadOnlyList<string> columns)
+    {
+        string[] values = [Category, Country, PostalCode, City, District, Street, HouseNumber];
+        return string.Join(" | ", ListColumns.Select((column, index) => (column, value: values[index]))
+            .Where(cell => columns.Contains(cell.column))
+            .Select(cell => cell.value));
+    }
+
     public override string ToString() => $"{Street} {HouseNumber}, {PostalCode} {City}";
 }
 

@@ -108,15 +108,18 @@ public sealed class ContactFindCreateWindow
 
     /// <summary>
     /// Кнопка з глобусом додає в рядок пошуку поля Land і Bundesland. Вона реагує лише на клік мишею, а стан
-    /// ADAICA між сеансами не запам'ятовує: у новому вікні поля сховані.
+    /// ADAICA між сеансами не запам'ятовує: у новому вікні поля сховані. Bundesland з'являється, лише якщо ввімкнено
+    /// «Bundesland berücksichtigen» (<see cref="OptionalLineFields"/>).
     /// </summary>
     public void ShowCountryAndState() => AllureApi.Step("Показати в рядку пошуку Land і Bundesland", () =>
     {
-        if (CountryBox is not null)
-            return;
+        if (CountryBox is null)
+        {
+            AtomicMouse.LeftClick(Root.FindByAutomationId("chkCountryStateHide"));
+            Wait.Until(() => CountryBox is not null, "полів Land і Bundesland у рядку пошуку");
+        }
 
-        AtomicMouse.LeftClick(Root.FindByAutomationId("chkCountryStateHide"));
-        Wait.Until(() => CountryBox is not null, "полів Land і Bundesland у рядку пошуку");
+        OptionalLineFields.Show(Root);
     });
 
     /// <summary>«Neu»: відкриває вікно «Neue Person/Firma», у якому вже стоїть персона з рядка пошуку.</summary>

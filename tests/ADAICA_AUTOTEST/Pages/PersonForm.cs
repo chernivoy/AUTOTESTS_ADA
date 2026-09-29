@@ -35,6 +35,9 @@ public sealed class PersonForm(Window owner, AutomationElement root)
     /// </summary>
     public IReadOnlyList<string> AddressRows => CompanyForm.AddressRowsIn(root.FindByAutomationId("addresses"));
 
+    /// <summary>Які з колонок адреси список «Adressen» показує.</summary>
+    public IReadOnlyList<string> AddressColumns => CompanyForm.AddressColumnsIn(root.FindByAutomationId("addresses"));
+
     // Briefanrede не перевіряємо: у новій персоні ADAICA лишає її шаблоном «Sehr geehrte/r Frau/Herr ,»
     // (імовірний баг, див. README «Співробітник відділу фірми»).
     public void ShouldHaveValues(EmployeeData expected) =>
@@ -51,6 +54,6 @@ public sealed class PersonForm(Window owner, AutomationElement root)
             () => MaidenName.ShouldHaveText(person.MaidenName),
             () => Communications.ShouldHaveItems([expected.Phone, expected.Email]),
             () => AllureApi.Step($"Перевірити «Adressen»: {address.ListRow}",
-                () => AddressRows.ShouldBe(new[] { address.ListRow }, "Adressen")));
+                () => AddressRows.ShouldBe(new[] { address.ListRowIn(AddressColumns) }, "Adressen")));
     });
 }

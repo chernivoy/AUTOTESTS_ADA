@@ -111,18 +111,47 @@ public class CompanyForm(Window owner, AutomationElement root)
         return new BankAccountDialog(owner);
     }
 
-    /// <summary>Рядки списку «Adressen» (див. <see cref="AddressData.ListRow"/>).</summary>
-    public IReadOnlyList<string> AddressRows => AddressRowsIn(root.FindByAutomationId("addressesCompany"));
+    /// <summary>Рядки списку «Adressen» (див. <see cref="AddressRowsIn"/>).</summary>
+    public IReadOnlyList<string> AddressRows => AddressRowsIn(AddressBox);
 
-    /// <summary>Рядки списку «Adressen» картки контакту (фірми чи персони).</summary>
+    /// <summary>Які з колонок адреси список «Adressen» показує (див. <see cref="AddressColumnsIn"/>).</summary>
+    public IReadOnlyList<string> AddressColumns => AddressColumnsIn(AddressBox);
+
+    private AutomationElement AddressBox => root.FindByAutomationId("addressesCompany");
+
+    /// <summary>
+    /// Рядки списку «Adressen» картки контакту (фірми чи персони) у форматі <see cref="AddressData.ListRowIn"/>: лише
+    /// колонки з <see cref="AddressData.ListColumns"/>, які список показує, у цьому порядку. Колонки користувач може
+    /// переставляти й ховати (в AUTOTEST у фірми немає «Ortsteil», а в персони «Straße» стоїть перед «Ortsteil»),
+    /// тому комірки беремо за заголовками.
+    /// </summary>
     /// <param name="addressBox">Контрол AddressBox зі списком адрес.</param>
-    public static IReadOnlyList<string> AddressRowsIn(AutomationElement addressBox) =>
-        addressBox.FindByAutomationId("listView")
-            .FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
-            // Перша колонка — значок без тексту; далі Kategorie, Land, Postleitzahl, Ort, Ortsteil, Straße, Hausnummer,
-            // Postfach, Adresszusatz, Bemerkung.
-            .Select(row => string.Join(" | ", row.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Take(7).Select(text => text.Name)))
+    public static IReadOnlyList<string> AddressRowsIn(AutomationElement addressBox)
+    {
+        var list = addressBox.FindByAutomationId("listView");
+        var columns = ColumnNames(list);
+        return list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+            .Select(row =>
+            {
+                var cells = row.FindAllChildren();
+                return string.Join(" | ", AddressData.ListColumns.Where(columns.Contains)
+                    .Select(column => cells.ElementAtOrDefault(columns.IndexOf(column))
+                        ?.FindFirstDescendant(cf => cf.ByControlType(ControlType.Text))?.Name ?? string.Empty));
+            })
             .ToList();
+    }
+
+    /// <summary>Колонки з <see cref="AddressData.ListColumns"/>, які показує список «Adressen» картки контакту.</summary>
+    public static IReadOnlyList<string> AddressColumnsIn(AutomationElement addressBox) =>
+        AddressData.ListColumns.Where(ColumnNames(addressBox.FindByAutomationId("listView")).Contains).ToList();
+
+    // Заголовок колонки — ContentPresenter «PART_Content» із назвою; у першій колонці значок без назви.
+    private static List<string> ColumnNames(AutomationElement list) =>
+        list.FindFirstChild(cf => cf.ByControlType(ControlType.Header))
+            ?.FindAllChildren()
+            .Select(header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name ?? header.Name ?? string.Empty)
+            .ToList()
+        ?? [];
 
     /// <summary>
     /// «+» біля «Adressen» → категорія адреси: відкриває вікно «Finden &amp; Erstellen» на вкладці Adressen.
@@ -175,7 +204,7 @@ public class CompanyForm(Window owner, AutomationElement root)
             }
 
             AllureApi.Step($"Перевірити, що адреса «{address}» з'явилася в списку «Adressen»",
-                () => Wait.Until(() => AddressRows.Contains(address.ListRow), $"адреси «{address}» у списку «Adressen»"));
+                () => Wait.Until(() => AddressRows.Contains(address.ListRowIn(AddressColumns)), $"адреси «{address}» у списку «Adressen»"));
             return address;
         });
 
@@ -302,7 +331,7 @@ public class CompanyForm(Window owner, AutomationElement root)
                 () => VatNumber.ShouldHaveText(general.VatNumber),
                 () => Communications.ShouldHaveItems(general.Communications),
                 () => AllureApi.Step($"Перевірити «Adressen»: {general.Address.ListRow}",
-                    () => AddressRows.ShouldBe(new[] { general.Address.ListRow }, "Adressen")),
+                    () => AddressRows.ShouldBe(new[] { general.Address.ListRowIn(AddressColumns) }, "Adressen")),
                 () => Remark.ShouldHaveText(general.Remark),
                 () => AllureApi.Step($"Перевірити «Kategorie»: {general.Category}",
                     () => Categories.ShouldBe(new[] { general.Category }, "Kategorie")),
@@ -359,7 +388,7 @@ public class CompanyForm(Window owner, AutomationElement root)
             () => CorrespondencePreference.ShouldHaveSelected(expected.CorrespondencePreference),
             () => Communications.ShouldHaveItems([]),
             () => AllureApi.Step($"Перевірити «Adressen»: {expected.Address.ListRow}",
-                () => AddressRows.ShouldBe(new[] { expected.Address.ListRow }, "Adressen")));
+                () => AddressRows.ShouldBe(new[] { expected.Address.ListRowIn(AddressColumns) }, "Adressen")));
     });
 
     /// <summary>Перевіряє поля нової фірми, заданої у вікні «Neue Person/Firma».</summary>
