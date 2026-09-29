@@ -44,6 +44,31 @@ public abstract class AdaicaTestBase : UiTestBase
     }
 
     /// <summary>
+    /// Входить в ADAICA й показує навігатор <paramref name="navigatorName"/>, який може бути відкритий лише в одній
+    /// вкладці (як Dashboard: у списку «+» відкритий Dashboard недоступний). Якщо вкладка вже є, перемикається на неї,
+    /// а після тесту повертає вкладку, яка була активною; інакше відкриває нову й після тесту закриває її.
+    /// </summary>
+    protected MainPage LogInAndShowSingleNavigator(string navigatorName)
+    {
+        var mainPage = new LoginPage(Session).LoginAs(
+            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+        if (!mainPage.NavigatorTabNames.Contains(navigatorName))
+        {
+            var tabsBefore = mainPage.NavigatorTabNames;
+            OnCleanup(() => mainPage.CloseLastNavigatorTabs(keep: tabsBefore.Count));
+            mainPage.OpenNavigator(navigatorName);
+            return mainPage;
+        }
+
+        var activeBefore = mainPage.NavigatorTitle.Text;
+        if (activeBefore != navigatorName && mainPage.NavigatorTabNames.Contains(activeBefore))
+            OnCleanup(() => mainPage.SwitchToNavigatorTab(activeBefore));
+
+        mainPage.SwitchToNavigatorTab(navigatorName);
+        return mainPage;
+    }
+
+    /// <summary>
     /// Створює з контекстного меню вузла <paramref name="parentNode"/> (будь-якого запису) проєкт, Ordner, завдання,
     /// термін та інфозапис. Кожен збережений запис ADAICA має виділити в дереві під батьківським вузлом,
     /// у папці свого типу: «Батько → Aufgaben → Завдання».

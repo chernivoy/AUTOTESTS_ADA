@@ -86,6 +86,21 @@ public sealed partial class MainPage : AdaicaWindow
     }
 
     /// <summary>
+    /// Перемикається на відкриту вкладку навігатора <paramref name="navigatorName"/>. Вкладка реагує лише на клік мишею.
+    /// </summary>
+    [AllureStep("Перейти на вкладку навігатора {navigatorName}")]
+    public MainPage SwitchToNavigatorTab(string navigatorName)
+    {
+        var tab = NavigatorTabs.FirstOrDefault(item => TabName(item) == navigatorName)
+            ?? throw new InvalidOperationException($"Вкладки навігатора «{navigatorName}» немає: {string.Join(", ", NavigatorTabNames)}.");
+        if (NavigatorTitle.Text != navigatorName)
+            AtomicMouse.LeftClick(tab.FindFirstDescendantRaw(cf => cf.ByAutomationId("PART_Text")) ?? tab);
+
+        Wait.Until(() => NavigatorTitle.Text == navigatorName, $"переходу на навігатор «{navigatorName}»");
+        return this;
+    }
+
+    /// <summary>
     /// Закриває останні вкладки навігаторів, доки їх не залишиться <paramref name="keep"/>.
     /// Відкриті вкладки ADAICA запам'ятовує між сеансами, тому тести прибирають за собою.
     /// Назва вкладки змінюється разом із вибраним вузлом, тому орієнтуємося на кількість, а не на назву:
@@ -240,6 +255,18 @@ public sealed partial class MainPage : AdaicaWindow
             () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == nodeName,
             $"виділення вузла «{nodeName}»");
         return this;
+    }
+
+    /// <summary>
+    /// Вибирає в навігаторі Dashboard вузол залогіненого користувача — корінь дерева («Chernivoy, Igor»). Праворуч
+    /// ADAICA показує його день: «Meine Aufgaben», «Meine Termine», «Meine Mails».
+    /// </summary>
+    [AllureStep("Вибрати вузол користувача в навігаторі Dashboard")]
+    public DashboardTaskList OpenUserTaskList()
+    {
+        var root = Wait.For(() => NavigatorTree.FindFirstChild(), "кореня дерева навігатора");
+        SelectNavigatorNode(WithoutRecordRange(NodeText(root)!.Name));
+        return new DashboardTaskList(Window);
     }
 
     [AllureStep("Відкрити вікно пошуку: System → Finden…")]

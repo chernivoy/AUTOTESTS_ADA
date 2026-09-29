@@ -67,6 +67,9 @@ public class TaskForm(AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "ctrSimpleRemark", "txtRemark"));
 
+    /// <summary>«Serientyp»: відкриває вікно «Aufgabenzyklus» (<see cref="TaskSeriesDialog"/>).</summary>
+    public ButtonControl SeriesTypeButton { get; } = new("Serientyp", Locate.ById(root, "btnTypeOfReiterationRecordTask"));
+
     public void Fill(TaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
     {
         Name.Fill(task.Name);
@@ -91,6 +94,23 @@ public class TaskForm(AutomationElement root)
         CustomerBenefitText.Fill(task.CustomerBenefitText);
         Hint.Select(task.Hint);
         HintText.Fill(task.HintText);
+        SimpleRemarkTab.Select();
+        Remark.Fill(task.Remark);
+    });
+
+    /// <summary>Заповнює поля завдання для списку «Meine Aufgaben»; порожні дати не чіпає.</summary>
+    public void Fill(DashboardTaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
+    {
+        Name.Fill(task.Name);
+        ShortName.Fill(task.ShortName);
+        Begin.Fill(task.Begin);
+        if (task.Due is { } due)
+            Due.Fill(due);
+        if (task.Done is { } done)
+            Done.Fill(done);
+        if (task.ClosedOn is { } closedOn)
+            ClosedOn.Fill(closedOn);
+        AcceptanceType.Select(task.AcceptanceType);
         SimpleRemarkTab.Select();
         Remark.Fill(task.Remark);
     });

@@ -384,6 +384,48 @@ public sealed class CustomerCase
                 + $" Notiert am {now.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} um {now.ToString("HH:mm", CultureInfo.InvariantCulture)} Uhr.");
     }
 
+    /// <summary>
+    /// Завдання для списку «Meine Aufgaben» навігатора Dashboard. Список показує лише завдання з датами поблизу
+    /// сьогодні, тож завдання почалося вчора зранку. Термін, виконання й закриття тест задає сам, залежно від фільтра.
+    /// Annahmeart «Bestätigung» пропонує ADAICA: автор, він же виконавець, приймає таке завдання одразу.
+    /// </summary>
+    public DashboardTaskData NewDashboardTask() => new(
+        Name: PickUnused(
+            $"Offerte für {_topic.Object} nachfassen",
+            $"Unterlagen für {_topic.Object} an {Contact.Dative} senden",
+            $"Rückruf bei {Contact.Dative} wegen {_topic.Title}",
+            $"Termin für {_topic.Object} mit {Contact.Dative} vereinbaren"),
+        ShortName: ShortName,
+        Begin: DateTime.Today.AddDays(-1) + WorkingTime(latestHour: 12),
+        Due: null,
+        Done: null,
+        ClosedOn: null,
+        AcceptanceType: "Bestätigung",
+        Remark: Pick(
+            $"{Contact.Nominative} erwartet eine Antwort bis Ende Woche.",
+            "Vorher kurz mit der Projektleitung abstimmen.",
+            $"Die Unterlagen liegen im Projektordner {_topic.Title}."));
+
+    /// <summary>
+    /// Перше завдання щоденної серії для списку «Meine Aufgaben». Наступні завдання серії ADAICA створює сама з тією ж
+    /// назвою й приміткою, тож примітка згадує номер першого завдання: за ним швидкий пошук знаходить усю серію.
+    /// Початок — сьогодні о 00:00, як пропонує ADAICA. Тоді завтрашнє завдання серії вже актуальне, а післязавтрашнє
+    /// ще заплановане, о котрій би годині не йшов прогін.
+    /// </summary>
+    public DashboardTaskData NewDailyTask(string firstNumber) => new(
+        Name: PickUnused(
+            $"Tagesrapport {_topic.Title} an {Contact.Dative} schicken",
+            $"Baustellenkontrolle in {_customer.City}",
+            $"Posteingang für {_topic.Object} prüfen"),
+        ShortName: ShortName,
+        Begin: DateTime.Today,
+        Due: null,
+        Done: null,
+        ClosedOn: null,
+        AcceptanceType: "Bestätigung",
+        Remark: $"Täglich bis zum Abschluss, Serie ab {firstNumber}. "
+            + Pick("Kurz notieren, was erledigt ist und was offen bleibt.", $"Fragen direkt an {Contact.Dative} weitergeben."));
+
     private Person Contact => _customer.Contact;
 
     /// <summary>
