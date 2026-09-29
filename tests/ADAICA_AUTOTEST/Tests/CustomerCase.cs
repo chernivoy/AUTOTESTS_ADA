@@ -407,6 +407,22 @@ public sealed class CustomerCase
             $"Die Unterlagen liegen im Projektordner {_topic.Title}."));
 
     /// <summary>
+    /// Завдання з усіма полями, як <see cref="NewTask"/>, але з датами, які видно в списку «Meine Aufgaben»:
+    /// почалося вчора зранку, виконане вчора надвечір, закрите сьогодні, термін — завтра.
+    /// </summary>
+    public TaskData NewCurrentTask()
+    {
+        var yesterday = DateTime.Today.AddDays(-1);
+        return NewTask() with
+        {
+            Begin = yesterday + WorkingTime(latestHour: 12),
+            Done = yesterday + TimeSpan.FromHours(16) + TimeSpan.FromMinutes(15 * System.Random.Shared.Next(4)),
+            ClosedOn = DateTime.Today,
+            Due = DateTime.Today.AddDays(1) + WorkingTime(),
+        };
+    }
+
+    /// <summary>
     /// Перше завдання щоденної серії для списку «Meine Aufgaben». Наступні завдання серії ADAICA створює сама з тією ж
     /// назвою й приміткою, тож примітка згадує номер першого завдання: за ним швидкий пошук знаходить усю серію.
     /// Початок — сьогодні о 00:00, як пропонує ADAICA. Тоді завтрашнє завдання серії вже актуальне, а післязавтрашнє

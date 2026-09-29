@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
@@ -67,6 +68,107 @@ public class DashboardTests : AdaicaTestBase
             expected,
             ignoreOrder: true,
             $"Фільтри, під якими видно «{task}» (очікували: {string.Join(", ", expected.Select(item => item.Label()))})");
+    }
+
+    /// <summary>
+    /// Вмикає в «Spaltenkonfiguration» (контекстне меню заголовка колонки) всі колонки списку «Meine Aufgaben»,
+    /// створює кнопкою «+» завдання, де заповнено все, що можна заповнити, і перевіряє його текст у кожній колонці.
+    /// Klasse й Unterklasse лишаються порожніми: у BLANK_IGOR є лише «Blanko-Eintrag», і вибрати її не можна.
+    /// Після тесту конфігурацію колонок повертає як була.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void DashboardNavigator_TaskListAllColumns()
+    {
+        var mainPage = LogInAndShowSingleNavigator("Dashboard");
+        var taskList = mainPage.OpenUserTaskList();
+
+        var columnsDialog = taskList.OpenColumnsConfig();
+        var columns = columnsDialog.Columns.Select(column => column.Name).ToList();
+        var shownBefore = columnsDialog.Columns.Where(column => column.IsChecked).Select(column => column.Name).ToList();
+        // Конфігурацію колонок ADAICA запам'ятовує для користувача.
+        OnCleanup(() => taskList.OpenColumnsConfig().ShowOnly(shownBefore));
+        columns.ShouldBe(DashboardTaskList.ColumnIds.Keys, ignoreOrder: true, "Колонки в «Spaltenkonfiguration»");
+        columnsDialog.ShowAll();
+        taskList.ColumnNames.ShouldBe(columns, ignoreOrder: true, "Колонки таблиці після «Spaltenkonfiguration»");
+
+        var task = CustomerCase.Random().NewCurrentTask();
+        var now = DateTime.Now;
+        var openedAt = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0);
+        var dialog = taskList.OpenNewTaskDialog();
+        OnCleanup(dialog.CancelIfOpen);
+        dialog.Form.Fill(task);
+        var number = dialog.Form.Number.Text;
+        dialog.Save();
+        var savedAt = DateTime.Now;
+
+        var row = new TaskListRow(task.Name, task.Begin.Date);
+        taskList.ShowAll();
+        taskList.Search(number, [row]);
+        var cells = taskList.CellTexts(row);
+
+        var user = taskList.UserName;
+        var expected = new Dictionary<string, string>
+        {
+            // Прапорець і картинку стану UI Automation називає словами: «Angewählt» — виконано, «Done» — стан «erledigt».
+            ["Erledigt"] = "Angewählt",
+            ["Aktion"] = "Done",
+            ["Name"] = task.Name,
+            ["Beginnt am"] = AdaicaFormat.FormatDateTime(task.Begin),
+            ["Erstellt durch"] = user,
+            ["Kurzname"] = task.ShortName,
+            // Довгу примітку список обрізає: перші 100 символів і «...».
+            ["Bemerkung"] = task.Remark.Length > 100 ? $"{task.Remark[..100]}..." : task.Remark,
+            ["% erledigt"] = AdaicaFormat.FormatNumber(task.PercentDone),
+            ["Ablehnungsdatum"] = string.Empty,
+            ["Annahmeart"] = task.AcceptanceType,
+            ["Auftragsnummer"] = task.OrderNumber,
+            ["Ausführende"] = user,
+            ["Bestell-Nr."] = task.PurchaseOrderNumber,
+            ["Dauer (gesch.)"] = $"{AdaicaFormat.FormatNumber(task.EstimatedDuration)} {task.EstimatedDurationUnit}",
+            ["Dauer (real)"] = $"{AdaicaFormat.FormatNumber(task.ActualDuration)} {task.ActualDurationUnit}",
+            ["Erledigt am"] = AdaicaFormat.FormatDateTime(task.Done),
+            ["Fällig am"] = AdaicaFormat.FormatDateTime(task.Due),
+            ["Geändert durch"] = user,
+            // «Geschlossen am» — лише дата, але колонка показує її з часом.
+            ["Geschlossen am"] = AdaicaFormat.FormatDateTime(task.ClosedOn.Date),
+            ["Hinweis"] = task.Hint,
+            ["Hinweis (Wert)"] = task.HintText,
+            ["Klasse"] = string.Empty,
+            ["Klassentyp"] = "TASK",
+            ["Kundennutzen"] = task.CustomerBenefit,
+            ["Kundennutzen (Wert)"] = task.CustomerBenefitText,
+            ["Nummer"] = number,
+            ["Priorität"] = task.Priority,
+            ["Standort"] = task.Location,
+            ["Standort (Wert)"] = task.LocationText,
+            // Заповнені «Erledigt am» і «Geschlossen am» дають статус «erledigt».
+            ["Status"] = "Aufgabe erledigt",
+            ["Systembemerkung"] = string.Empty,
+            ["Systemnotiz"] = string.Empty,
+            ["Unterklasse"] = string.Empty,
+            ["Verantwortlich"] = user,
+            ["Wichtigkeit"] = task.Importance,
+        };
+
+        // Час створення, зміни й прийняття ADAICA ставить сама під час збереження.
+        string[] savedTimeColumns = ["Erstelldatum", "Änderungsdatum", "Annahmedatum"];
+
+        AllureApi.Step("Перевірити текст завдання в кожній колонці", () => cells.ShouldSatisfyAllConditions(
+            expected.Select(pair => (Action)(() => cells.GetValueOrDefault(pair.Key).ShouldBe(pair.Value, $"Колонка «{pair.Key}»")))
+                .Concat(savedTimeColumns.Select(column => (Action)(() => ShouldBeBetween(cells.GetValueOrDefault(column), column, openedAt, savedAt))))
+                .Append(() => cells.GetValueOrDefault("ID").ShouldMatch(@"^\d{12}TASK\d{6}$", "Колонка «ID»"))
+                .Append(() => cells.Keys.ShouldBe(columns, ignoreOrder: true, "Колонки, прочитані з рядка"))
+                .ToArray()));
+    }
+
+    private static void ShouldBeBetween(string? text, string column, DateTime from, DateTime to)
+    {
+        var value = text is { Length: > 0 }
+            ? DateTime.ParseExact(text, $"{AdaicaFormat.DatePattern} {AdaicaFormat.TimePattern}", System.Globalization.CultureInfo.InvariantCulture)
+            : (DateTime?)null;
+        value.ShouldNotBeNull($"Колонка «{column}» порожня");
+        value.Value.ShouldBeInRange(from, to, $"Колонка «{column}»: {text}");
     }
 
     /// <summary>Створює завдання й звужує список швидким пошуком за його номером до цього завдання.</summary>

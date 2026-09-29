@@ -28,12 +28,65 @@ public sealed partial class DashboardTaskList
     // Нові завдання серії ADAICA створює на сервері, і в списку вони з'являються за кілька секунд.
     private static readonly TimeSpan RowsTimeout = TimeSpan.FromSeconds(30);
 
+    // UIA_ScrollPatternNoScroll: не змінювати прокрутку по цій осі.
+    private const double NoScroll = -1;
+
+    /// <summary>
+    /// Колонки таблиці: підпис у «Spaltenkonfiguration» → AutomationId комірки. У заголовку підпис є не в усіх
+    /// колонок («Erledigt» і «Aktion» — картинки), а колонок поза екраном UI Automation не підписує.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> ColumnIds = new Dictionary<string, string>
+    {
+        ["Erledigt"] = "RowData.Row.IsDone",
+        ["Name"] = "RowData.Row.Name",
+        ["Beginnt am"] = "RowData.Row.BeginDate",
+        ["Erstellt durch"] = "RowData.Row.EntryUser",
+        ["Kurzname"] = "RowData.Row.ShortName",
+        ["Bemerkung"] = "RowData.Row.Remark",
+        ["% erledigt"] = "RowData.Row.Executed",
+        ["Ablehnungsdatum"] = "RowData.Row.RefuseDate",
+        ["Aktion"] = "RowData.Row.State",
+        ["Änderungsdatum"] = "RowData.Row.ChangeDate",
+        ["Annahmeart"] = "RowData.Row.AuthorityName",
+        ["Annahmedatum"] = "RowData.Row.AcceptDate",
+        ["Auftragsnummer"] = "RowData.Row.OrderNo",
+        ["Ausführende"] = "RowData.Row.Addressee",
+        ["Bestell-Nr."] = "RowData.Row.BookingNo",
+        ["Dauer (gesch.)"] = "RowData.Row.EstimateString",
+        ["Dauer (real)"] = "RowData.Row.TimeDurationString",
+        ["Erledigt am"] = "RowData.Row.DoneDate",
+        ["Erstelldatum"] = "RowData.Row.EntryDate",
+        ["Fällig am"] = "RowData.Row.EndDate",
+        ["Geändert durch"] = "RowData.Row.ChangeUserName",
+        ["Geschlossen am"] = "RowData.Row.CloseDate",
+        ["Hinweis"] = "RowData.Row.Reference",
+        ["Hinweis (Wert)"] = "RowData.Row.ReferenceRemark",
+        ["Icon"] = "RowData.Row.Record",
+        ["ID"] = "RowData.Row.ID",
+        ["Klasse"] = "RowData.Row.VUBClass",
+        ["Klassentyp"] = "RowData.Row.TaskClassType",
+        ["Kundennutzen"] = "RowData.Row.CustomerValue",
+        ["Kundennutzen (Wert)"] = "RowData.Row.CustomerRemark",
+        ["Nummer"] = "RowData.Row.Number",
+        ["Priorität"] = "RowData.Row.PriorityName",
+        ["Standort"] = "RowData.Row.Place",
+        ["Standort (Wert)"] = "RowData.Row.PlaceRemark",
+        ["Status"] = "RowData.Row.StatusName",
+        ["Systembemerkung"] = "RowData.Row.SysRemark",
+        ["Systemnotiz"] = "RowData.Row.SysNote",
+        ["Unterklasse"] = "RowData.Row.VUBSubClass",
+        ["Verantwortlich"] = "RowData.Row.ExecuteUserName",
+        ["Wichtigkeit"] = "RowData.Row.SignificanceString",
+    };
+
     private readonly Window _owner;
 
     /// <param name="owner">Головне вікно ADAICA.</param>
-    public DashboardTaskList(Window owner)
+    /// <param name="userName">Користувач, чий день показує список («Chernivoy, Igor»), — назва вузла в дереві.</param>
+    public DashboardTaskList(Window owner, string userName)
     {
         _owner = owner;
+        UserName = userName;
         QuickSearch = new TextBoxControl("Suchbegriff eingeben…", Locate.ById(owner, ViewId, "txtQuickSearch"));
         AddButton = new ButtonControl("+", Locate.ById(owner, ViewId, "btnAdd"));
         Filters = Enum.GetValues<TaskListFilter>().ToDictionary(
@@ -42,6 +95,15 @@ public sealed partial class DashboardTaskList
         // Список з'являється, коли ADAICA покаже день користувача.
         _ = View;
     }
+
+    /// <summary>Користувач, чий день показує список, як його підписує ADAICA: «Nachname, Vorname».</summary>
+    public string UserName { get; }
+
+    /// <summary>Підписи колонок, які зараз показує таблиця, зліва направо.</summary>
+    public IReadOnlyList<string> ColumnNames =>
+        View.FindByAutomationId("HeaderPanel").FindAllChildren(cf => cf.ByControlType(ControlType.HeaderItem))
+            .Select(header => ColumnIds.FirstOrDefault(column => column.Value == header.Name).Key ?? header.Name)
+            .ToList();
 
     public TextBoxControl QuickSearch { get; }
 
@@ -138,6 +200,70 @@ public sealed partial class DashboardTaskList
             $"відмови від «{row}» (пункт «Annehmen» стає доступним)");
     });
 
+    /// <summary>
+    /// Відкриває «Spaltenkonfiguration» з контекстного меню заголовка колонки «Name». Меню відкривається лише правим
+    /// кліком мишею; пункти в ньому — кнопки DevExpress з AutomationId, у якому є випадковий GUID, тож шукаємо за підписом.
+    /// </summary>
+    public ColumnsConfigDialog OpenColumnsConfig() =>
+        AllureApi.Step("Відкрити «Spaltenkonfiguration»: заголовок колонки Name → контекстне меню → Änderung der Spaltenkonfiguration", () =>
+        {
+            // Заголовок колонки не має AutomationId, а його Name — ідентифікатор колонки («RowData.Row.Name»).
+            var header = Wait.For(
+                () => View.FindByAutomationId("HeaderPanel").FindFirstChild(cf => cf.ByControlType(ControlType.HeaderItem).And(cf.ByName(ColumnIds["Name"]))),
+                "заголовка колонки «Name»");
+            AtomicMouse.RightClick(header);
+            var menu = Wait.For(() => FindInPopups("GridContextMenu"), "контекстного меню заголовка колонки");
+            new ButtonControl("Änderung der Spaltenkonfiguration", () => Wait.For(
+                    () => menu.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button).And(cf.ByName("Änderung der Spaltenkonfiguration"))),
+                    "пункту «Änderung der Spaltenkonfiguration»"))
+                .Click();
+            return new ColumnsConfigDialog(_owner);
+        });
+
+    /// <summary>
+    /// Текст рядка <paramref name="row"/> у кожній показаній колонці (підпис колонки → текст). Показаний текст є лише
+    /// в комірках на екрані, тож таблицю гортаємо праворуч, а потім повертаємо на початок. Колонки-картинки
+    /// («Erledigt», «Aktion», «Icon») тексту не мають: для них береться значення, яке називає UI Automation
+    /// («Angewählt», «Done»).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> CellTexts(TaskListRow row) =>
+        AllureApi.Step($"Прочитати всі колонки рядка «{row}»", () =>
+        {
+            var texts = new Dictionary<string, string>();
+            var scroll = View.FindByAutomationId("dataControl").Patterns.Scroll.Pattern;
+            scroll.SetScrollPercent(0, NoScroll);
+            try
+            {
+                while (true)
+                {
+                    var cells = RowCell(row, ColumnIds["Name"]).Parent.FindAllChildren();
+                    foreach (var cell in cells.Where(cell => !cell.IsOffscreen))
+                    {
+                        var column = ColumnIds.FirstOrDefault(pair => pair.Value == cell.AutomationId).Key ?? cell.AutomationId;
+                        texts.TryAdd(column, CellText(cell));
+                    }
+
+                    if (!scroll.HorizontallyScrollable.Value || scroll.HorizontalScrollPercent.Value >= 99.9)
+                        break;
+
+                    var before = scroll.HorizontalScrollPercent.Value;
+                    scroll.Scroll(ScrollAmount.LargeIncrement, ScrollAmount.NoAmount);
+                    Wait.Until(() => scroll.HorizontalScrollPercent.Value > before, "прокрутки таблиці праворуч");
+                }
+            }
+            finally
+            {
+                scroll.SetScrollPercent(0, NoScroll);
+            }
+
+            AllureApi.AddAttachment(
+                "Колонки рядка",
+                "text/plain",
+                System.Text.Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, texts.Select(pair => $"{pair.Key}: {pair.Value}"))),
+                ".txt");
+            return (IReadOnlyDictionary<string, string>)texts;
+        });
+
     /// <summary>Контекстне меню рядка відкривається лише правим кліком мишею.</summary>
     private MenuItemControl ContextMenuItem(TaskListRow row, string itemName)
     {
@@ -161,6 +287,13 @@ public sealed partial class DashboardTaskList
         _owner.FindAllChildren(cf => cf.ByClassName("Popup"))
             .Select(popup => popup.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
             .FirstOrDefault(element => element is not null);
+
+    // Показаний текст лежить у полі редагування комірки. Порожня дата в назві комірки — «01.01.0001» чи «11.11.1911»,
+    // тож назву беремо лише для колонок без поля (картинок).
+    private static string CellText(AutomationElement cell) =>
+        cell.FindFirstDescendant(cf => cf.ByControlType(ControlType.Edit)) is { } editor
+            ? editor.Patterns.Value.Pattern.Value.Value
+            : CellName().Replace(cell.Name, string.Empty);
 
     // Комірка підписана «значення, Eintrag: 0, angezeigter Spaltenindex: 1».
     private static string CellValue(AutomationElement row, string columnId) =>

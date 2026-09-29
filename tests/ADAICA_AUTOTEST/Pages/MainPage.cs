@@ -265,8 +265,9 @@ public sealed partial class MainPage : AdaicaWindow
     public DashboardTaskList OpenUserTaskList()
     {
         var root = Wait.For(() => NavigatorTree.FindFirstChild(), "кореня дерева навігатора");
-        SelectNavigatorNode(WithoutRecordRange(NodeText(root)!.Name));
-        return new DashboardTaskList(Window);
+        var userName = WithoutRecordRange(NodeText(root)!.Name);
+        SelectNavigatorNode(userName);
+        return new DashboardTaskList(Window, userName);
     }
 
     [AllureStep("Відкрити вікно пошуку: System → Finden…")]
