@@ -67,11 +67,16 @@ public class TaskForm(AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "ctrSimpleRemark", "txtRemark"));
 
+    public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelectRecordTask");
+
     /// <summary>«Serientyp»: відкриває вікно «Aufgabenzyklus» (<see cref="TaskSeriesDialog"/>).</summary>
     public ButtonControl SeriesTypeButton { get; } = new("Serientyp", Locate.ById(root, "btnTypeOfReiterationRecordTask"));
 
     public void Fill(TaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
     {
+        // Клас — першим: ADAICA підставляє в «Kurzname» короткі назви класу й підкласу («KUAKKORR»).
+        if (task.Class is { } recordClass)
+            Class.Select(recordClass);
         Name.Fill(task.Name);
         ShortName.Fill(task.ShortName);
         Begin.Fill(task.Begin);
@@ -120,6 +125,7 @@ public class TaskForm(AutomationElement root)
     {
         SimpleRemarkTab.Select();
         this.ShouldSatisfyAllConditions(
+            () => Class.ShouldHave(expected.Class),
             () => Name.ShouldHaveText(expected.Name),
             () => ShortName.ShouldHaveText(expected.ShortName),
             () => Begin.ShouldHaveValue(expected.Begin),

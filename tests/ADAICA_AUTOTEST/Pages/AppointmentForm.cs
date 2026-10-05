@@ -37,8 +37,13 @@ public class AppointmentForm(AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "txtCommentRecordAppoint"));
 
+    public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelectRecordAppoint");
+
     public void Fill(AppointmentData appointment) => AllureApi.Step("Заповнити поля терміну", () =>
     {
+        // Клас — першим: ADAICA підставляє в «Kurzname» короткі назви класу й підкласу («KUAKKORR»).
+        if (appointment.Class is { } recordClass)
+            Class.Select(recordClass);
         Name.Fill(appointment.Name);
         ShortName.Fill(appointment.ShortName);
         Begin.Fill(appointment.Begin);
@@ -68,6 +73,7 @@ public class AppointmentForm(AutomationElement root)
             () => Importance.ShouldHaveSelected(expected.Importance),
             () => Location.ShouldHaveText(expected.Location),
             () => Remark.ShouldHaveText(expected.Remark),
+            () => Class.ShouldHave(expected.Class),
         ];
 
         // Без прапорця «Aufwand» поле показує розраховану тривалість, а не введене значення.

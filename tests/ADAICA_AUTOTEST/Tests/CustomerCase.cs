@@ -90,6 +90,7 @@ public sealed class CustomerCase
     private readonly Topic _topic;
     private readonly HashSet<DateTime> _usedDays = [];
     private readonly HashSet<string> _usedNames = [];
+    private RecordClass? _recordClass;
 
     private CustomerCase(Customer customer, Topic topic)
     {
@@ -98,6 +99,22 @@ public sealed class CustomerCase
     }
 
     public static CustomerCase Random() => new(Pick(Customers), Pick(Topics));
+
+    /// <summary>
+    /// Клас і підклас, які тести вибирають на бланках записів. Якщо в базі їх немає, тест створює їх сам через
+    /// «Konfiguration der Klassenliste» й вмикає для всіх типів записів (<see cref="RecordClassBox.Select"/>).
+    /// </summary>
+    public static RecordClass TestClass { get; } = new("Kundenakte", "KUAK", "Korrespondenz", "KORR");
+
+    /// <summary>
+    /// Записи цієї справи матимуть клас <see cref="TestClass"/>. Без цього клас не вибирається: тести пошуку
+    /// перевіряють, що «Klasse» порожня.
+    /// </summary>
+    public CustomerCase WithClass()
+    {
+        _recordClass = TestClass;
+        return this;
+    }
 
     /// <summary>
     /// Фірма клієнта для навігатора Kontakte. Назва завжди унікальна, щоб потім знаходити саме цю фірму пошуком:
@@ -245,6 +262,7 @@ public sealed class CustomerCase
     {
         var days = UniqueDays(2);
         return new ProjectData(
+            Class: _recordClass,
             Name: $"{_topic.Title} – {_customer.Company}",
             ShortName: ShortName,
             BeginDate: days[0],
@@ -284,6 +302,7 @@ public sealed class CustomerCase
         ];
         var (name, comment) = PickUnused(folder => folder.Name, folders);
         return new ProjectData(
+            Class: _recordClass,
             Name: name,
             ShortName: ShortName,
             BeginDate: days[0],
@@ -302,6 +321,7 @@ public sealed class CustomerCase
         var due = Pick(1, 2, 3);
         var (done, closed) = due switch { 1 => (2, 3), 2 => (1, 3), _ => (1, 2) };
         return new TaskData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Offerte für {_topic.Object} erstellen",
                 $"Kosten für {_topic.Object} mit {Contact.Dative} besprechen",
@@ -340,6 +360,7 @@ public sealed class CustomerCase
         // Термін триває 2 години й закінчується того самого дня.
         var begin = UniqueDays(1)[0] + WorkingTime(latestHour: 16);
         return new AppointmentData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Kick-off-Meeting {_topic.Title}",
                 $"Besprechung mit {Contact.Dative}",
@@ -368,6 +389,7 @@ public sealed class CustomerCase
     {
         var now = DateTime.Now;
         return new NoteData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Telefonat mit {Contact.Dative}",
                 $"Rückfrage von {Contact.Dative}",

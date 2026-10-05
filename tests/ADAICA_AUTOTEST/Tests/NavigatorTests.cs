@@ -24,7 +24,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(projectDialog.CancelIfOpen);
 
-        var project = CustomerCase.Random().NewProject();
+        var project = CustomerCase.Random().WithClass().NewProject();
         projectDialog.Form.Fill(project);
 
         projectDialog.Form.ShouldHaveValues(project);
@@ -50,7 +50,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(folderDialog.CancelIfOpen);
 
-        var folder = CustomerCase.Random().NewFolder();
+        var folder = CustomerCase.Random().WithClass().NewFolder();
         folderDialog.Form.Fill(folder);
 
         folderDialog.Form.ShouldHaveValues(folder);
@@ -77,7 +77,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(taskDialog.CancelIfOpen);
 
-        var task = CustomerCase.Random().NewTask();
+        var task = CustomerCase.Random().WithClass().NewTask();
         taskDialog.Form.Fill(task);
 
         taskDialog.Form.ShouldHaveValues(task);
@@ -104,7 +104,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(appointmentDialog.CancelIfOpen);
 
-        var appointment = CustomerCase.Random().NewAppointment();
+        var appointment = CustomerCase.Random().WithClass().NewAppointment();
         appointmentDialog.Form.Fill(appointment);
 
         appointmentDialog.Form.ShouldHaveValues(appointment);
@@ -131,7 +131,7 @@ public class NavigatorTests : AdaicaTestBase
         // Якщо тест упаде до збереження, вікно закриється через «Abbrechen».
         OnCleanup(noteDialog.CancelIfOpen);
 
-        var note = CustomerCase.Random().NewNote();
+        var note = CustomerCase.Random().WithClass().NewNote();
         noteDialog.Form.Fill(note);
 
         noteDialog.Form.ShouldHaveValues(note);
@@ -154,7 +154,7 @@ public class NavigatorTests : AdaicaTestBase
     public void DokumentationNavigator_NewProjectWithChildRecords()
     {
         var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
 
         var projectDialog = mainPage.OpenNewProjectDialog();
         OnCleanup(projectDialog.CancelIfOpen);
@@ -176,7 +176,7 @@ public class NavigatorTests : AdaicaTestBase
     public void DokumentationNavigator_NewFolderWithChildRecords()
     {
         var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
 
         var folderDialog = mainPage.OpenNewFolderDialog();
         OnCleanup(folderDialog.CancelIfOpen);
@@ -197,7 +197,7 @@ public class NavigatorTests : AdaicaTestBase
     public void DokumentationNavigator_NewTaskWithChildRecords()
     {
         var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
 
         var taskDialog = mainPage.OpenNewTaskDialog();
         OnCleanup(taskDialog.CancelIfOpen);
@@ -218,7 +218,7 @@ public class NavigatorTests : AdaicaTestBase
     public void DokumentationNavigator_NewAppointmentWithChildRecords()
     {
         var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
 
         var appointmentDialog = mainPage.OpenNewAppointmentDialog();
         OnCleanup(appointmentDialog.CancelIfOpen);
@@ -239,7 +239,7 @@ public class NavigatorTests : AdaicaTestBase
     public void DokumentationNavigator_NewNoteWithChildRecords()
     {
         var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
 
         var noteDialog = mainPage.OpenNewNoteDialog();
         OnCleanup(noteDialog.CancelIfOpen);

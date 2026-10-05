@@ -173,9 +173,10 @@ public abstract class AdaicaTestBase : UiTestBase
         return $"{begins}/+{hours}h {appointment.Name}";
     }
 
-    // «дд.ММ.рр Назва».
+    // «дд.ММ.рр Назва», а з класом — ще «(Клас - Підклас)» у кінці.
     protected static string NoteNode(NoteData note) =>
-        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}";
+        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}"
+        + (note.Class is { } recordClass ? $" ({recordClass.Class} - {recordClass.SubClass})" : string.Empty);
 
     protected override void CloseApplication()
     {

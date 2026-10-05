@@ -22,8 +22,13 @@ public class NoteForm(AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, RemarkId));
 
+    public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelectRecordHistory");
+
     public void Fill(NoteData note) => AllureApi.Step("Заповнити поля інфозапису", () =>
     {
+        // Клас — першим: ADAICA підставляє в «Kurzname» короткі назви класу й підкласу («KUAKKORR»).
+        if (note.Class is { } recordClass)
+            Class.Select(recordClass);
         Name.Fill(note.Name);
         ShortName.Fill(note.ShortName);
         Begin.Fill(note.Begin);
@@ -39,5 +44,6 @@ public class NoteForm(AutomationElement root)
             () => ShortName.ShouldHaveText(expected.ShortName),
             () => Begin.ShouldHaveValue(expected.Begin),
             () => Result.ShouldHaveSelected(expected.Result),
-            () => Remark.ShouldHaveText(expected.Remark)));
+            () => Remark.ShouldHaveText(expected.Remark),
+            () => Class.ShouldHave(expected.Class)));
 }

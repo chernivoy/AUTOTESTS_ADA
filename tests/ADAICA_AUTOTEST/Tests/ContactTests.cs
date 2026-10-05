@@ -74,7 +74,7 @@ public class ContactTests : AdaicaTestBase
     public void KontakteNavigator_NewCompanyWithChildRecords()
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
         var company = customer.NewCompany();
 
         CreateCompany(mainPage, company);
@@ -110,7 +110,7 @@ public class ContactTests : AdaicaTestBase
     public void KontakteNavigator_NewEmployeeWithChildRecords()
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
-        var customer = CustomerCase.Random();
+        var customer = CustomerCase.Random().WithClass();
         var company = customer.NewCompany();
         var department = customer.NewDepartment();
         var employee = customer.NewEmployee();
