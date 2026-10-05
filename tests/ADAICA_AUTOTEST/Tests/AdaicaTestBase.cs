@@ -1,4 +1,5 @@
 using System.Globalization;
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
@@ -70,8 +71,8 @@ public abstract class AdaicaTestBase : UiTestBase
 
     /// <summary>
     /// Створює з контекстного меню вузла <paramref name="parentNode"/> (будь-якого запису) проєкт, Ordner, завдання,
-    /// термін та інфозапис. Кожен збережений запис ADAICA має виділити в дереві під батьківським вузлом,
-    /// у папці свого типу: «Батько → Aufgaben → Завдання».
+    /// термін, інфозапис і документ із Word-файлу. Кожен збережений запис ADAICA має виділити в дереві під батьківським
+    /// вузлом, у папці свого типу: «Батько → Aufgaben → Завдання», документ — «Батько → Dateien → файл.docx».
     /// </summary>
     protected void CreateChildRecords(MainPage mainPage, CustomerCase customer, string parentNode)
     {
@@ -118,7 +119,64 @@ public abstract class AdaicaTestBase : UiTestBase
         noteDialog.Save();
         mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
         ShouldBeSelectedUnder(mainPage, parentNode, "Notizen", NoteNode(note));
+
+        CreateDocumentFromWordFile(mainPage, parentNode, customer.NewWordFile(), customer.Class);
     }
+
+    /// <summary>
+    /// Створює під вузлом <paramref name="parentNode"/> документ із Word-файлу <paramref name="content"/>, який тест
+    /// складає сам, і перевіряє картку документа (назва — ім'я файлу без розширення, тип «docx», розмір як у файлу,
+    /// версія 1 з 1, статус «aktuell», автор — поточний користувач, дата створення — час тесту), а в дереві — що
+    /// документ виділено під батьківським вузлом у «Dateien». Файл прибирається після тесту. Документ ADAICA зберігає
+    /// одразу, без вікна, тож клас <paramref name="recordClass"/> (якщо задано) тест вибирає вже в огляді й зберігає
+    /// кнопкою OK разом із Kurzname «MAT».
+    /// </summary>
+    protected CreatedDocument CreateDocumentFromWordFile(
+        MainPage mainPage, string parentNode, WordFileContent content, RecordClass? recordClass = null)
+    {
+        var file = TestWordFile.CreateDocx(content);
+        OnCleanup(file.Dispose);
+        AllureApi.AddAttachment(file.FileName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", file.Path);
+
+        var createdFrom = DateTime.Now;
+        mainPage.NewChildDocumentFromFile(parentNode, file.Path);
+        var document = mainPage.WaitForOpenedDocument(file.Name);
+        var createdTo = DateTime.Now;
+
+        document.ShouldHaveValues(new DocumentData(
+            Name: file.Name,
+            ShortName: string.Empty,
+            FileType: "docx",
+            FileSize: AdaicaFormat.FormatFileSize(file.Length),
+            Creator: mainPage.UserDisplayName,
+            Version: "1 / 1",
+            Status: "aktuell",
+            Remark: string.Empty));
+        document.ShouldBeCreatedBetween(createdFrom, createdTo);
+        ShouldBeSelectedUnder(mainPage, parentNode, "Dateien", file.FileName);
+
+        if (recordClass is not null)
+        {
+            OnCleanup(document.CancelIfEditing);
+            document.SetClass(recordClass, CustomerCase.ShortName);
+            document.ShouldHaveValues(new DocumentData(
+                Name: file.Name,
+                ShortName: CustomerCase.ShortName,
+                FileType: "docx",
+                FileSize: AdaicaFormat.FormatFileSize(file.Length),
+                Creator: mainPage.UserDisplayName,
+                Version: "1 / 1",
+                Status: "aktuell",
+                Remark: string.Empty,
+                Class: recordClass));
+            ShouldBeSelectedUnder(mainPage, parentNode, "Dateien", file.FileName);
+        }
+
+        return new CreatedDocument(file, document, createdFrom, createdTo);
+    }
+
+    /// <summary>Документ, створений <see cref="CreateDocumentFromWordFile"/>, і проміжок часу, коли його створено.</summary>
+    protected sealed record CreatedDocument(TestWordFile File, DocumentForm Form, DateTime CreatedFrom, DateTime CreatedTo);
 
     private static void ShouldBeSelectedUnder(MainPage mainPage, string parentNode, string folder, string recordNode) =>
         AllureApi.Step(
@@ -136,9 +194,10 @@ public abstract class AdaicaTestBase : UiTestBase
         return $"{begins}/+{hours}h {appointment.Name}";
     }
 
-    // «дд.ММ.рр Назва».
+    // «дд.ММ.рр Назва», а з класом — ще «(Клас - Підклас)» у кінці.
     protected static string NoteNode(NoteData note) =>
-        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}";
+        $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}"
+        + (note.Class is { } recordClass ? $" ({recordClass.Class} - {recordClass.SubClass})" : string.Empty);
 
     protected override void CloseApplication()
     {

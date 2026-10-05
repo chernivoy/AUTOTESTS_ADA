@@ -5,6 +5,7 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Трудовитрати («Aufwand (z.B. Arbeitszeit)»). Якщо null, прапорець вимкнено, і ADAICA сама показує
 /// тривалість між Begin і End. Якщо значення відрізняється від цієї тривалості, ADAICA підсвічує поле попередженням.
 /// </param>
+/// <param name="Class">Клас і підклас («Klasse» / «Unterklasse»); null — не вибирати й не перевіряти.</param>
 public sealed record AppointmentData(
     string Name,
     string ShortName,
@@ -15,4 +16,5 @@ public sealed record AppointmentData(
     string EffortUnit,
     string Importance,
     string Location,
-    string Remark);
+    string Remark,
+    RecordClass? Class = null);

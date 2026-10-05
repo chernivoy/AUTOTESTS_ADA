@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Globalization;
+using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 
 namespace ADAICA_AUTOTEST.Tests;
@@ -17,7 +18,8 @@ namespace ADAICA_AUTOTEST.Tests;
 /// </remarks>
 public sealed class CustomerCase
 {
-    private const string ShortName = "MAT";
+    /// <summary>Kurzname усіх тестових записів: за ним їх видно серед уведених людьми.</summary>
+    public const string ShortName = "MAT";
 
     // Межа дат записів у днях від сьогодні, в минуле й майбутнє.
     private const int DateRangeDays = 60;
@@ -89,6 +91,10 @@ public sealed class CustomerCase
     private readonly Topic _topic;
     private readonly HashSet<DateTime> _usedDays = [];
     private readonly HashSet<string> _usedNames = [];
+    private RecordClass? _recordClass;
+
+    /// <summary>Клас записів цієї справи (<see cref="WithClass"/>) або null.</summary>
+    public RecordClass? Class => _recordClass;
 
     private CustomerCase(Customer customer, Topic topic)
     {
@@ -97,6 +103,22 @@ public sealed class CustomerCase
     }
 
     public static CustomerCase Random() => new(Pick(Customers), Pick(Topics));
+
+    /// <summary>
+    /// Клас і підклас, які тести вибирають на бланках записів. Якщо в базі їх немає, тест створює їх сам через
+    /// «Konfiguration der Klassenliste» й вмикає для всіх типів записів (<see cref="RecordClassBox.Select"/>).
+    /// </summary>
+    public static RecordClass TestClass { get; } = new("Kundenakte", "KUAK", "Korrespondenz", "KORR");
+
+    /// <summary>
+    /// Записи цієї справи матимуть клас <see cref="TestClass"/>. Без цього клас не вибирається: тести пошуку
+    /// перевіряють, що «Klasse» порожня.
+    /// </summary>
+    public CustomerCase WithClass()
+    {
+        _recordClass = TestClass;
+        return this;
+    }
 
     /// <summary>
     /// Фірма клієнта для навігатора Kontakte. Назва завжди унікальна, щоб потім знаходити саме цю фірму пошуком:
@@ -244,6 +266,7 @@ public sealed class CustomerCase
     {
         var days = UniqueDays(2);
         return new ProjectData(
+            Class: _recordClass,
             Name: $"{_topic.Title} – {_customer.Company}",
             ShortName: ShortName,
             BeginDate: days[0],
@@ -283,6 +306,7 @@ public sealed class CustomerCase
         ];
         var (name, comment) = PickUnused(folder => folder.Name, folders);
         return new ProjectData(
+            Class: _recordClass,
             Name: name,
             ShortName: ShortName,
             BeginDate: days[0],
@@ -301,6 +325,7 @@ public sealed class CustomerCase
         var due = Pick(1, 2, 3);
         var (done, closed) = due switch { 1 => (2, 3), 2 => (1, 3), _ => (1, 2) };
         return new TaskData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Offerte für {_topic.Object} erstellen",
                 $"Kosten für {_topic.Object} mit {Contact.Dative} besprechen",
@@ -339,6 +364,7 @@ public sealed class CustomerCase
         // Термін триває 2 години й закінчується того самого дня.
         var begin = UniqueDays(1)[0] + WorkingTime(latestHour: 16);
         return new AppointmentData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Kick-off-Meeting {_topic.Title}",
                 $"Besprechung mit {Contact.Dative}",
@@ -367,6 +393,7 @@ public sealed class CustomerCase
     {
         var now = DateTime.Now;
         return new NoteData(
+            Class: _recordClass,
             Name: PickUnused(
                 $"Telefonat mit {Contact.Dative}",
                 $"Rückfrage von {Contact.Dative}",
@@ -382,6 +409,56 @@ public sealed class CustomerCase
                     "Der Kunde ist mit dem Angebot grundsätzlich einverstanden, wünscht aber 5 % Rabatt.",
                     $"Die Lieferung verzögert sich um eine Woche, {Contact.Nominative} ist informiert.")
                 + $" Notiert am {now.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} um {now.ToString("HH:mm", CultureInfo.InvariantCulture)} Uhr.");
+    }
+
+    /// <summary>
+    /// Word-файл зі справи клієнта, коли фірми в ADAICA немає (документ під проєктом, завданням тощо): у файлі —
+    /// назва фірми клієнта з новим номером клієнта, як у <see cref="NewCompany"/>, тож файл теж щоразу унікальний.
+    /// </summary>
+    public WordFileContent NewWordFile() => NewWordFile($"{_customer.Company} {NewCustomerNumber()}");
+
+    /// <summary>
+    /// Word-файл зі справи клієнта: лист-пропозиція чи протокол наради на тему справи. Назва фірми з її номером
+    /// (<see cref="NewCompany"/>) є і в імені файлу, і в тексті: ADAICA шукає дублікати документів і за назвою,
+    /// і за вмістом, тож файл щоразу новий для неї.
+    /// </summary>
+    public WordFileContent NewWordFile(string companyName)
+    {
+        var salutation = Contact.IsWoman ? $"Sehr geehrte {Contact.Nominative}," : $"Sehr geehrter {Contact.Nominative},";
+        return System.Random.Shared.Next(2) == 0
+            ? new WordFileContent(
+                FileName: $"Angebot {_topic.Title} {companyName}",
+                Title: $"Angebot: {_topic.Title}",
+                Paragraphs:
+                [
+                    $"Kunde: {companyName}",
+                    salutation,
+                    $"vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen unser Angebot für {_topic.Object}.",
+                    "Das Angebot ist 30 Tage gültig. Für Rückfragen stehen wir Ihnen jederzeit zur Verfügung.",
+                    "Mit freundlichen Grüßen",
+                ])
+            : new WordFileContent(
+                FileName: $"Besprechungsprotokoll {_topic.Title} {companyName}",
+                Title: $"Besprechungsprotokoll: {_topic.Title}",
+                Paragraphs:
+                [
+                    $"Teilnehmer: {Contact.Nominative} ({companyName}), Projektleitung",
+                    $"Thema: {_topic.Title}",
+                    $"Besprochen wurde der Zeitplan für {_topic.Object}. Die offenen Punkte klärt {Contact.Nominative} bis zur nächsten Besprechung.",
+                    "Nächste Besprechung in zwei Wochen.",
+                ]);
+    }
+
+    /// <summary>Абзац, який дописують у документ справи клієнта, коли редагують його нову версію.</summary>
+    public string NewWordAddendum()
+    {
+        var today = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        return Pick(
+        [
+            $"Nachtrag vom {today}: {Contact.Nominative} hat die Unterlagen telefonisch bestätigt.",
+            $"Nachtrag vom {today}: Der Termin für {_topic.Object} wurde um eine Woche verschoben.",
+            $"Nachtrag vom {today}: Die offenen Fragen wurden mit {Contact.Dative} geklärt.",
+        ]);
     }
 
     /// <summary>

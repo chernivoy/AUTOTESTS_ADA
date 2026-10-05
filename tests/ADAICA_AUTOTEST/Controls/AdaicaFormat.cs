@@ -26,6 +26,21 @@ public static class AdaicaFormat
 
     public static string FormatNumber(decimal value) => value.ToString(NumberCulture);
 
+    /// <summary>
+    /// Розмір файлу, як його показує ADAICA (csFunctions.ConvertFileSizeToString): менше кілобайта — ціле число байтів
+    /// («512 b»), інакше три знаки після коми в найбільшій одиниці, де число не менше одиниці («1,026 KB»).
+    /// </summary>
+    public static string FormatFileSize(long bytes)
+    {
+        string[] units = [" b", " KB", " MB", " GB", " TB"];
+        var size = (double)bytes;
+        var unit = 0;
+        for (; size >= 1024 && unit < units.Length - 1; unit++)
+            size /= 1024;
+
+        return unit == 0 ? $"{bytes}{units[0]}" : size.ToString("F3", NumberCulture) + units[unit];
+    }
+
     public static decimal? ParseNumber(string text) =>
         string.IsNullOrWhiteSpace(text) ? null : decimal.Parse(text, NumberStyles.Number, NumberCulture);
 }

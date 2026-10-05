@@ -18,13 +18,16 @@ public sealed class ColumnsConfigDialog
     // UIA_ScrollPatternNoScroll: не змінювати прокрутку по цій осі.
     private const double NoScroll = -1;
 
-    private readonly Window _owner;
+    private readonly Window[] _owners;
 
-    /// <param name="owner">Головне вікно ADAICA.</param>
-    public ColumnsConfigDialog(Window owner)
+    /// <param name="owners">
+    /// Вікна, дочірнім для одного з яких буде це вікно: головне вікно ADAICA, а для таблиці в окремому вікні (версії
+    /// документа) — і те вікно.
+    /// </param>
+    public ColumnsConfigDialog(params Window[] owners)
     {
-        _owner = owner;
-        Root = Wait.For(() => owner.FindFirstChild(cf => cf.ByAutomationId(WindowId))?.AsWindow(), "вікна «Spaltenkonfiguration»");
+        _owners = owners;
+        Root = Wait.For(() => FindIn(owners), "вікна «Spaltenkonfiguration»");
         OkButton = new ButtonControl("OK", Locate.ById(Root, "btnClearWndCacheManager"));
     }
 
@@ -77,8 +80,13 @@ public sealed class ColumnsConfigDialog
             throw new InvalidOperationException($"Не вдалося змінити прапорці колонок: {string.Join(", ", wrong)}.");
 
         OkButton.Click();
-        Wait.Until(() => _owner.FindFirstChild(cf => cf.ByAutomationId(WindowId)) is null, "закриття вікна «Spaltenkonfiguration»");
+        Wait.Until(() => FindIn(_owners) is null, "закриття вікна «Spaltenkonfiguration»");
     }
+
+    // IsAvailable закритого вікна WPF лишається true, тож шукаємо вікно серед дочірніх вікон власників.
+    private static Window? FindIn(IEnumerable<Window> owners) =>
+        owners.Select(owner => owner.FindFirstChild(cf => cf.ByAutomationId(WindowId)))
+            .FirstOrDefault(found => found is not null)?.AsWindow();
 
     /// <summary>Гортає список від початку й викликає <paramref name="action"/> для кожного видимого рядка.</summary>
     private void ForEachItem(Action<string, AutomationElement> action)

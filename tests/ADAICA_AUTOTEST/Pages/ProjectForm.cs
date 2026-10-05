@@ -35,8 +35,13 @@ public class ProjectForm(AutomationElement root, string recordName = "проєк
 
     public TextBoxControl Comment { get; } = new("Bemerkung", Locate.ById(root, "txtRecordFolderComment"));
 
+    public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelect");
+
     public void Fill(ProjectData project) => AllureApi.Step($"Заповнити поля {recordName}", () =>
     {
+        // Клас — першим: ADAICA підставляє в «Kurzname» короткі назви класу й підкласу («KUAKKORR»).
+        if (project.Class is { } recordClass)
+            Class.Select(recordClass);
         Name.Fill(project.Name);
         ShortName.Fill(project.ShortName);
         BeginDate.Fill(project.BeginDate);
@@ -51,6 +56,7 @@ public class ProjectForm(AutomationElement root, string recordName = "проєк
     /// <summary>Перевіряє всі поля й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
     public void ShouldHaveValues(ProjectData expected) => AllureApi.Step($"Перевірити поля {recordName}", () =>
         this.ShouldSatisfyAllConditions(
+            () => Class.ShouldHave(expected.Class),
             () => Name.ShouldHaveText(expected.Name),
             () => ShortName.ShouldHaveText(expected.ShortName),
             () => BeginDate.ShouldHaveValue(expected.BeginDate),

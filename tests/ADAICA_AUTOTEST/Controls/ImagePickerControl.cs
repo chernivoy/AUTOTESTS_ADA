@@ -19,12 +19,6 @@ public sealed class ImagePickerControl(string name, Func<AutomationElement> find
     private const string AddFromFileMenuItemId = "mnuImagePickerAddFileImage";
     private const string DeleteMenuItemId = "mnuImagePickerDelete";
 
-    // Стандартний діалог Windows «Відкрити»: клас вікна і AutomationId поля імені файлу та кнопки «Відкрити»
-    // однакові в усіх мовах Windows, на відміну від підписів.
-    private const string FileDialogClass = "#32770";
-    private const string FileNameEditId = "1148";
-    private const string OpenButtonId = "1";
-
     // JPEG трохи змінює кольори, а краї знімка — рамка й тло контрола.
     private const int ColorTolerance = 40;
     private const double MinColorShare = 0.2;
@@ -55,11 +49,7 @@ public sealed class ImagePickerControl(string name, Func<AutomationElement> find
         Wait.For(() => FindInProcessWindows(AddFromFileMenuItemId), "пункту «Aus dem Dateisystem»")
             .Patterns.Invoke.Pattern.Invoke();
 
-        var dialog = Wait.For(FileDialog, "діалогу вибору файлу");
-        new TextBoxControl("Dateiname", () => dialog.FindByAutomationId(FileNameEditId).FindFirstChild(cf => cf.ByClassName("Edit")) ?? dialog.FindByAutomationId(FileNameEditId))
-            .Fill(path);
-        dialog.FindByAutomationId(OpenButtonId).AsButton().Invoke();
-        Wait.Until(() => FileDialog() is null, "закриття діалогу вибору файлу");
+        FileOpenDialog.Open(Element, path);
         Wait.Until(() => HasImage, $"фото в «{Name}»");
     });
 
@@ -118,11 +108,5 @@ public sealed class ImagePickerControl(string name, Func<AutomationElement> find
     private AutomationElement? FindInProcessWindows(string automationId) =>
         ProcessWindows()
             .Select(window => window.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
-            .FirstOrDefault(found => found is not null);
-
-    // Діалог Windows — дочірнє вікно головного вікна ADAICA.
-    private AutomationElement? FileDialog() =>
-        ProcessWindows()
-            .Select(window => window.FindFirstChild(cf => cf.ByClassName(FileDialogClass)))
             .FirstOrDefault(found => found is not null);
 }

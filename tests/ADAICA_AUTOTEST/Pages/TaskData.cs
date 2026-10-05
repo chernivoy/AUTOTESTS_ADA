@@ -4,6 +4,7 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Поля завдання, які користувач може змінити. Поля з довідника (Standort, Kundennutzen, Hinweis)
 /// складаються зі значення довідника і довільного тексту поруч.
 /// </summary>
+/// <param name="Class">Клас і підклас («Klasse» / «Unterklasse»); null — не вибирати й не перевіряти.</param>
 public sealed record TaskData(
     string Name,
     string ShortName,
@@ -27,4 +28,5 @@ public sealed record TaskData(
     string CustomerBenefitText,
     string Hint,
     string HintText,
-    string Remark);
+    string Remark,
+    RecordClass? Class = null);
