@@ -1,3 +1,4 @@
+using System.Drawing;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Tools;
@@ -62,15 +63,20 @@ public static class UiInput
     /// відкриває контекстне меню, а меню WPF живе лише в активному застосунку, тож ADAICA спершу стає активною
     /// (див. <see cref="LeftClickOpeningMenu"/>).
     /// </summary>
-    public static void RightClick(Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+    /// <param name="offset">
+    /// Точка кліку відносно лівого верхнього кута елемента, у фізичних пікселях, — для вмісту, якого UI Automation
+    /// не показує; без неї — середина елемента.
+    /// </param>
+    public static void RightClick(
+        Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
             () =>
             {
                 var element = target();
                 WindowMessageInput.Activate(element);
-                WindowMessageInput.RightClick(element);
+                WindowMessageInput.RightClick(element, offset);
             },
-            () => AtomicMouse.RightClick(target()),
+            () => AtomicMouse.RightClick(target(), offset),
             "правий клік мишею",
             done, expectation, timeout);
 

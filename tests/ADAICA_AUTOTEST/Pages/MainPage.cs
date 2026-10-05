@@ -22,6 +22,8 @@ public sealed partial class MainPage : AdaicaWindow
     private const string TasksNodeName = "Aufgaben";
     private const string AppointmentsNodeName = "Termine";
     private const string NotesNodeName = "Notizen";
+    private const string MailsNodeName = "E-Mails";
+    private const string SaveSentMailQuestion = "Soll diese Nachricht gespeichert werden?";
     private const string ContactsRootNodeName = "Gesamtliste";
     private const string ContactFavoritesNodeName = "Favoriten";
     private const string EmployeesNodeName = "Mitarbeiter";
@@ -33,6 +35,9 @@ public sealed partial class MainPage : AdaicaWindow
 
     // UIA_ScrollPatternNoScroll: не змінювати прокрутку по цій осі.
     private const double NoScroll = -1;
+
+    // Після надсилання з Outlook ADAICA питає про збереження листа, щойно Outlook його відправить.
+    private static readonly TimeSpan SentMailTimeout = TimeSpan.FromSeconds(60);
 
     public MainPage(AppSession session)
         : base(session)
@@ -300,6 +305,66 @@ public sealed partial class MainPage : AdaicaWindow
         new MenuItemControl("System", Locate.ById(Window, SystemMenuId)).Expand();
         PopupMenuItem("Finden…", "mnuSystemSearchWndMain").Click();
         return new SearchWindow(Window);
+    }
+
+    [AllureStep("Відкрити асистент пошти: Benutzereinstellungen → Maileinstellungen")]
+    public MailSettingsWizard OpenMailSettings()
+    {
+        new MenuItemControl("Benutzereinstellungen", Locate.ById(Window, "mnuUserConfiguration")).Expand();
+        PopupMenuItem("Maileinstellungen", "mnuMailConfigurationSettings").Click();
+        return new MailSettingsWizard(Window);
+    }
+
+    /// <summary>
+    /// Новий лист: вузол «E-Mails» → контекстне меню → «Neu». ADAICA відкриває вікно нового листа в Outlook
+    /// (див. <see cref="OutlookApplication.WaitForNewMail"/>), а не власне вікно.
+    /// </summary>
+    [AllureStep("Відкрити новий лист в Outlook: вузол E-Mails → контекстне меню → Neu")]
+    public void OpenNewMail()
+    {
+        OpenNodeContextMenu(MailsNodeName);
+        PopupMenuItem("Neu", NewRecordMenuItemId).Click();
+    }
+
+    /// <summary>
+    /// Після надсилання листа, створеного з ADAICA, вона питає «Soll diese Nachricht gespeichert werden?»; «Ja»
+    /// відкриває асистент збереження листа.
+    /// </summary>
+    [AllureStep("Зберегти надісланий лист в ADAICA: «Soll diese Nachricht gespeichert werden?» → Ja")]
+    public MailSaveDialog ConfirmSaveSentMail()
+    {
+        var question = Wait.For(
+            () => FindMessageBox() is { } dialog && dialog.Message.Text == SaveSentMailQuestion ? dialog : null,
+            $"питання «{SaveSentMailQuestion}»",
+            SentMailTimeout);
+        question.Button("Ja").Click();
+        return new MailSaveDialog(Window);
+    }
+
+    /// <summary>Лист в області перегляду; свій лист тест упізнає за унікальною адресою отримувача.</summary>
+    [AllureStep("Дочекатися відкриття листа до {recipientAddress}")]
+    public MailView WaitForOpenedMail(string recipientAddress) =>
+        Wait.For(
+            () => InformationView() is { } view
+                && MailView.Field(view, "An")?.Contains($"<{recipientAddress}>", StringComparison.Ordinal) == true
+                    ? new MailView(view)
+                    : null,
+            $"листа до {recipientAddress} в області перегляду");
+
+    /// <summary>
+    /// Відкриває контакти виділеного запису: дочірній вузол «Kontakte» під ним (розгортає запис, якщо треба).
+    /// </summary>
+    [AllureStep("Відкрити вузол Kontakte під виділеним записом")]
+    public RecordContactsList OpenSelectedRecordContacts()
+    {
+        const string contactsNodeName = "Kontakte";
+        var record = SelectedNodeWithAncestors().Last();
+        var node = ChildNode(record, contactsNodeName);
+        UiInput.LeftClick(
+            () => NodeText(ScrolledIntoView(node)) ?? node,
+            () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == contactsNodeName,
+            $"виділення вузла «{contactsNodeName}» під записом");
+        return new RecordContactsList(Window);
     }
 
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]

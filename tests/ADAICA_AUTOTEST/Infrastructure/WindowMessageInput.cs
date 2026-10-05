@@ -45,11 +45,15 @@ public static class WindowMessageInput
     // Обробник кліку може відкрити модальне вікно й не повернути керування; тоді не чекаємо його закриття.
     private const uint SendTimeoutMs = 5000;
 
-    public static void LeftClick(AutomationElement target) =>
-        Click(target, new MouseButton(WmLButtonDown, WmLButtonUp, MkLButton, VkLButton));
+    /// <param name="offset">
+    /// Точка кліку відносно лівого верхнього кута елемента, у фізичних пікселях; без неї — середина елемента. Потрібна
+    /// там, де вміст елемента UI Automation не показує (наприклад, рядки списку контактів у вікні збереження листа).
+    /// </param>
+    public static void LeftClick(AutomationElement target, Point? offset = null) =>
+        Click(target, offset, new MouseButton(WmLButtonDown, WmLButtonUp, MkLButton, VkLButton));
 
-    public static void RightClick(AutomationElement target) =>
-        Click(target, new MouseButton(WmRButtonDown, WmRButtonUp, MkRButton, VkRButton));
+    public static void RightClick(AutomationElement target, Point? offset = null) =>
+        Click(target, offset, new MouseButton(WmRButtonDown, WmRButtonUp, MkRButton, VkRButton));
 
     /// <summary>
     /// Робить вікно елемента активним. Чужий процес не може просто викликати SetForegroundWindow, тому на мить
@@ -87,15 +91,17 @@ public static class WindowMessageInput
         Post(window, WmKeyUp, virtualKey, unchecked((nint)0xC0000001) | (scanCode << 16));
     }
 
-    private static (nint Window, nint LParam) Target(AutomationElement target)
+    private static (nint Window, nint LParam) Target(AutomationElement target, Point? offset)
     {
         var window = HostWindow(target);
-        return (window, ClientPoint(window, ClickPoint(target)));
+        var bounds = target.BoundingRectangle;
+        var point = offset is { } relative ? new Point(bounds.X + relative.X, bounds.Y + relative.Y) : ClickPoint(target);
+        return (window, ClientPoint(window, point));
     }
 
-    private static void Click(AutomationElement target, MouseButton button)
+    private static void Click(AutomationElement target, Point? offset, MouseButton button)
     {
-        var (window, lParam) = Target(target);
+        var (window, lParam) = Target(target, offset);
 
         var targetThread = GetWindowThreadProcessId(window, out _);
         var ownThread = GetCurrentThreadId();

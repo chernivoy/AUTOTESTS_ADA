@@ -462,6 +462,39 @@ public sealed class CustomerCase
     }
 
     /// <summary>
+    /// Лист новій людині в справі клієнта, якої ще немає серед контактів ADAICA. Адреса — на домені example.com
+    /// (зарезервований для прикладів, листи туди не доходять) і щоразу унікальна завдяки номеру з дати й часу, як
+    /// у <see cref="NewCompany"/>: «thomas.weber.261005161500@example.com». За нею тест упізнає і лист, і створену
+    /// з нього персону.
+    /// </summary>
+    public MailData NewMail()
+    {
+        var isWoman = System.Random.Shared.Next(2) == 0;
+        var recipient = new EmployeeData(
+            FirstName: Pick(isWoman ? WomenFirstNames : MenFirstNames),
+            LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
+            Salutation: isWoman ? "Frau" : "Herr",
+            ShortName: ShortName,
+            Function: "Mitarbeiter");
+        var greeting = isWoman ? $"Sehr geehrte Frau {recipient.LastName}," : $"Sehr geehrter Herr {recipient.LastName},";
+        return new MailData(
+            Recipient: recipient,
+            To: $"{EmailPart(recipient.FirstName)}.{EmailPart(recipient.LastName)}.{NewCustomerNumber()}@example.com",
+            Subject: PickUnused(
+                $"Unterlagen {_topic.Title} – {_customer.Company}",
+                $"Rückfrage zu {_topic.Object}",
+                $"Terminvorschlag {_topic.Title}"),
+            Body: string.Join(
+                Environment.NewLine + Environment.NewLine,
+                greeting,
+                Pick(
+                    $"{Contact.Nominative} hat mir Ihre Adresse gegeben. Gerne sende ich Ihnen die Unterlagen für {_topic.Object}.",
+                    $"wie mit {Contact.Dative} besprochen, melde ich mich wegen {_topic.Object}. Passt Ihnen ein Termin nächste Woche?",
+                    $"vielen Dank für Ihre Anfrage zu {_topic.Object}. Die Offerte erhalten Sie bis Ende Woche."),
+                "Freundliche Grüße"));
+    }
+
+    /// <summary>
     /// Завдання для списку «Meine Aufgaben» навігатора Dashboard. Список показує лише завдання з датами поблизу
     /// сьогодні, тож завдання почалося вчора зранку. Термін, виконання й закриття тест задає сам, залежно від фільтра.
     /// Annahmeart «Bestätigung» пропонує ADAICA: автор, він же виконавець, приймає таке завдання одразу.
