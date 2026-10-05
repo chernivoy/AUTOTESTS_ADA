@@ -417,6 +417,18 @@ public sealed class CustomerCase
                 ]);
     }
 
+    /// <summary>Абзац, який дописують у документ справи клієнта, коли редагують його нову версію.</summary>
+    public string NewWordAddendum()
+    {
+        var today = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        return Pick(
+        [
+            $"Nachtrag vom {today}: {Contact.Nominative} hat die Unterlagen telefonisch bestätigt.",
+            $"Nachtrag vom {today}: Der Termin für {_topic.Object} wurde um eine Woche verschoben.",
+            $"Nachtrag vom {today}: Die offenen Fragen wurden mit {Contact.Dative} geklärt.",
+        ]);
+    }
+
     /// <summary>
     /// Завдання для списку «Meine Aufgaben» навігатора Dashboard. Список показує лише завдання з датами поблизу
     /// сьогодні, тож завдання почалося вчора зранку. Термін, виконання й закриття тест задає сам, залежно від фільтра.

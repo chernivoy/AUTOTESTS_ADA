@@ -1,3 +1,4 @@
+using System.Globalization;
 using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
@@ -10,9 +11,21 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Огляд документа (вкладка «Übersicht» → «Dokument»): дані файлу, які ADAICA заповнює сама, і поля запису. Нижче
 /// ADAICA показує вміст документа (DevExpress RichEdit), але його тексту в дереві UI Automation немає.
 /// </summary>
-public sealed class DocumentForm(AutomationElement root)
+public sealed class DocumentForm(AutomationElement root, Window mainWindow)
 {
     public const string NameId = "txtNameRecordDocument";
+
+    // Нову версію ADAICA зберігає, коли Word закриє файл, а це трохи пізніше за закриття документа.
+    private static readonly TimeSpan NewVersionTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// «Bearbeiten»: ADAICA кладе копію файлу у свою теку, відкриває її у Word і стежить за нею. Коли Word збереже й
+    /// закриє файл, ADAICA сама зберігає його як нову версію.
+    /// </summary>
+    public ButtonControl EditButton { get; } = new("Bearbeiten", Locate.ById(root, "btnEditDocumentCRecMainFormBase"));
+
+    /// <summary>«Version»: відкриває вікно версій документа.</summary>
+    public ButtonControl VersionsButton { get; } = new("Version", Locate.ById(root, "btnViewVersionRecordDocument"));
 
     public TextBoxControl Name { get; } = new("Dokumentname", Locate.ById(root, NameId));
 
@@ -40,6 +53,21 @@ public sealed class DocumentForm(AutomationElement root)
             .FindAllChildren(cf => cf.ByControlType(ControlType.ListItem))
             .Select(item => item.Name)
             .ToList();
+
+    /// <summary>Чекає, доки ADAICA збереже нову версію: кількість версій стане <paramref name="count"/>.</summary>
+    public void WaitForVersionCount(int count) =>
+        AllureApi.Step($"Дочекатися версії {count} документа", () =>
+            Wait.Until(
+                () => new LabelControl("Versionen", Locate.ById(root, "tbViewCountVersionRecordDocument")).Text == count.ToString(CultureInfo.InvariantCulture),
+                $"{count} версій документа",
+                NewVersionTimeout));
+
+    /// <summary>Кнопка «Version» → вікно версій документа.</summary>
+    public DocumentVersionsWindow OpenVersions()
+    {
+        VersionsButton.Click();
+        return new DocumentVersionsWindow(mainWindow);
+    }
 
     /// <summary>Перевіряє всі поля й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
     public void ShouldHaveValues(DocumentData expected) => AllureApi.Step("Перевірити поля документа", () =>

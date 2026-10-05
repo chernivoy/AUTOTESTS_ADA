@@ -463,7 +463,7 @@ public sealed partial class MainPage : AdaicaWindow
                 $"ADAICA вважає файл документа «{name}» дублікатом і показує вікно «Festlegung von Aktionen für den Import von doppelten Dateien».");
         }
 
-        return WaitForOpenedRecord(DocumentForm.NameId, name, view => new DocumentForm(view));
+        return WaitForOpenedRecord(DocumentForm.NameId, name, view => new DocumentForm(view, Window));
     }
 
     // Вікно вибору дій для файлів, які вже є в ADAICA: його впізнаємо за списком файлів, що імпортуються.
