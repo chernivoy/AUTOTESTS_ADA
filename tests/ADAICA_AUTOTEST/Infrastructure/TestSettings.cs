@@ -26,6 +26,22 @@ public static class TestSettings
 
     public static string Schema => Require("ADAICA_SCHEMA", "Schema");
 
+    /// <summary>
+    /// Як тести клікають і натискають клавіші: <see cref="InputMode.Background"/> (за замовчуванням) — повідомленнями
+    /// вікну, а якщо дія не подіяла, мишею й клавіатурою; <see cref="InputMode.BackgroundOnly"/> — лише повідомленнями;
+    /// <see cref="InputMode.Mouse"/> — лише мишею й клавіатурою. Див. <see cref="UiInput"/>.
+    /// </summary>
+    public static InputMode InputMode =>
+        Get("ADAICA_INPUT_MODE", "InputMode") is { } value
+            ? Enum.Parse<InputMode>(value, ignoreCase: true)
+            : InputMode.Background;
+
+    /// <summary>
+    /// Монітор для вікна ADAICA: «secondary» (перший неосновний), «primary» або ім'я пристрою («\\.\DISPLAY2»).
+    /// Не задано або такого монітора немає — вікно лишається там, де його відкрила ADAICA.
+    /// </summary>
+    public static string? Monitor => Get("ADAICA_MONITOR", "Monitor");
+
     /// <summary>Куди складати скріншоти та інші артефакти падінь.</summary>
     public static string ArtifactsDirectory =>
         Get("ADAICA_ARTIFACTS_DIR", "ArtifactsDirectory") ?? Path.Combine(TestContext.CurrentContext.WorkDirectory, "artifacts");

@@ -12,6 +12,8 @@ namespace ADAICA_AUTOTEST.Pages;
 /// </summary>
 public sealed class NewPersonDialog : ChildDialog
 {
+    public const string WindowId = "wndPersonCompanyCreate";
+
     private static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(30);
 
     private readonly Window _mainWindow;
@@ -19,7 +21,7 @@ public sealed class NewPersonDialog : ChildDialog
     /// <param name="mainWindow">Головне вікно ADAICA: повідомлення про помилку збереження з'являється як його дочірнє вікно.</param>
     /// <param name="owner">Вікно «Finden &amp; Erstellen».</param>
     public NewPersonDialog(Window mainWindow, Window owner)
-        : base(owner, "wndPersonCompanyCreate", "Neue Person/Firma", "btnWndPCCreateOK", "btnWndPCCreateCancel")
+        : base(owner, WindowId, "Neue Person/Firma", "btnWndPCCreateOK", "btnWndPCCreateCancel")
     {
         _mainWindow = mainWindow;
 

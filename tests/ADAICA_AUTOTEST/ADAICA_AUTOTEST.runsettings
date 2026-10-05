@@ -19,5 +19,17 @@
     <Parameter name="UserName" value="cher" />
     <Parameter name="Database" value="BLANK_IGOR" />
     <Parameter name="Schema" value="BLANK_IGOR" />
+    <!--
+      Монітор для вікна ADAICA: secondary (перший неосновний), primary або ім'я пристрою (\\.\DISPLAY2).
+      Якщо такого монітора немає (наприклад, на Jenkins), вікно лишається, де його відкрила ADAICA.
+    -->
+    <Parameter name="Monitor" value="secondary" />
+    <!--
+      Як тести клікають там, де не допомагає UI Automation:
+      Background — повідомленнями вікну, а не подіяло — мишею й клавіатурою;
+      BackgroundOnly — лише повідомленнями (миша й клавіатура користувача не потрібні ніколи);
+      Mouse — лише мишею й клавіатурою.
+    -->
+    <Parameter name="InputMode" value="Background" />
   </TestRunParameters>
 </RunSettings>

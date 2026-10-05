@@ -18,8 +18,11 @@ public sealed class CommunicationsList(Window owner, AutomationElement root, str
     public void Add(CommunicationData communication) =>
         AllureApi.Step($"Додати у «Verbindung» {communication.Kind}: {communication.Value}", () =>
         {
-            // Кнопка «+» відкриває меню лише на клік мишею: InvokePattern вона не підтримує.
-            AtomicMouse.LeftClick(root.FindByAutomationId("tbtnAddSpecifyCompanyCommunications"));
+            // Кнопка «+» відкриває меню лише на клік: InvokePattern вона не підтримує.
+            UiInput.LeftClickOpeningMenu(
+                () => root.FindByAutomationId("tbtnAddSpecifyCompanyCommunications"),
+                () => FindInPopups(communication.Kind) is not null,
+                "меню «Verbindung»");
             new MenuItemControl(communication.Kind, () => Wait.For(() => FindInPopups(communication.Kind), $"пункту «{communication.Kind}» у меню «Verbindung»"))
                 .Click();
 
@@ -77,9 +80,7 @@ public sealed class CommunicationsList(Window owner, AutomationElement root, str
         List.FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
             .FirstOrDefault(item => item.FindFirstChild(cf => cf.ByControlType(ControlType.Edit)) is not null);
 
-    // Меню кнопки «+» відкривається у WPF Popup — дочірньому вікні головного вікна.
+    // Меню кнопки «+» відкривається у WPF Popup (див. Popups).
     private AutomationElement? FindInPopups(string itemName) =>
-        owner.FindAllChildren(cf => cf.ByClassName("Popup"))
-            .Select(popup => popup.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName))))
-            .FirstOrDefault(item => item is not null);
+        Popups.FindDescendant(owner, cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName)));
 }

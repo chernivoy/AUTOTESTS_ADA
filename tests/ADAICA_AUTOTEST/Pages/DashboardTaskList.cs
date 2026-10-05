@@ -4,7 +4,6 @@ using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
-using Keyboard = FlaUI.Core.Input.Keyboard;
 using VirtualKeyShort = FlaUI.Core.WindowsAPI.VirtualKeyShort;
 
 namespace ADAICA_AUTOTEST.Pages;
@@ -153,10 +152,10 @@ public sealed partial class DashboardTaskList
         AllureApi.Step($"Знайти «{text}» швидким пошуком над списком «Meine Aufgaben»", () =>
         {
             QuickSearch.Fill(text);
-            // Пошук застосовує лише клік мишею по кнопці з лупою або Enter: це ToggleButton, і Toggle з UI Automation
+            // Пошук застосовує лише клік по кнопці з лупою або Enter: це ToggleButton, і Toggle з UI Automation
             // його команду не виконує.
-            AtomicMouse.LeftClick(View.FindByAutomationId("btnQuickSearchApplyFilter"));
-            Wait.Until(
+            UiInput.LeftClick(
+                () => View.FindByAutomationId("btnQuickSearchApplyFilter"),
                 () => Rows.ToHashSet().SetEquals(expectedRows),
                 $"рядків {string.Join(", ", expectedRows)} у списку «Meine Aufgaben»",
                 RowsTimeout);
@@ -193,8 +192,8 @@ public sealed partial class DashboardTaskList
             () =>
             {
                 var isAccepting = ContextMenuItem(row, "Annehmen").IsEnabled;
-                Keyboard.Type(VirtualKeyShort.ESCAPE);
-                Wait.Until(() => FindInPopups("TaskContextMenu") is null, "закриття контекстного меню");
+                if (FindInPopups("TaskContextMenu") is { } menu)
+                    UiInput.PressKey(() => menu, VirtualKeyShort.ESCAPE, () => FindInPopups("TaskContextMenu") is null, "закриття контекстного меню");
                 return isAccepting;
             },
             $"відмови від «{row}» (пункт «Annehmen» стає доступним)");
@@ -202,16 +201,18 @@ public sealed partial class DashboardTaskList
 
     /// <summary>
     /// Відкриває «Spaltenkonfiguration» з контекстного меню заголовка колонки «Name». Меню відкривається лише правим
-    /// кліком мишею; пункти в ньому — кнопки DevExpress з AutomationId, у якому є випадковий GUID, тож шукаємо за підписом.
+    /// кліком; пункти в ньому — кнопки DevExpress з AutomationId, у якому є випадковий GUID, тож шукаємо за підписом.
     /// </summary>
     public ColumnsConfigDialog OpenColumnsConfig() =>
         AllureApi.Step("Відкрити «Spaltenkonfiguration»: заголовок колонки Name → контекстне меню → Änderung der Spaltenkonfiguration", () =>
         {
             // Заголовок колонки не має AutomationId, а його Name — ідентифікатор колонки («RowData.Row.Name»).
-            var header = Wait.For(
-                () => View.FindByAutomationId("HeaderPanel").FindFirstChild(cf => cf.ByControlType(ControlType.HeaderItem).And(cf.ByName(ColumnIds["Name"]))),
-                "заголовка колонки «Name»");
-            AtomicMouse.RightClick(header);
+            UiInput.RightClick(
+                () => Wait.For(
+                    () => View.FindByAutomationId("HeaderPanel").FindFirstChild(cf => cf.ByControlType(ControlType.HeaderItem).And(cf.ByName(ColumnIds["Name"]))),
+                    "заголовка колонки «Name»"),
+                () => FindInPopups("GridContextMenu") is not null,
+                "контекстного меню заголовка колонки");
             var menu = Wait.For(() => FindInPopups("GridContextMenu"), "контекстного меню заголовка колонки");
             new ButtonControl("Änderung der Spaltenkonfiguration", () => Wait.For(
                     () => menu.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button).And(cf.ByName("Änderung der Spaltenkonfiguration"))),
@@ -264,10 +265,13 @@ public sealed partial class DashboardTaskList
             return (IReadOnlyDictionary<string, string>)texts;
         });
 
-    /// <summary>Контекстне меню рядка відкривається лише правим кліком мишею.</summary>
+    /// <summary>Контекстне меню рядка відкривається лише правим кліком.</summary>
     private MenuItemControl ContextMenuItem(TaskListRow row, string itemName)
     {
-        AtomicMouse.RightClick(RowCell(row, "RowData.Row.Name"));
+        UiInput.RightClick(
+            () => RowCell(row, "RowData.Row.Name"),
+            () => FindInPopups("TaskContextMenu") is not null,
+            $"контекстного меню «{row}»");
         var menu = Wait.For(() => FindInPopups("TaskContextMenu"), $"контекстного меню «{row}»");
         return new MenuItemControl(itemName, () => Wait.For(
             () => menu.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName))),
@@ -282,11 +286,9 @@ public sealed partial class DashboardTaskList
                 ?.FindFirstChild(cf => cf.ByAutomationId(columnId)),
             $"рядка «{row}» у списку «Meine Aufgaben»");
 
-    // Меню ADAICA відкриваються у WPF Popup — дочірньому вікні головного вікна.
+    // Меню ADAICA відкриваються у WPF Popup (див. Popups).
     private AutomationElement? FindInPopups(string automationId) =>
-        _owner.FindAllChildren(cf => cf.ByClassName("Popup"))
-            .Select(popup => popup.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
-            .FirstOrDefault(element => element is not null);
+        Popups.FindDescendant(_owner, cf => cf.ByAutomationId(automationId));
 
     // Показаний текст лежить у полі редагування комірки. Порожня дата в назві комірки — «01.01.0001» чи «11.11.1911»,
     // тож назву беремо лише для колонок без поля (картинок).

@@ -2,13 +2,12 @@ using System.Drawing;
 using ADAICA_AUTOTEST.Infrastructure;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
-using Keyboard = FlaUI.Core.Input.Keyboard;
 using FlaUI.Core.WindowsAPI;
 
 namespace ADAICA_AUTOTEST.Controls;
 
 /// <summary>
-/// Фото контакту (ImagePicker). Усе робиться через його контекстне меню, яке відкривається лише правим кліком мишею.
+/// Фото контакту (ImagePicker). Усе робиться через його контекстне меню, яке відкривається лише правим кліком.
 /// Меню — окреме вікно Popup на робочому столі, а не дочірнє вікно головного, тому шукаємо його серед вікон процесу.
 /// Самого зображення в дереві UI Automation немає: є воно чи ні, видно з меню («Löschen» доступне лише з фото),
 /// а що саме показано — зі знімка контрола.
@@ -98,15 +97,15 @@ public sealed class ImagePickerControl(string name, Func<AutomationElement> find
 
     private AutomationElement OpenContextMenu()
     {
-        AtomicMouse.RightClick(Element);
+        UiInput.RightClick(() => Element, () => FindInProcessWindows(ContextMenuId) is not null, $"контекстного меню «{Name}»");
         return Wait.For(() => FindInProcessWindows(ContextMenuId), $"контекстного меню «{Name}»");
     }
 
     // Меню закривається клавішею Esc, як у користувача; підменю закривається разом із ним.
     private void CloseContextMenu()
     {
-        Keyboard.Type(VirtualKeyShort.ESCAPE);
-        Wait.Until(() => FindInProcessWindows(ContextMenuId) is null, $"закриття контекстного меню «{Name}»");
+        if (FindInProcessWindows(ContextMenuId) is { } menu)
+            UiInput.PressKey(() => menu, VirtualKeyShort.ESCAPE, () => FindInProcessWindows(ContextMenuId) is null, $"закриття контекстного меню «{Name}»");
     }
 
     private AutomationElement[] ProcessWindows()
