@@ -6,7 +6,8 @@ namespace ADAICA_AUTOTEST.Infrastructure;
 /// Не дає ADAICA забрати фокус у користувача. ADAICA сама активує своє вікно (під час запуску, після входу,
 /// відкриваючи вікна), і тоді натискання клавіш, які користувач друкує в іншому застосунку, йдуть в ADAICA.
 /// Заборонити це ззовні не можна, тому поки йде тест, фоновий потік стежить за активним вікном і повертає фокус
-/// у вікно, де користувач працював перед тим.
+/// у вікно, де користувач працював перед тим, — але лише поки користувач справді працює (остання дія мишею чи
+/// клавіатурою не давніше 30 с). Коли працює тільки тест, фокус лишається в ADAICA з усіма її вікнами.
 /// </summary>
 /// <remarks>
 /// Повністю тримати ADAICA неактивною не можна: WPF закриває Popup (список навігаторів, контекстні меню), щойно
@@ -25,6 +26,12 @@ public sealed class ForegroundGuard : IDisposable
     // Скільки ADAICA має пробути активною без відкритих Popup, перш ніж фокус повернеться користувачеві.
     private static readonly TimeSpan Grace = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(50);
+
+    // Користувач працює, якщо його остання дія мишею чи клавіатурою була не давніше за це.
+    private static readonly TimeSpan UserActive = TimeSpan.FromSeconds(30);
+
+    // Вікно, активне не пізніше за це після дії користувача, — його власне вікно.
+    private static readonly TimeSpan FreshInput = TimeSpan.FromSeconds(1);
     private static int _pauses;
 
     private readonly int _processId;
@@ -95,9 +102,13 @@ public sealed class ForegroundGuard : IDisposable
         if (foreground == 0)
             return;
 
+        var idle = IdleTime();
         if (ProcessOf(foreground) != _processId)
         {
-            _userWindow = foreground;
+            // Своїм вважаємо лише вікно, активне одразу після дії користувача: вікна, які Windows активує сама
+            // (наприклад, наступне за z-порядком після закриття діалогу ADAICA), фокус назад не отримують.
+            if (idle < FreshInput)
+                _userWindow = foreground;
             _wasForeground = false;
             return;
         }
@@ -114,6 +125,11 @@ public sealed class ForegroundGuard : IDisposable
         }
 
         if (Volatile.Read(ref _pauses) > 0 || _userWindow == 0 || !IsWindow(_userWindow) || !IsWindowVisible(_userWindow))
+            return;
+
+        // Користувач зараз не працює за комп'ютером — фокус нікому не заважає, а повертати його означало б смикати
+        // вікна тесту (діалоги ADAICA, повідомлення) щоразу, коли ADAICA їх активує.
+        if (idle > UserActive)
             return;
 
         // Відкритий Popup (список навігаторів, контекстне меню) WPF закриває, щойно застосунок стає неактивним, тож
@@ -159,6 +175,16 @@ public sealed class ForegroundGuard : IDisposable
             return true;
         }, 0);
         return found;
+    }
+
+    // Час від останньої справжньої дії мишею чи клавіатурою в системі. Повідомлення, які тест надсилає у вікно
+    // ADAICA (WindowMessageInput), введенням не вважаються.
+    private static TimeSpan IdleTime()
+    {
+        var info = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
+        return GetLastInputInfo(ref info)
+            ? TimeSpan.FromMilliseconds(unchecked((uint)Environment.TickCount - info.Time))
+            : TimeSpan.Zero;
     }
 
     private static int ProcessOf(nint window)
@@ -212,6 +238,16 @@ public sealed class ForegroundGuard : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool AttachThreadInput(uint attach, uint attachTo, bool doAttach);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInputInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LastInputInfo
+    {
+        public uint Size;
+        public uint Time;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint
