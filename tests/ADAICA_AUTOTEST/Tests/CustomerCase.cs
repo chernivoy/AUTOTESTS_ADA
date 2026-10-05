@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Globalization;
+using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 
 namespace ADAICA_AUTOTEST.Tests;
@@ -382,6 +383,38 @@ public sealed class CustomerCase
                     "Der Kunde ist mit dem Angebot grundsätzlich einverstanden, wünscht aber 5 % Rabatt.",
                     $"Die Lieferung verzögert sich um eine Woche, {Contact.Nominative} ist informiert.")
                 + $" Notiert am {now.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} um {now.ToString("HH:mm", CultureInfo.InvariantCulture)} Uhr.");
+    }
+
+    /// <summary>
+    /// Word-файл зі справи клієнта: лист-пропозиція чи протокол наради на тему справи. Назва фірми з її номером
+    /// (<see cref="NewCompany"/>) є і в імені файлу, і в тексті: ADAICA шукає дублікати документів і за назвою,
+    /// і за вмістом, тож файл щоразу новий для неї.
+    /// </summary>
+    public WordFileContent NewWordFile(string companyName)
+    {
+        var salutation = Contact.IsWoman ? $"Sehr geehrte {Contact.Nominative}," : $"Sehr geehrter {Contact.Nominative},";
+        return System.Random.Shared.Next(2) == 0
+            ? new WordFileContent(
+                FileName: $"Angebot {_topic.Title} {companyName}",
+                Title: $"Angebot: {_topic.Title}",
+                Paragraphs:
+                [
+                    $"Kunde: {companyName}",
+                    salutation,
+                    $"vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen unser Angebot für {_topic.Object}.",
+                    "Das Angebot ist 30 Tage gültig. Für Rückfragen stehen wir Ihnen jederzeit zur Verfügung.",
+                    "Mit freundlichen Grüßen",
+                ])
+            : new WordFileContent(
+                FileName: $"Besprechungsprotokoll {_topic.Title} {companyName}",
+                Title: $"Besprechungsprotokoll: {_topic.Title}",
+                Paragraphs:
+                [
+                    $"Teilnehmer: {Contact.Nominative} ({companyName}), Projektleitung",
+                    $"Thema: {_topic.Title}",
+                    $"Besprochen wurde der Zeitplan für {_topic.Object}. Die offenen Punkte klärt {Contact.Nominative} bis zur nächsten Besprechung.",
+                    "Nächste Besprechung in zwei Wochen.",
+                ]);
     }
 
     /// <summary>

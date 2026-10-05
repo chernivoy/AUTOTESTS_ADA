@@ -50,6 +50,20 @@ public sealed partial class MainPage : AdaicaWindow
     /// <summary>Схема, до якої підключено застосунок.</summary>
     public string Schema => ParseTitle().Groups["schema"].Value;
 
+    /// <summary>
+    /// Користувач, під яким увійшли, у тому вигляді, як ADAICA підписує автора запису («Erstellt durch»):
+    /// «Прізвище, Ім'я». У заголовку вікна він записаний як «Ім'я Прізвище»: «ADAICA: Igor Chernivoy [БАЗА:СХЕМА]».
+    /// </summary>
+    public string UserDisplayName
+    {
+        get
+        {
+            var fullName = UserInTitle().Match(Title).Groups["user"].Value;
+            var lastSpace = fullName.LastIndexOf(' ');
+            return lastSpace < 0 ? fullName : $"{fullName[(lastSpace + 1)..]}, {fullName[..lastSpace]}";
+        }
+    }
+
     /// <summary>Назва навігатора, відкритого зараз (заголовок над деревом зліва).</summary>
     public LabelControl NavigatorTitle { get; }
 
@@ -419,6 +433,45 @@ public sealed partial class MainPage : AdaicaWindow
     }
 
     /// <summary>
+    /// Створює під вузлом <paramref name="parentNode"/> документ із файлу: контекстне меню → «Neu» → «Dokument» →
+    /// «Aus dem Dateisystem» → вибір файлу в діалозі Windows. Вікна редагування ADAICA не показує: документ одразу
+    /// зберігається й відкривається в області перегляду (<see cref="WaitForOpenedDocument"/>).
+    /// </summary>
+    [AllureStep("Створити документ з файлу: вузол {parentNode} → контекстне меню → Neu → Dokument → Aus dem Dateisystem")]
+    public void NewChildDocumentFromFile(string parentNode, string filePath)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Dokument", "mnuNewDocument").Expand();
+        PopupMenuItem("Aus dem Dateisystem", "mnuNewDocumentFromFile").Click();
+        FileOpenDialog.Open(Window, filePath);
+    }
+
+    /// <summary>
+    /// Чекає документ <paramref name="name"/> в області перегляду. Якщо такий файл (за вмістом чи назвою) уже є
+    /// в ADAICA, вона натомість показує вікно «Festlegung von Aktionen für den Import von doppelten Dateien» —
+    /// тоді тест падає одразу з поясненням, а не за таймаутом.
+    /// </summary>
+    [AllureStep("Дочекатися відкриття документа {name}")]
+    public DocumentForm WaitForOpenedDocument(string name)
+    {
+        Wait.Until(
+            () => DuplicateImportWindow() is not null || ShownValue(DocumentForm.NameId) == name,
+            $"документа «{name}» в області перегляду");
+        if (DuplicateImportWindow() is not null)
+        {
+            throw new InvalidOperationException(
+                $"ADAICA вважає файл документа «{name}» дублікатом і показує вікно «Festlegung von Aktionen für den Import von doppelten Dateien».");
+        }
+
+        return WaitForOpenedRecord(DocumentForm.NameId, name, view => new DocumentForm(view));
+    }
+
+    // Вікно вибору дій для файлів, які вже є в ADAICA: його впізнаємо за списком файлів, що імпортуються.
+    private AutomationElement? DuplicateImportWindow() =>
+        Window.FindAllChildren(cf => cf.ByControlType(ControlType.Window))
+            .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByAutomationId("lvImportFiles")) is not null);
+
+    /// <summary>
     /// Чекає, доки в області перегляду відкриється запис, у якому поле <paramref name="keyFieldId"/>
     /// має значення <paramref name="keyValue"/> (номер запису або інша унікальна ознака).
     /// Шукаємо лише в області перегляду: у відкритому діалозі запису є поля з тими самими AutomationId.
@@ -426,13 +479,14 @@ public sealed partial class MainPage : AdaicaWindow
     private TForm WaitForOpenedRecord<TForm>(string keyFieldId, string keyValue, Func<AutomationElement, TForm> createForm)
         where TForm : class =>
         Wait.For(
-            () =>
-            {
-                var view = Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
-                var shownValue = view?.FindFirstDescendant(cf => cf.ByAutomationId(keyFieldId))?.AsTextBox().Text;
-                return shownValue == keyValue ? createForm(view!) : null;
-            },
+            () => ShownValue(keyFieldId) == keyValue ? createForm(InformationView()!) : null,
             $"запису «{keyValue}» в області перегляду");
+
+    private AutomationElement? InformationView() => Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
+
+    // Значення поля в області перегляду або null, якщо такого поля там немає.
+    private string? ShownValue(string fieldId) =>
+        InformationView()?.FindFirstDescendant(cf => cf.ByAutomationId(fieldId))?.AsTextBox().Text;
 
     // Контекстне меню вузла відкривається лише правим кліком: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
     private void OpenNodeContextMenu(string nodeName) => OpenNodeContextMenu(NavigatorNode(nodeName));
@@ -569,6 +623,9 @@ public sealed partial class MainPage : AdaicaWindow
 
     [GeneratedRegex(@"\[(?<database>[^:\]]+):(?<schema>[^\]]+)\]")]
     private static partial Regex ConnectionInTitle();
+
+    [GeneratedRegex(@"^ADAICA: (?<user>.+?) \[")]
+    private static partial Regex UserInTitle();
 
     // Діапазон записів, який ADAICA додає до назви вузла: «Projekte (1-25)».
     [GeneratedRegex(@" \(\d+-\d+\)$")]

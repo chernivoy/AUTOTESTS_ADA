@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
@@ -118,6 +119,44 @@ public class ContactTests : AdaicaTestBase
         CreateDepartmentWithEmployee(mainPage, company.Name, department, employee);
 
         CreateChildRecords(mainPage, customer, employee.NodeName);
+    }
+
+    /// <summary>
+    /// Документ із Word-файлу під фірмою: контекстне меню фірми → «Neu» → «Dokument» → «Aus dem Dateisystem» → .docx,
+    /// який тест складає сам (пропозиція чи протокол у справі клієнта). Вікна редагування ADAICA не показує: документ
+    /// одразу зберігається й відкривається. Назва — ім'я файлу без розширення, тип «docx», розмір як у файлу,
+    /// версія 1 з 1, статус «aktuell», автор — поточний користувач; у дереві документ — під фірмою у вузлі «Dateien».
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void KontakteNavigator_NewDocumentFromWordFile()
+    {
+        var mainPage = LogInAndOpenNavigator("Kontakte");
+        var customer = CustomerCase.Random();
+        var company = customer.NewCompany();
+        CreateCompany(mainPage, company);
+
+        var file = TestWordFile.CreateDocx(customer.NewWordFile(company.Name));
+        OnCleanup(file.Dispose);
+        AllureApi.AddAttachment($"{file.FileName}", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", file.Path);
+
+        var createdFrom = DateTime.Now;
+        mainPage.NewChildDocumentFromFile(company.Name, file.Path);
+        var document = mainPage.WaitForOpenedDocument(file.Name);
+        var createdTo = DateTime.Now;
+
+        document.ShouldHaveValues(new DocumentData(
+            Name: file.Name,
+            ShortName: string.Empty,
+            FileType: "docx",
+            FileSize: AdaicaFormat.FormatFileSize(file.Length),
+            Creator: mainPage.UserDisplayName,
+            Version: "1 / 1",
+            Status: "aktuell",
+            Remark: string.Empty));
+        document.ShouldBeCreatedBetween(createdFrom, createdTo);
+        AllureApi.Step($"Перевірити, що в дереві виділено «{company.Name} → Dateien → {file.FileName}»",
+            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { company.Name, "Dateien", file.FileName }));
     }
 
     /// <summary>

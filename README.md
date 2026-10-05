@@ -32,7 +32,8 @@ ADAICA_AUTOTEST.sln
    │  ├─ MonitorPlacement.cs           перенесення вікна ADAICA на інший монітор і назад
    │  ├─ ForegroundGuard.cs            повертає користувачеві фокус, який забрала ADAICA
    │  ├─ Popups.cs                     пошук спливних вікон (списки, меню) у будь-якому стані ADAICA
-   │  └─ TestImageFile.cs              JPG, який тест малює сам і прибирає після себе
+   │  ├─ TestImageFile.cs              JPG, який тест малює сам і прибирає після себе
+   │  └─ TestWordFile.cs               Word-файл (.docx), який тест складає сам (без Word) і прибирає після себе
    ├─ Controls/                        контроли: заповнення й перевірка окремих полів
    │  ├─ Control.cs                    базовий клас: назва, пошук елемента, доступність
    │  ├─ Locate.cs                     пошук елемента за ланцюжком AutomationId
@@ -49,6 +50,7 @@ ADAICA_AUTOTEST.sln
    │  ├─ TabItemControl.cs             вкладка
    │  ├─ LabelControl.cs               текст лише для читання
    │  ├─ ImagePickerControl.cs         фото контакту: додавання з файлу через контекстне меню, перевірка за знімком
+   │  ├─ FileOpenDialog.cs             стандартний діалог Windows «Відкрити»: шлях у поле імені й Enter
    │  └─ AdaicaFormat.cs               формати дат і чисел ADAICA
    ├─ Pages/                           Page Objects ADAICA
    │  ├─ AdaicaWindow.cs               вікно FlatWnd: діалоги, вихід із підтвердженням
@@ -60,6 +62,7 @@ ADAICA_AUTOTEST.sln
    │  ├─ TaskDialog.cs, TaskForm.cs, TaskData.cs            завдання: вікно, бланк, дані
    │  ├─ AppointmentDialog.cs, AppointmentForm.cs, AppointmentData.cs   термін: вікно, бланк, дані
    │  ├─ NoteDialog.cs, NoteForm.cs, NoteData.cs            інфозапис (Notiz): вікно, бланк, дані
+   │  ├─ DocumentForm.cs, DocumentData.cs                  документ (Dokument): огляд запису, дані
    │  ├─ ContactFindCreateWindow.cs    вікно «Finden & Erstellen» на вкладці Kontakte: пошук перед створенням контакту
    │  ├─ NewCompanyDialog.cs, CompanyForm.cs, CompanyData.cs   фірма: вікно «Neue Person/Firma», картка (Allgemein, Details, Bankverbindungen), дані
    │  ├─ DepartmentDialog.cs, DepartmentForm.cs   відділ фірми (Organisationseinheit): вікно «Neue Organisationseinheit hinzufügen», картка
@@ -207,6 +210,7 @@ dotnet run --project tools/TestRunner
   - **Briefanrede нового співробітника лишається шаблоном** «Sehr geehrte/r Frau/Herr ,», хоча Anrede й прізвище збережено. Так було в 4 із 5 спроб, незалежно від того, чи вибрано Funktion. Правильна «Sehr geehrte Frau Hartmann,» вийшла лише тоді, коли збереження супроводжувала помилка нижче. Імовірний баг, його має підтвердити розробник. Тест `KontakteNavigator_NewCompanyDepartmentWithEmployee` Briefanrede поки не перевіряє.
   - **«Maximale Anzahl von gleichzeitig geöffneten Transaktionen mit der Datenbank erreicht.»** Один раз це повідомлення з'явилося після OK у «Neue Person/Firma», коли картка щойно створеного відділу ще була відкрита. Персону все одно створено. Повторити не вдалося. Повідомлення ADAICA показує дочірнім вікном головного вікна, тому `NewPersonDialog` шукає його й там, і тест падає з його текстом.
   - Якщо Anrede не чіпати, ADAICA може її не зберегти: персона стає «Andrea Weber» без «Frau».
+- **Документ із Word-файлу під фірмою.** Контекстне меню фірми → «Neu» (`mnuNew`) → «Dokument» (`mnuNewDocument`) → «Aus dem Dateisystem» (`mnuNewDocumentFromFile`). Поруч є «Word-Dokument» (`mnuNewDocumentFromWord`), «Excel-Dokument», «PowerPoint-Dokument», «Scannen...» і «Editor»; «Word-Dokument» запускає сам Word, щоб написати документ з нуля, тому тест бере готовий файл. ADAICA відкриває стандартний діалог Windows «Відкрити» з вибором кількох файлів (`Multiselect`), і `FileOpenDialog` вводить шлях у лапках (без них ім'я з пробілами Windows ділить на кілька) й натискає Enter. Кнопку «Відкрити» за AutomationId «1» шукати не можна: «1» мають і файли в списку діалогу, тож знаходиться перший файл теки, який і відкривається. Вікна редагування немає: ADAICA одразу зберігає документ, виділяє його в дереві «фірма → Dateien → ім'я файлу» й показує огляд (`DocumentForm`): «Dokumentname» — ім'я файлу без розширення, «Dateityp» — `docx`, «Dateigröße» — у форматі ADAICA (`AdaicaFormat.FormatFileSize`: «1,026 KB»), «Erstellt durch» — «Прізвище, Ім'я» поточного користувача, «Version: 1 / 1», «Status» — «aktuell», «Kurzname» і «Bemerkung» порожні. Вміст документа ADAICA показує в DevExpress RichEdit, але тексту в дереві UI Automation немає, тож вміст перевіряє розмір. Файл складає `TestWordFile` (найменший набір XML Office Open XML у ZIP), текст — `CustomerCase.NewWordFile`: пропозиція чи протокол у справі клієнта. Якщо такий файл (за назвою чи вмістом) уже є, ADAICA показує вікно «Festlegung von Aktionen für den Import von doppelten Dateien» (`lvImportFiles`, `lvDuplicateDocuments`); тому назва фірми з її номером є і в імені файлу, і в тексті, а `MainPage.WaitForOpenedDocument` падає одразу, якщо це вікно все ж з'явилося. Тест — `KontakteNavigator_NewDocumentFromWordFile`.
 - **Нова персона з фірмою.** Gesamtliste → «Neue Person» (`MnuPersonNew`) відкриває те саме вікно «Finden & Erstellen», але з фокусом на «Vorname Nachname». Рядок пошуку: «Vorname Nachname» (`txtBoxPersonName`), «#», «Firma» (`txtBoxCompanyName`), адреса (`ctrAddress`: `txtBoxPostCode` — «Postleitzahl Ort» одним полем, `txtBoxCommunityPart`, `txtBoxStreet`, `txtBoxHouseNumber`), «Telefon» (`txtBoxPACPhone`) і «E-Mail» (`txtBoxPACEmail`), у кожного поле `txtBox`. Поля Land і Bundesland (`txtBoxCountry`, `txtBoxState`) рядок показує лише після кнопки з глобусом (`chkCountryStateHide`, лише клік; стан між сеансами не зберігається). Без Bundesland адресу не створити: над рядком з'являється червоне «Unvollständige Angaben zum Erstellen einer Adresse … Es fehlen Angaben für Bundesland», і «Aktion» лишається порожньою. Із заповненим рядком дія — «Firma erstellen, Person erstellen, Mitarbeiter zur Firma hinzufügen», а «Neu» відкриває «Neue Person/Firma» з усім з рядка пошуку:
   - **Лише для читання:** назва фірми (і 2-й рядок, якщо ввімкнути «Firma zweizeilig», тож його не заповнити), «Person» («Nachname, Vorname»), телефон, e-mail і адреса, крім індексу. Land, Länderkürzel і Bundesland — з рядка пошуку.
   - **Що доповнює тест:** Kommunikationsart для телефону й e-mail, Korrespondenz-Präferenz, Kurzname, HRG-Nr., Anrede (ADAICA вгадує її за ім'ям), Titel (кнопка «...» → вікно «Titel» `wndTitles` з деревом прапорців, як у «Kategorie»), Namenszusatz, Geburtstag, Geburtsname, Funktion. Organisationseinheit нової фірми — лише «andere Tätigkeiten». «Branche» не заповнюється: довідник галузей порожній.
