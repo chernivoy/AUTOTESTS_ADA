@@ -42,6 +42,13 @@ public sealed class DocumentForm(AutomationElement root, Window mainWindow)
 
     public ComboBoxControl Status { get; } = new("Status", Locate.ById(root, "cmbStatusRecordDocument"));
 
+    public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelectRecordDocument");
+
+    /// <summary>OK під оглядом: стає доступною, коли поля змінено, і зберігає зміни.</summary>
+    public ButtonControl OkButton { get; } = new("OK", Locate.ById(root, "btnOKCtrMainForm"));
+
+    private ButtonControl CancelButton { get; } = new("Abbrechen", Locate.ById(root, "btnCancelCtrMainForm"));
+
     /// <summary>«Version: 1 / 1» — поточна версія й кількість версій, два окремі написи.</summary>
     public string Version =>
         $"{new LabelControl("Version", Locate.ById(root, "tbViewActualVersionRecordDocument")).Text} / "
@@ -69,6 +76,26 @@ public sealed class DocumentForm(AutomationElement root, Window mainWindow)
         return new DocumentVersionsWindow(mainWindow);
     }
 
+    /// <summary>
+    /// Вибирає клас документа в огляді й зберігає кнопкою OK. Вибраний клас ADAICA підставляє в «Kurzname» («KUAKKORR»),
+    /// тож після нього тест вводить свою коротку назву <paramref name="shortName"/>.
+    /// </summary>
+    public void SetClass(RecordClass recordClass, string shortName) =>
+        AllureApi.Step($"Задати документу клас {recordClass} і зберегти", () =>
+        {
+            Class.Select(recordClass);
+            ShortName.Fill(shortName);
+            OkButton.Click();
+            Wait.Until(() => !OkButton.IsEnabled, "збереження документа", TimeSpan.FromSeconds(30));
+        });
+
+    /// <summary>Для прибирання: відкидає незбережені зміни огляду кнопкою «Abbrechen».</summary>
+    public void CancelIfEditing()
+    {
+        if (CancelButton.IsEnabled)
+            CancelButton.Click();
+    }
+
     /// <summary>Перевіряє всі поля й повідомляє про всі розбіжності разом, а не лише про першу.</summary>
     public void ShouldHaveValues(DocumentData expected) => AllureApi.Step("Перевірити поля документа", () =>
         this.ShouldSatisfyAllConditions(
@@ -79,7 +106,8 @@ public sealed class DocumentForm(AutomationElement root, Window mainWindow)
             () => Creators.ShouldBe([expected.Creator], "Erstellt durch"),
             () => Version.ShouldBe(expected.Version, "Version"),
             () => Status.ShouldHaveSelected(expected.Status),
-            () => Remark.ShouldHaveText(expected.Remark)));
+            () => Remark.ShouldHaveText(expected.Remark),
+            () => Class.ShouldHave(expected.Class)));
 
     /// <summary>
     /// Дата створення лежить між <paramref name="from"/> і <paramref name="to"/>. ADAICA показує її до хвилини,

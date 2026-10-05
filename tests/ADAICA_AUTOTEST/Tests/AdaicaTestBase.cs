@@ -120,16 +120,19 @@ public abstract class AdaicaTestBase : UiTestBase
         mainPage.WaitForOpenedNote(note.Remark).ShouldHaveValues(note);
         ShouldBeSelectedUnder(mainPage, parentNode, "Notizen", NoteNode(note));
 
-        CreateDocumentFromWordFile(mainPage, parentNode, customer.NewWordFile());
+        CreateDocumentFromWordFile(mainPage, parentNode, customer.NewWordFile(), customer.Class);
     }
 
     /// <summary>
     /// Створює під вузлом <paramref name="parentNode"/> документ із Word-файлу <paramref name="content"/>, який тест
     /// складає сам, і перевіряє картку документа (назва — ім'я файлу без розширення, тип «docx», розмір як у файлу,
     /// версія 1 з 1, статус «aktuell», автор — поточний користувач, дата створення — час тесту), а в дереві — що
-    /// документ виділено під батьківським вузлом у «Dateien». Файл прибирається після тесту.
+    /// документ виділено під батьківським вузлом у «Dateien». Файл прибирається після тесту. Документ ADAICA зберігає
+    /// одразу, без вікна, тож клас <paramref name="recordClass"/> (якщо задано) тест вибирає вже в огляді й зберігає
+    /// кнопкою OK разом із Kurzname «MAT».
     /// </summary>
-    protected CreatedDocument CreateDocumentFromWordFile(MainPage mainPage, string parentNode, WordFileContent content)
+    protected CreatedDocument CreateDocumentFromWordFile(
+        MainPage mainPage, string parentNode, WordFileContent content, RecordClass? recordClass = null)
     {
         var file = TestWordFile.CreateDocx(content);
         OnCleanup(file.Dispose);
@@ -151,6 +154,24 @@ public abstract class AdaicaTestBase : UiTestBase
             Remark: string.Empty));
         document.ShouldBeCreatedBetween(createdFrom, createdTo);
         ShouldBeSelectedUnder(mainPage, parentNode, "Dateien", file.FileName);
+
+        if (recordClass is not null)
+        {
+            OnCleanup(document.CancelIfEditing);
+            document.SetClass(recordClass, CustomerCase.ShortName);
+            document.ShouldHaveValues(new DocumentData(
+                Name: file.Name,
+                ShortName: CustomerCase.ShortName,
+                FileType: "docx",
+                FileSize: AdaicaFormat.FormatFileSize(file.Length),
+                Creator: mainPage.UserDisplayName,
+                Version: "1 / 1",
+                Status: "aktuell",
+                Remark: string.Empty,
+                Class: recordClass));
+            ShouldBeSelectedUnder(mainPage, parentNode, "Dateien", file.FileName);
+        }
+
         return new CreatedDocument(file, document, createdFrom, createdTo);
     }
 

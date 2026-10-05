@@ -6,6 +6,7 @@ namespace ADAICA_AUTOTEST.Pages;
 /// <param name="FileSize">«Dateigröße» у форматі ADAICA (<see cref="Controls.AdaicaFormat.FormatFileSize"/>).</param>
 /// <param name="Creator">«Erstellt durch»: «Прізвище, Ім'я».</param>
 /// <param name="Version">Поточна версія й кількість версій: «1 / 1».</param>
+/// <param name="Class">Клас і підклас («Klasse» / «Unterklasse»); null — не перевіряти.</param>
 public sealed record DocumentData(
     string Name,
     string ShortName,
@@ -14,4 +15,5 @@ public sealed record DocumentData(
     string Creator,
     string Version,
     string Status,
-    string Remark);
+    string Remark,
+    RecordClass? Class = null);

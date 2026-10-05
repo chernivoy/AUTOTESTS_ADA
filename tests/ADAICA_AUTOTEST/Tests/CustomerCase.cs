@@ -18,7 +18,8 @@ namespace ADAICA_AUTOTEST.Tests;
 /// </remarks>
 public sealed class CustomerCase
 {
-    private const string ShortName = "MAT";
+    /// <summary>Kurzname усіх тестових записів: за ним їх видно серед уведених людьми.</summary>
+    public const string ShortName = "MAT";
 
     // Межа дат записів у днях від сьогодні, в минуле й майбутнє.
     private const int DateRangeDays = 60;
@@ -91,6 +92,9 @@ public sealed class CustomerCase
     private readonly HashSet<DateTime> _usedDays = [];
     private readonly HashSet<string> _usedNames = [];
     private RecordClass? _recordClass;
+
+    /// <summary>Клас записів цієї справи (<see cref="WithClass"/>) або null.</summary>
+    public RecordClass? Class => _recordClass;
 
     private CustomerCase(Customer customer, Topic topic)
     {
