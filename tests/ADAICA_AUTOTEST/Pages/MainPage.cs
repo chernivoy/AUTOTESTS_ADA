@@ -324,7 +324,7 @@ public sealed partial class MainPage : AdaicaWindow
         OpenNodeContextMenu(TasksNodeName);
         // На вузлі Aufgaben «Neu» — підменю з варіантами створення.
         PopupMenuItem("Neu", NewRecordMenuItemId).Expand();
-        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId).Click();
+        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId, NewRecordMenuItemId).Click();
         return new TaskDialog(Window);
     }
 
@@ -395,7 +395,7 @@ public sealed partial class MainPage : AdaicaWindow
     public ProjectDialog OpenNewChildProjectDialog(string parentNode)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Projekt", "mnuNewProject").Click();
+        PopupMenuItem("Projekt", "mnuNewProject", NewChildMenuItemId).Click();
         return new ProjectDialog(Window);
     }
 
@@ -403,7 +403,7 @@ public sealed partial class MainPage : AdaicaWindow
     public FolderDialog OpenNewChildFolderDialog(string parentNode)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Ordner", "mnuNewProcess").Click();
+        PopupMenuItem("Ordner", "mnuNewProcess", NewChildMenuItemId).Click();
         return new FolderDialog(Window);
     }
 
@@ -411,8 +411,8 @@ public sealed partial class MainPage : AdaicaWindow
     public TaskDialog OpenNewChildTaskDialog(string parentNode)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Aufgabe", "mnuNewTask").Expand();
-        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId).Click();
+        PopupMenuItem("Aufgabe", "mnuNewTask", NewChildMenuItemId).Expand();
+        PopupMenuItem("Neue Aufgabe", NewTaskMenuItemId, NewChildMenuItemId, "mnuNewTask").Click();
         return new TaskDialog(Window);
     }
 
@@ -420,7 +420,7 @@ public sealed partial class MainPage : AdaicaWindow
     public AppointmentDialog OpenNewChildAppointmentDialog(string parentNode)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Termin", "mnuNewAppoint").Click();
+        PopupMenuItem("Termin", "mnuNewAppoint", NewChildMenuItemId).Click();
         return new AppointmentDialog(Window);
     }
 
@@ -428,7 +428,7 @@ public sealed partial class MainPage : AdaicaWindow
     public NoteDialog OpenNewChildNoteDialog(string parentNode)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Notiz", "mnuNewHistory").Click();
+        PopupMenuItem("Notiz", "mnuNewHistory", NewChildMenuItemId).Click();
         return new NoteDialog(Window);
     }
 
@@ -441,8 +441,8 @@ public sealed partial class MainPage : AdaicaWindow
     public void NewChildDocumentFromFile(string parentNode, string filePath)
     {
         OpenNewChildMenu(parentNode);
-        PopupMenuItem("Dokument", "mnuNewDocument").Expand();
-        PopupMenuItem("Aus dem Dateisystem", "mnuNewDocumentFromFile").Click();
+        PopupMenuItem("Dokument", "mnuNewDocument", NewChildMenuItemId).Expand();
+        PopupMenuItem("Aus dem Dateisystem", "mnuNewDocumentFromFile", NewChildMenuItemId, "mnuNewDocument").Click();
         FileOpenDialog.Open(Window, filePath);
     }
 
@@ -584,8 +584,28 @@ public sealed partial class MainPage : AdaicaWindow
             () => Window.FindFirstDescendant(cf => cf.ByAutomationId("treeView").And(cf.ByControlType(ControlType.List))),
             "дерева навігатора");
 
-    private MenuItemControl PopupMenuItem(string name, string automationId) =>
-        new(name, () => Wait.For(() => FindInPopups(automationId), $"пункту «{name}» у контекстному меню"));
+    /// <summary>
+    /// Пункт контекстного меню. Якщо він у підменю, <paramref name="submenuIds"/> — підменю від зовнішнього до
+    /// внутрішнього: поки пункту немає, тест знову розгортає згорнуті з них. WPF згортає підменю, коли справжній
+    /// курсор, що опинився над меню, наводить на сусідній пункт, а клік тесту йде повідомленням, без курсора.
+    /// </summary>
+    private MenuItemControl PopupMenuItem(string name, string automationId, params string[] submenuIds) =>
+        new(name, () => Wait.For(
+            () => FindInPopups(automationId) ?? ExpandCollapsedSubmenus(submenuIds),
+            $"пункту «{name}» у контекстному меню"));
+
+    private AutomationElement? ExpandCollapsedSubmenus(IEnumerable<string> submenuIds)
+    {
+        foreach (var submenuId in submenuIds)
+        {
+            if (FindInPopups(submenuId) is not { } submenu || !submenu.Patterns.ExpandCollapse.TryGetPattern(out var expandCollapse))
+                return null;
+            if (expandCollapse.ExpandCollapseState.ValueOrDefault != ExpandCollapseState.Expanded)
+                expandCollapse.Expand();
+        }
+
+        return null;
+    }
 
     private static AutomationElement? NodeText(AutomationElement node) =>
         node.FindFirstChild(cf => cf.ByAutomationId("TextBlock"));

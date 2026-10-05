@@ -66,7 +66,7 @@ public class ContactTests : AdaicaTestBase
     }
 
     /// <summary>
-    /// Нова фірма, а під нею з її контекстного меню («Neu») — проєкт, Ordner, завдання, термін та інфозапис.
+    /// Нова фірма, а під нею з її контекстного меню («Neu») — проєкт, Ordner, завдання, термін, інфозапис і документ із Word-файлу.
     /// Усі записи стосуються тієї самої справи клієнта, що й фірма.
     /// </summary>
     [Test]
@@ -103,7 +103,7 @@ public class ContactTests : AdaicaTestBase
 
     /// <summary>
     /// Нова фірма, у ній новий відділ і новий співробітник, а під співробітником з його контекстного меню («Neu») —
-    /// проєкт, Ordner, завдання, термін та інфозапис. Усі записи стосуються тієї самої справи клієнта, що й фірма.
+    /// проєкт, Ordner, завдання, термін, інфозапис і документ із Word-файлу. Усі записи стосуються тієї самої справи клієнта, що й фірма.
     /// </summary>
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
@@ -139,27 +139,8 @@ public class ContactTests : AdaicaTestBase
         var company = customer.NewCompany();
         CreateCompany(mainPage, company);
 
-        var file = TestWordFile.CreateDocx(customer.NewWordFile(company.Name));
-        OnCleanup(file.Dispose);
-        AllureApi.AddAttachment($"{file.FileName}", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", file.Path);
-
-        var createdFrom = DateTime.Now;
-        mainPage.NewChildDocumentFromFile(company.Name, file.Path);
-        var document = mainPage.WaitForOpenedDocument(file.Name);
-        var createdTo = DateTime.Now;
-
-        document.ShouldHaveValues(new DocumentData(
-            Name: file.Name,
-            ShortName: string.Empty,
-            FileType: "docx",
-            FileSize: AdaicaFormat.FormatFileSize(file.Length),
-            Creator: mainPage.UserDisplayName,
-            Version: "1 / 1",
-            Status: "aktuell",
-            Remark: string.Empty));
-        document.ShouldBeCreatedBetween(createdFrom, createdTo);
-        AllureApi.Step($"Перевірити, що в дереві виділено «{company.Name} → Dateien → {file.FileName}»",
-            () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { company.Name, "Dateien", file.FileName }));
+        var (file, document, createdFrom, createdTo) =
+            CreateDocumentFromWordFile(mainPage, company.Name, customer.NewWordFile(company.Name));
 
         // Нова версія: «Bearbeiten» відкриває документ у Word; тест дописує абзац, зберігає й закриває документ,
         // і ADAICA сама зберігає його як версію 2.

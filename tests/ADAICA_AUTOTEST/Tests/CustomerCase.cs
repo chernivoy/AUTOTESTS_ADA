@@ -386,6 +386,12 @@ public sealed class CustomerCase
     }
 
     /// <summary>
+    /// Word-файл зі справи клієнта, коли фірми в ADAICA немає (документ під проєктом, завданням тощо): у файлі —
+    /// назва фірми клієнта з новим номером клієнта, як у <see cref="NewCompany"/>, тож файл теж щоразу унікальний.
+    /// </summary>
+    public WordFileContent NewWordFile() => NewWordFile($"{_customer.Company} {NewCustomerNumber()}");
+
+    /// <summary>
     /// Word-файл зі справи клієнта: лист-пропозиція чи протокол наради на тему справи. Назва фірми з її номером
     /// (<see cref="NewCompany"/>) є і в імені файлу, і в тексті: ADAICA шукає дублікати документів і за назвою,
     /// і за вмістом, тож файл щоразу новий для неї.
