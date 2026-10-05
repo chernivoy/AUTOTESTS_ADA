@@ -17,6 +17,9 @@ public sealed class ContactFindCreateWindow
 {
     private const string SearchLineId = "ctrPACBox";
 
+    // «Nein» у вікні «Meinten Sie vielleicht…» (wndExistObjects).
+    private const string ExistingPersonsCancelId = "btnCancelWndExistObjects";
+
     private readonly Window _owner;
 
     public ContactFindCreateWindow(Window owner)
@@ -124,11 +127,30 @@ public sealed class ContactFindCreateWindow
         OptionalLineFields.Show(Root);
     });
 
-    /// <summary>«Neu»: відкриває вікно «Neue Person/Firma», у якому вже стоїть персона з рядка пошуку.</summary>
+    /// <summary>
+    /// «Neu»: відкриває вікно «Neue Person/Firma», у якому вже стоїть персона з рядка пошуку. Якщо персона з таким
+    /// ім'ям уже є (імена тестових персон повторюються між прогонами), ADAICA спершу показує вікно «Eine gleichnamige
+    /// Person ist bereits vorhanden. Meinten Sie vielleicht…» (wndExistObjects): «Ja» бере вибрану наявну персону,
+    /// «Nein» продовжує створення нової. Тест створює нову, тож натискає «Nein».
+    /// </summary>
     [AllureStep("Відкрити вікно нової персони кнопкою «Neu»")]
     public NewPersonDialog OpenNewPersonDialog()
     {
         NewButton.Click();
+
+        AutomationElement? PersonDialog() => Root.FindFirstChild(cf => cf.ByAutomationId(NewPersonDialog.WindowId));
+        AutomationElement? CreateAnywayButton() =>
+            ChildWindows(Root).Concat(ChildWindows(_owner))
+                .Select(window => window.FindFirstDescendant(cf => cf.ByAutomationId(ExistingPersonsCancelId)))
+                .FirstOrDefault(button => button is not null);
+
+        Wait.Until(() => PersonDialog() is not null || CreateAnywayButton() is not null, "вікна «Neue Person/Firma»");
+        if (PersonDialog() is null && CreateAnywayButton() is { } createAnyway)
+        {
+            AllureApi.Step("ADAICA знайшла персону з таким самим ім'ям («Meinten Sie vielleicht…») — «Nein», створити нову", () =>
+                new ButtonControl("Nein", () => createAnyway).Click());
+        }
+
         return new NewPersonDialog(_owner, Root);
     }
 
