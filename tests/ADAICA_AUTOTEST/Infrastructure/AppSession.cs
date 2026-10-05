@@ -12,10 +12,13 @@ namespace ADAICA_AUTOTEST.Infrastructure;
 /// </summary>
 public sealed class AppSession : IDisposable
 {
-    private AppSession(Application application, UIA3Automation automation)
+    private readonly ForegroundGuard? _foregroundGuard;
+
+    private AppSession(Application application, UIA3Automation automation, ForegroundGuard? foregroundGuard)
     {
         Application = application;
         Automation = automation;
+        _foregroundGuard = foregroundGuard;
     }
 
     public Application Application { get; }
@@ -37,9 +40,22 @@ public sealed class AppSession : IDisposable
         foreach (var (name, value) in TestSettings.AppEnvironment)
             startInfo.Environment[name] = value;
 
+        // Вікно, у якому зараз працює користувач: сюди ForegroundGuard повертатиме фокус, якщо ADAICA його забере.
+        var userWindow = ForegroundGuard.CurrentForeground;
         var application = Application.Launch(startInfo);
+        var foregroundGuard = ForegroundGuard.Start(application.ProcessId, userWindow);
         application.WaitWhileMainHandleIsMissing(TestSettings.AppStartTimeout);
-        return new AppSession(application, new UIA3Automation());
+        // Переносимо одразу, ще до форми входу, щоб вікно не встигло показатися на моніторі користувача.
+        // Не вийшло (вікно саме змінюється) — AdaicaWindow спробує ще раз, коли з'явиться форма входу.
+        try
+        {
+            PlaceOnTestMonitor(application.MainWindowHandle);
+        }
+        catch (Exception ex)
+        {
+            TestContext.Out.WriteLine($"[AppSession] Не вдалося одразу перенести вікно ADAICA: {ex.Message}");
+        }
+        return new AppSession(application, new UIA3Automation(), foregroundGuard);
     }
 
     /// <summary>
@@ -59,6 +75,27 @@ public sealed class AppSession : IDisposable
             $"Вікно '{automationId}' не з'явилося за {effectiveTimeout.TotalSeconds} с.");
     }
 
+    /// <summary>
+    /// Переносить вікно на монітор із <see cref="TestSettings.Monitor"/> (розгорнутим, без активації), щоб тест ішов
+    /// на іншому моніторі, ніж працює користувач. Назад вікно не повертаємо: ADAICA при виході запам'ятовує, де воно
+    /// стояло, і наступного разу одразу відкривається на тестовому моніторі.
+    /// </summary>
+    public static void PlaceOnTestMonitor(nint window)
+    {
+        if (TestSettings.Monitor is not { } setting || window == 0)
+            return;
+
+        var monitor = MonitorPlacement.Find(setting);
+        if (monitor is null)
+        {
+            TestContext.Out.WriteLine($"[AppSession] Монітора «{setting}» немає, вікно ADAICA лишається, де є.");
+            return;
+        }
+
+        if (!MonitorPlacement.IsPlaced(window, monitor))
+            MonitorPlacement.MoveTo(window, monitor);
+    }
+
     public void Dispose()
     {
         try
@@ -67,6 +104,13 @@ public sealed class AppSession : IDisposable
         }
         finally
         {
+            if (_foregroundGuard is not null)
+            {
+                _foregroundGuard.Dispose();
+                TestContext.Out.WriteLine(
+                    $"[ForegroundGuard] ADAICA ставала активною: {_foregroundGuard.Stolen}, фокус повернуто користувачеві: {_foregroundGuard.Restored}.");
+            }
+
             Automation.Dispose();
             Application.Dispose();
         }

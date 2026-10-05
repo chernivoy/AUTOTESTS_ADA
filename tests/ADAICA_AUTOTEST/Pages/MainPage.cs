@@ -71,32 +71,39 @@ public sealed partial class MainPage : AdaicaWindow
 
         AddNavigatorButton.SwitchOn();
 
-        var item = Wait.For(
-            () => FindInPopups("listView")?.FindFirstChild(cf => cf.ByName(navigatorName)),
-            $"пункту «{navigatorName}» у списку навігаторів");
+        AutomationElement? NavigatorItem() => FindInPopups("listView")?.FindFirstChild(cf => cf.ByName(navigatorName));
+        var item = Wait.For(NavigatorItem, $"пункту «{navigatorName}» у списку навігаторів");
 
-        // ADAICA відкриває навігатор лише на клік мишею: SelectionItem.Select() тільки виділяє пункт, Enter не діє.
-        AtomicMouse.LeftClick(item);
-
+        // ADAICA відкриває навігатор лише на клік: SelectionItem.Select() тільки виділяє пункт, Enter не діє.
         // Кожне відкриття додає нову вкладку, навіть якщо такий навігатор уже відкритий.
-        Wait.Until(
+        UiInput.LeftClick(
+            () => NavigatorItem() ?? item,
             () => NavigatorTabs.Length == tabCount + 1 && NavigatorTitle.Text == navigatorName,
             $"відкриття навігатора «{navigatorName}»");
         return this;
     }
 
     /// <summary>
-    /// Перемикається на відкриту вкладку навігатора <paramref name="navigatorName"/>. Вкладка реагує лише на клік мишею.
+    /// Перемикається на відкриту вкладку навігатора <paramref name="navigatorName"/>. Вкладка — кнопка WPF без
+    /// InvokePattern, тож реагує лише на клік.
     /// </summary>
     [AllureStep("Перейти на вкладку навігатора {navigatorName}")]
     public MainPage SwitchToNavigatorTab(string navigatorName)
     {
-        var tab = NavigatorTabs.FirstOrDefault(item => TabName(item) == navigatorName)
+        AutomationElement Tab() => NavigatorTabs.FirstOrDefault(item => TabName(item) == navigatorName)
             ?? throw new InvalidOperationException($"Вкладки навігатора «{navigatorName}» немає: {string.Join(", ", NavigatorTabNames)}.");
-        if (NavigatorTitle.Text != navigatorName)
-            AtomicMouse.LeftClick(tab.FindFirstDescendantRaw(cf => cf.ByAutomationId("PART_Text")) ?? tab);
+        Tab();
+        if (NavigatorTitle.Text == navigatorName)
+            return this;
 
-        Wait.Until(() => NavigatorTitle.Text == navigatorName, $"переходу на навігатор «{navigatorName}»");
+        UiInput.LeftClick(
+            () =>
+            {
+                var tab = Tab();
+                return tab.FindFirstDescendantRaw(cf => cf.ByAutomationId("PART_Text")) ?? tab;
+            },
+            () => NavigatorTitle.Text == navigatorName,
+            $"переходу на навігатор «{navigatorName}»");
         return this;
     }
 
@@ -245,13 +252,16 @@ public sealed partial class MainPage : AdaicaWindow
         return WaitForOpenedCompany(name);
     }
 
-    /// <summary>Виділяє вузол у дереві навігатора. Дерево реагує лише на клік мишею.</summary>
+    /// <summary>Виділяє вузол у дереві навігатора. Дерево реагує лише на клік.</summary>
     [AllureStep("Вибрати вузол {nodeName} у дереві навігатора")]
     public MainPage SelectNavigatorNode(string nodeName)
     {
-        var node = NavigatorNode(nodeName);
-        AtomicMouse.LeftClick(NodeText(ScrolledIntoView(node)) ?? node);
-        Wait.Until(
+        UiInput.LeftClick(
+            () =>
+            {
+                var node = NavigatorNode(nodeName);
+                return NodeText(ScrolledIntoView(node)) ?? node;
+            },
             () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == nodeName,
             $"виділення вузла «{nodeName}»");
         return this;
@@ -424,14 +434,18 @@ public sealed partial class MainPage : AdaicaWindow
             },
             $"запису «{keyValue}» в області перегляду");
 
-    // Контекстне меню вузла відкривається лише правим кліком мишею: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
+    // Контекстне меню вузла відкривається лише правим кліком: ні ShowContextMenu з UIA, ні Shift+F10 не діють.
     private void OpenNodeContextMenu(string nodeName) => OpenNodeContextMenu(NavigatorNode(nodeName));
 
-    private static void OpenNodeContextMenu(AutomationElement node) => AtomicMouse.RightClick(NodeText(ScrolledIntoView(node)) ?? node);
+    private void OpenNodeContextMenu(AutomationElement node) =>
+        UiInput.RightClick(
+            () => NodeText(ScrolledIntoView(node)) ?? node,
+            () => Popups.FindDescendant(Window, cf => cf.ByControlType(ControlType.Menu)) is not null,
+            $"контекстного меню вузла «{NodeText(node)?.Name.TrimEnd()}»");
 
     /// <summary>
     /// Прокручує дерево до вузла: у довгому дереві (фірма з відділами, співробітниками й записами) вузол може бути
-    /// поза видимою областю, і клік мишею влучив би в інше вікно.
+    /// поза видимою областю, і клік туди не влучив би.
     /// </summary>
     private static AutomationElement ScrolledIntoView(AutomationElement node)
     {
@@ -466,7 +480,12 @@ public sealed partial class MainPage : AdaicaWindow
         var toggle = parent.FindFirstChild(cf => cf.ByAutomationId("ToggleButton"))
             ?? throw new InvalidOperationException($"Вузол «{parentName}» не має дочірніх вузлів.");
         if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.On)
-            AtomicMouse.LeftClick(ScrolledIntoView(parent).FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) ?? toggle);
+        {
+            UiInput.LeftClick(
+                () => ScrolledIntoView(parent).FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) ?? toggle,
+                () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On,
+                $"розгортання вузла «{parentName}»");
+        }
 
         return Wait.For(
             () =>
@@ -520,11 +539,9 @@ public sealed partial class MainPage : AdaicaWindow
     // Вузли контактів ADAICA підписує з пробілами в кінці: «Keller Treuhand AG  ».
     private static string WithoutRecordRange(string nodeText) => RecordRange().Replace(nodeText.TrimEnd(), string.Empty);
 
-    // Списки й контекстні меню ADAICA відкриваються у WPF Popup — дочірньому вікні головного вікна.
+    // Списки й контекстні меню ADAICA відкриваються у WPF Popup (див. Popups).
     private AutomationElement? FindInPopups(string automationId) =>
-        Window.FindAllChildren(cf => cf.ByClassName("Popup"))
-            .Select(popup => popup.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
-            .FirstOrDefault(element => element is not null);
+        Popups.FindDescendant(Window, cf => cf.ByAutomationId(automationId));
 
     // Заголовок вкладки — TextBlock із шаблону, тому його видно лише в raw-дереві.
     private static string TabName(AutomationElement tab) =>

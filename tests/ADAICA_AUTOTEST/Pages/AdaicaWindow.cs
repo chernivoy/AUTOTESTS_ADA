@@ -7,13 +7,23 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Вікно ADAICA. Те саме вікно показує спершу форму входу, потім робочий простір,
 /// а діалоги ADAICA в дереві UI Automation є його дочірніми вікнами, а не вікнами робочого столу.
 /// </summary>
-public class AdaicaWindow(AppSession session) : PageBase(session, AutomationId)
+public class AdaicaWindow : PageBase
 {
     public const string AutomationId = "FlatWnd";
 
     private const string ExitQuestion = "Wollen Sie ADAICA verlassen?";
 
     private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Знаходить вікно й ставить його на монітор для тестів (<see cref="AppSession.PlaceOnTestMonitor"/>): після входу
+    /// ADAICA могла б перенести його туди, де воно стояло в користувача.
+    /// </summary>
+    public AdaicaWindow(AppSession session)
+        : base(session, AutomationId)
+    {
+        AppSession.PlaceOnTestMonitor(Window.Properties.NativeWindowHandle.Value);
+    }
 
     public string Title => Window.Name;
 

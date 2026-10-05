@@ -7,7 +7,7 @@ namespace ADAICA_AUTOTEST.Infrastructure;
 
 /// <summary>
 /// Базовий клас UI-тестів: кожен тест отримує свіжо запущений застосунок,
-/// а при падінні знімається скріншот екрана.
+/// а при падінні знімається скріншот монітора, на якому стоїть застосунок.
 /// </summary>
 [AllureNUnit]
 public abstract class UiTestBase
@@ -49,7 +49,7 @@ public abstract class UiTestBase
     {
     }
 
-    private static void CaptureScreenshot()
+    private void CaptureScreenshot()
     {
         var directory = Path.Combine(TestSettings.ArtifactsDirectory, "screenshots");
         Directory.CreateDirectory(directory);
@@ -58,7 +58,14 @@ public abstract class UiTestBase
         var testName = string.Concat(TestContext.CurrentContext.Test.Name.Select(c => invalidChars.Contains(c) ? '_' : c));
         var file = Path.Combine(directory, $"{testName}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
 
-        Capture.Screen().ToFile(file);
+        // Лише монітор застосунку: на іншому може працювати користувач, і його вікнам у звіті не місце.
+        var monitor = Session.Application.HasExited
+            ? null
+            : Session.Application.GetAllTopLevelWindows(Session.Automation)
+                .Select(window => MonitorPlacement.MonitorOf(window.Properties.NativeWindowHandle.ValueOrDefault))
+                .FirstOrDefault(found => found is not null);
+        using (var capture = monitor is null ? Capture.Screen() : Capture.Rectangle(monitor.Bounds))
+            capture.ToFile(file);
         TestContext.AddTestAttachment(file, "Скріншот у момент падіння");
         AllureApi.AddAttachment("Скріншот у момент падіння", "image/png", file);
     }

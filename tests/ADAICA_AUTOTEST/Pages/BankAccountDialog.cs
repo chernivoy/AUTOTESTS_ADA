@@ -46,16 +46,18 @@ public sealed class BankAccountDialog(Window owner)
     public void SelectBank(string bankCode) => AllureApi.Step($"Вибрати банк з BLZ {bankCode}", () =>
     {
         BankSearch.Fill(bankCode);
-        // Кнопка фільтра реагує лише на клік мишею: InvokePattern вона не підтримує.
-        AtomicMouse.LeftClick(Root.FindByAutomationId("btnQuickSearchApplyFilter"));
+        AutomationElement? FilteredBank()
+        {
+            var rows = BankRows();
+            return rows.All(row => CellText(row, BankCodeColumn) == bankCode) ? rows.FirstOrDefault() : null;
+        }
 
-        var bank = Wait.For(
-            () =>
-            {
-                var rows = BankRows();
-                return rows.All(row => CellText(row, BankCodeColumn) == bankCode) ? rows.FirstOrDefault() : null;
-            },
+        // Кнопка фільтра реагує лише на клік: InvokePattern вона не підтримує.
+        UiInput.LeftClick(
+            () => Root.FindByAutomationId("btnQuickSearchApplyFilter"),
+            () => FilteredBank() is not null,
             $"банку з BLZ {bankCode} у відфільтрованому довіднику");
+        var bank = Wait.For(FilteredBank, $"банку з BLZ {bankCode} у відфільтрованому довіднику");
         bank.Patterns.SelectionItem.Pattern.Select();
         Wait.Until(() => BankCode.Text == bankCode, $"BLZ {bankCode} у полі «{BankCode.Name}»");
     });

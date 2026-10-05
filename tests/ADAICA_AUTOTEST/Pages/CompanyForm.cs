@@ -155,20 +155,20 @@ public class CompanyForm(Window owner, AutomationElement root)
 
     /// <summary>
     /// «+» біля «Adressen» → категорія адреси: відкриває вікно «Finden &amp; Erstellen» на вкладці Adressen.
-    /// Кнопка відкриває меню лише на клік мишею: InvokePattern вона не підтримує.
+    /// Кнопка відкриває меню лише на клік: InvokePattern вона не підтримує.
     /// </summary>
     [AllureStep("Відкрити вікно нової адреси: «+» біля «Adressen» → {category}")]
     public AddressFindCreateWindow OpenNewAddressWindow(string category)
     {
         GeneralTab.Select();
-        AtomicMouse.LeftClick(root.FindByAutomationId("tbtnAddSpecifyCompanyAddress"));
-        new MenuItemControl(
-                category,
-                () => Wait.For(
-                    () => owner.FindAllChildren(cf => cf.ByClassName("Popup"))
-                        .Select(popup => popup.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(category))))
-                        .FirstOrDefault(item => item is not null),
-                    $"пункту «{category}» у меню «Adressen»"))
+        AutomationElement? CategoryItem() =>
+            Popups.FindDescendant(owner, cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(category)));
+
+        UiInput.LeftClickOpeningMenu(
+            () => root.FindByAutomationId("tbtnAddSpecifyCompanyAddress"),
+            () => CategoryItem() is not null,
+            "меню «Adressen»");
+        new MenuItemControl(category, () => Wait.For(CategoryItem, $"пункту «{category}» у меню «Adressen»"))
             .Click();
         return new AddressFindCreateWindow(owner);
     }

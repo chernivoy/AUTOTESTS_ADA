@@ -9,6 +9,7 @@ namespace ADAICA_AUTOTEST.Infrastructure;
 /// Клік мишею одним викликом SendInput: переміщення й натискання кнопки йдуть разом.
 /// FlaUI спершу ставить курсор, а потім окремо натискає кнопку. Якщо між цими кроками курсор зсуне
 /// користувач або програма віддаленого доступу, клік піде в довільне місце екрана.
+/// Справжня миша — запасний шлях <see cref="UiInput"/>, коли не подіяв клік повідомленням вікну; напряму не викликайте.
 /// </summary>
 public static class AtomicMouse
 {
@@ -68,7 +69,8 @@ public static class AtomicMouse
         return (int)processId;
     }
 
-    private static Window TopLevelWindow(AutomationElement element)
+    /// <summary>Вікно робочого столу, у якому лежить елемент.</summary>
+    internal static Window TopLevelWindow(AutomationElement element)
     {
         var desktop = element.Automation.GetDesktop();
         var walker = element.Automation.TreeWalkerFactory.GetControlViewWalker();

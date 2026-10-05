@@ -13,21 +13,21 @@ public abstract class CheckTreeDialog(Window owner, string windowId, string titl
     : ChildDialog(owner, windowId, title, "btnOKWndCategories", "btnCancelWndCategories")
 {
     /// <summary>
-    /// Ставить прапорець пункту. Лише клік мишею: після TogglePattern прапорець вмикається,
+    /// Ставить прапорець пункту. Лише клік: після TogglePattern прапорець вмикається,
     /// але вікно не бачить зміни й кнопка OK лишається недоступною.
     /// </summary>
     public void Check(string item) => AllureApi.Step($"Позначити «{item}»", () =>
     {
-        var checkBox = Wait.For(
+        AutomationElement CheckBox() => Wait.For(
             () => Root.FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
                 .FirstOrDefault(treeItem => treeItem.FindFirstChild(cf => cf.ByControlType(ControlType.Text).And(cf.ByName(item))) is not null)
                 ?.FindFirstChild(cf => cf.ByControlType(ControlType.CheckBox)),
             $"пункту «{item}» у вікні «{Root.Name}»");
+        bool IsChecked() => CheckBox().Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On;
 
-        if (checkBox.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On)
+        if (IsChecked())
             return;
 
-        AtomicMouse.LeftClick(checkBox);
-        Wait.Until(() => OkButton.IsEnabled, $"вибору «{item}»");
+        UiInput.LeftClick(CheckBox, () => IsChecked() && OkButton.IsEnabled, $"вибору «{item}»");
     });
 }

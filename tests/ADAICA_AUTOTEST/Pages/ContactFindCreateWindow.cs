@@ -107,7 +107,7 @@ public sealed class ContactFindCreateWindow
     });
 
     /// <summary>
-    /// Кнопка з глобусом додає в рядок пошуку поля Land і Bundesland. Вона реагує лише на клік мишею, а стан
+    /// Кнопка з глобусом додає в рядок пошуку поля Land і Bundesland. Вона реагує лише на клік, а стан
     /// ADAICA між сеансами не запам'ятовує: у новому вікні поля сховані. Bundesland з'являється, лише якщо ввімкнено
     /// «Bundesland berücksichtigen» (<see cref="OptionalLineFields"/>).
     /// </summary>
@@ -115,8 +115,10 @@ public sealed class ContactFindCreateWindow
     {
         if (CountryBox is null)
         {
-            AtomicMouse.LeftClick(Root.FindByAutomationId("chkCountryStateHide"));
-            Wait.Until(() => CountryBox is not null, "полів Land і Bundesland у рядку пошуку");
+            UiInput.LeftClick(
+                () => Root.FindByAutomationId("chkCountryStateHide"),
+                () => CountryBox is not null,
+                "полів Land і Bundesland у рядку пошуку");
         }
 
         OptionalLineFields.Show(Root);
