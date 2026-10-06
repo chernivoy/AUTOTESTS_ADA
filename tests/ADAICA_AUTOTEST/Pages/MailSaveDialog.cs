@@ -4,6 +4,7 @@ using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Conditions;
 using FlaUI.Core.Definitions;
 using VirtualKeyShort = FlaUI.Core.WindowsAPI.VirtualKeyShort;
 
@@ -35,6 +36,22 @@ public sealed class MailSaveDialog
     private const string RequiredLinksMessage = "Gemäß der Konfiguration müssen eine oder mehrere Verknüpfungen erfolgen";
     private const string FindCreateContactItem = "Zugehörigen Kontakt finden/erstellen";
 
+    // Меню «+» на вкладці «Dokumentation» і пункт «Neu» меню її рядка: типи нових записів.
+    private const string NewRecordMenuId = "RecordsLinkGroupContextMenu";
+    private const string NewItem = "Neu";
+    private const string ProjectItem = "Projekt";
+    private const string FolderItem = "Ordner";
+    private const string TaskItem = "Aufgabe";
+    private const string NewTaskItem = "Neue Aufgabe";
+    private const string AppointmentItem = "Termin";
+    private const string NoteItem = "Notiz";
+
+    // Пункт, який є лише в меню рядка «Dokumentation», а в меню порожнього місця (тільки «Neu» і «Finden») — ні.
+    private const string RecordRowMenuItem = "Beziehung lösen";
+
+    // Заголовок вікна дочірнього запису: «Neue Notiz (übergeordnet: Назва батька)».
+    private const string ParentTitlePrefix = "(übergeordnet: ";
+
     // Розмітка вкладок зв'язків в одиницях WPF (1/96 дюйма) від кута «recordLinkView»: середина першого рядка списку
     // й висота рядка, середина колонки «Funktion» (у «Dokumentation» — «Name»), середина рядка кнопок над списком.
     private const double FirstRowCenter = 64.5;
@@ -45,6 +62,13 @@ public sealed class MailSaveDialog
     // Кнопки над списком — квадрати по 24 одиниці, праворуч; відстань від правого краю до середини кнопки.
     private const double LastButtonFromRight = 15;
     private const double ButtonStep = 25;
+
+    // «Dokumentation»: середина колонки «Name» (праворуч від значка й відступів вкладеності), поле
+    // «Suchbegriff eingeben…» з хрестиком і лупа праворуч від нього.
+    private const double RecordNameCenter = 150;
+    private const double SearchBoxCenter = 280;
+    private const double SearchClearCenter = 374;
+    private const double SearchButtonCenter = 401.5;
 
     private const int StateReadAttempts = 3;
     private static readonly TimeSpan StateReadInterval = TimeSpan.FromSeconds(1);
@@ -229,18 +253,131 @@ public sealed class MailSaveDialog
     });
 
     /// <summary>
-    /// «+» на вкладці «Dokumentation» → «Notiz»: новий інфозапис, з яким буде зв'язано лист. Вікно «Neue Notiz» —
-    /// дочірнє вікно цього вікна; після OK інфозапис з'являється в списку з позначкою «Verknüpft».
+    /// «+» на вкладці «Dokumentation» → «Projekt»: новий проєкт верхнього рівня, з яким буде зв'язано лист. Вікно нового
+    /// запису — дочірнє вікно цього вікна; після OK запис з'являється в списку з позначкою «Verknüpft».
     /// </summary>
-    public NoteDialog OpenNewNote() => AllureApi.Step("Новий інфозапис для листа: «Dokumentation» → «+» → «Notiz»", () =>
+    public ProjectDialog OpenNewProject() => OpenNewRecord(ProjectItem, () => new ProjectDialog(Root));
+
+    /// <summary>«+» на вкладці «Dokumentation» → «Ordner».</summary>
+    public FolderDialog OpenNewFolder() => OpenNewRecord(FolderItem, () => new FolderDialog(Root));
+
+    /// <summary>«+» на вкладці «Dokumentation» → «Aufgabe» → «Neue Aufgabe».</summary>
+    public TaskDialog OpenNewTask() => OpenNewRecord(TaskItem, () => new TaskDialog(Root));
+
+    /// <summary>«+» на вкладці «Dokumentation» → «Termin».</summary>
+    public AppointmentDialog OpenNewAppointment() => OpenNewRecord(AppointmentItem, () => new AppointmentDialog(Root));
+
+    /// <summary>«+» на вкладці «Dokumentation» → «Notiz».</summary>
+    public NoteDialog OpenNewNote() => OpenNewRecord(NoteItem, () => new NoteDialog(Root));
+
+    /// <summary>
+    /// Меню рядка <paramref name="recordRow"/> (з нуля, згори) на вкладці «Dokumentation» → «Neu» → «Projekt»: проєкт
+    /// під записом цього рядка. Заголовок вікна — «Neues Projekt (übergeordnet: батько)», а після OK запис
+    /// з'являється в списку під батьком з позначкою «Verknüpft».
+    /// </summary>
+    public ProjectDialog OpenNewChildProject(int recordRow) => OpenNewChildRecord(recordRow, ProjectItem, () => new ProjectDialog(Root));
+
+    /// <summary>Меню рядка <paramref name="recordRow"/> на вкладці «Dokumentation» → «Neu» → «Ordner».</summary>
+    public FolderDialog OpenNewChildFolder(int recordRow) => OpenNewChildRecord(recordRow, FolderItem, () => new FolderDialog(Root));
+
+    /// <summary>Меню рядка <paramref name="recordRow"/> на вкладці «Dokumentation» → «Neu» → «Aufgabe» → «Neue Aufgabe».</summary>
+    public TaskDialog OpenNewChildTask(int recordRow) => OpenNewChildRecord(recordRow, TaskItem, () => new TaskDialog(Root));
+
+    /// <summary>Меню рядка <paramref name="recordRow"/> на вкладці «Dokumentation» → «Neu» → «Termin».</summary>
+    public AppointmentDialog OpenNewChildAppointment(int recordRow) => OpenNewChildRecord(recordRow, AppointmentItem, () => new AppointmentDialog(Root));
+
+    /// <summary>Меню рядка <paramref name="recordRow"/> на вкладці «Dokumentation» → «Neu» → «Notiz».</summary>
+    public NoteDialog OpenNewChildNote(int recordRow) => OpenNewChildRecord(recordRow, NoteItem, () => new NoteDialog(Root));
+
+    /// <summary>Пункти меню «+» на вкладці «Dokumentation» з доступністю.</summary>
+    public IReadOnlyList<MenuEntry> NewRecordMenu() => AllureApi.Step("Прочитати меню «+» на вкладці «Dokumentation»", () =>
+    {
+        var menu = OpenNewRecordMenu();
+        var entries = menu.FindAllChildren(cf => cf.ByControlType(ControlType.MenuItem))
+            .Select(item => new MenuEntry(item.Name, item.IsEnabled))
+            .ToList();
+        CloseMenu(NewRecordMenuId);
+        AllureApi.Step($"Пункти меню: {string.Join("; ", entries)}");
+        return (IReadOnlyList<MenuEntry>)entries;
+    });
+
+    /// <summary>
+    /// Як ADAICA підписує запис у рядку <paramref name="recordRow"/> на вкладці «Dokumentation». Сам список UI Automation
+    /// не бачить, тож тест відкриває для рядка «Neu» → «Notiz», бере назву батька з заголовка вікна («Neue Notiz
+    /// (übergeordnet: …)») і закриває вікно без збереження.
+    /// </summary>
+    public string RecordRowLabel(int recordRow) => AllureApi.Step($"Прочитати запис у рядку {recordRow + 1} на вкладці «Dokumentation»", () =>
+    {
+        var dialog = OpenNewChildNote(recordRow);
+        var title = dialog.Title;
+        dialog.Cancel();
+        var start = title.IndexOf(ParentTitlePrefix, StringComparison.Ordinal);
+        if (start < 0 || !title.EndsWith(')'))
+            throw new InvalidOperationException($"Заголовок вікна нового інфозапису без батька: «{title}».");
+
+        var label = title[(start + ParentTitlePrefix.Length)..^1];
+        AllureApi.Step($"Рядок {recordRow + 1}: «{label}»");
+        return label;
+    });
+
+    /// <summary>
+    /// Чи є на вкладці «Dokumentation» рядок <paramref name="recordRow"/>: правий клік по рядку відкриває меню рядка
+    /// (з «Beziehung lösen»), а по порожньому місцю — меню списку лише з «Neu» і «Finden».
+    /// </summary>
+    public bool HasRecordRow(int recordRow) =>
+        AllureApi.Step($"Перевірити, чи є рядок {recordRow + 1} на вкладці «Dokumentation»", () =>
+        {
+            SelectTab("Dokumentation");
+            UiInput.RightClick(
+                () => Links,
+                () => RecordListMenu() is not null,
+                $"контекстного меню на місці рядка {recordRow + 1}",
+                offset: RecordRow(recordRow));
+            var exists = RecordRowMenu() is not null;
+            CloseMenu(RecordListMenu);
+            return exists;
+        });
+
+    /// <summary>Перевіряє, скільки рядків на вкладці «Dokumentation» (з «ROOT EMAIL» і предками, яких показує дерево).</summary>
+    public void ShouldHaveRecordRows(int expected) =>
+        AllureApi.Step($"Перевірити, що на вкладці «Dokumentation» рядків: {expected}", () =>
+            this.ShouldSatisfyAllConditions(
+                () => (expected == 0 || HasRecordRow(expected - 1)).ShouldBeTrue($"Рядка {expected} на вкладці «Dokumentation» немає"),
+                () => HasRecordRow(expected).ShouldBeFalse($"На вкладці «Dokumentation» є зайвий рядок {expected + 1}")));
+
+    /// <summary>
+    /// Фільтр списку «Dokumentation»: текст у поле «Suchbegriff eingeben…» і лупа поруч із ним
+    /// (<paramref name="withEnter"/> — клавіша Enter у полі замість лупи). У списку лишаються записи, у назві чи номері
+    /// яких є цей текст, з їхніми предками; поле з фільтром стає жовтим. Поле має бути порожнім.
+    /// </summary>
+    public void FilterRecords(string text, bool withEnter = false) =>
+        AllureApi.Step($"Відфільтрувати «Dokumentation»: «{text}» → {(withEnter ? "Enter" : "лупа біля поля")}", () =>
+        {
+            SelectTab("Dokumentation");
+            UiInput.LeftClick(() => Links, () => true, "поля «Suchbegriff eingeben…»", offset: Scaled(SearchBoxCenter, ButtonsCenter));
+            // Що текст у полі, видно лише після застосування фільтра, тож перевіряє його тест кількістю рядків.
+            UiInput.TypeText(() => Links, text, () => true, $"тексту «{text}» у полі «Suchbegriff eingeben…»");
+            if (withEnter)
+                UiInput.PressKey(() => Links, VirtualKeyShort.RETURN, () => true, "застосування фільтра клавішею Enter");
+            else
+                UiInput.LeftClick(() => Links, () => true, "лупи біля поля «Suchbegriff eingeben…»", offset: Scaled(SearchButtonCenter, ButtonsCenter));
+        });
+
+    /// <summary>Хрестик у полі «Suchbegriff eingeben…»: очищує поле й показує весь список.</summary>
+    public void ClearRecordFilter() => AllureApi.Step("Очистити фільтр «Dokumentation» хрестиком у полі", () =>
     {
         SelectTab("Dokumentation");
-        AutomationElement? Menu() => FindPopup("RecordsLinkGroupContextMenu");
-        UiInput.LeftClickOpeningMenu(() => Links, () => Menu() is not null, "меню «+» на вкладці «Dokumentation»", offset: Button(fromRight: 1));
-        new MenuItemControl("Notiz", () => Wait.For(
-            () => Menu()?.FindFirstChild(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName("Notiz"))),
-            "пункту «Notiz»")).Click();
-        return new NoteDialog(Root);
+        UiInput.LeftClick(() => Links, () => true, "хрестика в полі «Suchbegriff eingeben…»", offset: Scaled(SearchClearCenter, ButtonsCenter));
+    });
+
+    /// <summary>
+    /// Кнопка ієрархії (ліва з трьох над списком «Dokumentation»): показує над записами їхніх предків, яких у списку
+    /// немає, без позначки «Verknüpft»; повторне натискання ховає їх. Записи, батьки яких уже в списку, вкладені й так.
+    /// </summary>
+    public void ToggleHierarchy() => AllureApi.Step("Натиснути кнопку ієрархії на вкладці «Dokumentation»", () =>
+    {
+        SelectTab("Dokumentation");
+        UiInput.LeftClick(() => Links, () => true, "кнопки ієрархії", offset: Button(fromRight: 2));
     });
 
     /// <summary>OK: зберігає лист із зв'язками; ADAICA закриває вікно й відкриває збережений лист.</summary>
@@ -294,26 +431,90 @@ public sealed class MailSaveDialog
         }
     }
 
+    private T OpenNewRecord<T>(string item, Func<T> dialog) =>
+        AllureApi.Step($"Новий запис для листа: «Dokumentation» → «+» → «{item}»", () =>
+        {
+            OpenNewRecordMenu();
+            ChooseRecordType(() => FindPopup(NewRecordMenuId), item);
+            return dialog();
+        });
+
+    private T OpenNewChildRecord<T>(int recordRow, string item, Func<T> dialog) =>
+        AllureApi.Step($"Новий запис під рядком {recordRow + 1}: «Dokumentation» → меню рядка → «{NewItem}» → «{item}»", () =>
+        {
+            SelectTab("Dokumentation");
+            UiInput.RightClick(() => Links, () => RecordRowMenu() is not null, $"контекстного меню рядка {recordRow + 1}", offset: RecordRow(recordRow));
+            // ADAICA дописує до «Neu» останній вибраний тип («Neu: Notiz»), тож пункт шукаємо за початком назви.
+            new MenuItemControl(NewItem, () => Wait.For(
+                () => RecordRowMenu()?.FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem))
+                    .FirstOrDefault(menuItem => menuItem.Name.StartsWith(NewItem, StringComparison.Ordinal)),
+                $"пункту «{NewItem}…»")).Expand();
+            ChooseRecordType(RecordRowMenu, item);
+            return dialog();
+        });
+
+    private AutomationElement OpenNewRecordMenu()
+    {
+        SelectTab("Dokumentation");
+        UiInput.LeftClickOpeningMenu(() => Links, () => FindPopup(NewRecordMenuId) is not null, "меню «+» на вкладці «Dokumentation»", offset: Button(fromRight: 1));
+        return Wait.For(() => FindPopup(NewRecordMenuId), "меню «+»");
+    }
+
+    // «Aufgabe» відкриває підменю: «Neue Aufgabe» і шаблони.
+    private static void ChooseRecordType(Func<AutomationElement?> menu, string item)
+    {
+        if (item != TaskItem)
+        {
+            MenuItem(menu, item).Click();
+            return;
+        }
+
+        MenuItem(menu, TaskItem).Expand();
+        MenuItem(menu, NewTaskItem).Click();
+    }
+
+    private static MenuItemControl MenuItem(Func<AutomationElement?> menu, string name) =>
+        new(name, () => Wait.For(
+            () => menu()?.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(name))),
+            $"пункту «{name}»"));
+
+    // Меню рядка «Dokumentation» без AutomationId: упізнаємо його за пунктом, якого немає в меню порожнього місця.
+    private AutomationElement? RecordRowMenu() => VisiblePopupWith(RecordRowMenuItem);
+
+    // Меню рядка або порожнього місця списку «Dokumentation»: в обох є «Finden».
+    private AutomationElement? RecordListMenu() => VisiblePopupWith("Finden");
+
+    // Закриті меню WPF може лишати в дереві прихованими, тож беремо лише Popup на екрані.
+    private AutomationElement? VisiblePopupWith(string menuItem) =>
+        Popups.Of(Root).Concat(Popups.Of(_mainWindow))
+            .FirstOrDefault(popup => !popup.IsOffscreen
+                && popup.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(menuItem))) is not null);
+
     private AutomationElement OpenRowMenu(int row, string menuId)
     {
         UiInput.RightClick(() => Links, () => FindPopup(menuId) is not null, $"контекстного меню рядка {row + 1}", offset: Row(row));
         return Wait.For(() => FindPopup(menuId), $"контекстного меню «{menuId}»");
     }
 
+    private void CloseMenu(string menuId) => CloseMenu(() => FindPopup(menuId));
+
     // WPF сама закриває меню, коли ADAICA втрачає фокус, тож меню може вже не бути.
-    private void CloseMenu(string menuId)
+    private void CloseMenu(Func<AutomationElement?> findMenu)
     {
-        if (FindPopup(menuId) is not { } menu)
+        if (findMenu() is not { } menu)
             return;
 
-        UiInput.PressKey(() => FindPopup(menuId) ?? menu, VirtualKeyShort.ESCAPE, () => FindPopup(menuId) is null, "закриття контекстного меню");
+        UiInput.PressKey(() => findMenu() ?? menu, VirtualKeyShort.ESCAPE, () => findMenu() is null, "закриття контекстного меню");
     }
 
-    private AutomationElement? FindPopup(string automationId) =>
-        Popups.FindDescendant(Root, cf => cf.ByAutomationId(automationId))
-        ?? Popups.FindDescendant(_mainWindow, cf => cf.ByAutomationId(automationId));
+    private AutomationElement? FindPopup(string automationId) => FindPopupWith(cf => cf.ByAutomationId(automationId));
+
+    private AutomationElement? FindPopupWith(Func<ConditionFactory, ConditionBase> condition) =>
+        Popups.FindDescendant(Root, condition) ?? Popups.FindDescendant(_mainWindow, condition);
 
     private Point Row(int row) => Scaled(FirstColumnCenter, FirstRowCenter + row * RowHeight);
+
+    private Point RecordRow(int row) => Scaled(RecordNameCenter, FirstRowCenter + row * RowHeight);
 
     // fromRight: 0 — крайня права кнопка, 1 — сусідня ліворуч тощо.
     private Point Button(int fromRight)

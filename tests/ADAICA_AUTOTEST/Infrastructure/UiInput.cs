@@ -104,6 +104,26 @@ public static class UiInput
             $"клавіша {key} на клавіатурі",
             done, expectation, timeout);
 
+    /// <summary>
+    /// Друкує текст у поле з фокусом у вікні <paramref name="target"/> — для полів, яких UI Automation не бачить
+    /// (поле треба спершу клацнути). Що текст надруковано, видно лише з наслідку, тож умову передає виклик.
+    /// </summary>
+    public static void TypeText(Func<AutomationElement> target, string text, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+        Perform(
+            () =>
+            {
+                var element = target();
+                WindowMessageInput.Activate(element);
+                WindowMessageInput.TypeText(element, text);
+            },
+            () =>
+            {
+                AtomicMouse.TopLevelWindow(target()).SetForeground();
+                Keyboard.Type(text);
+            },
+            $"текст «{text}» на клавіатурі",
+            done, expectation, timeout);
+
     private static void Perform(Action viaMessages, Action viaDevice, string deviceAction, Func<bool> done, string expectation, TimeSpan? timeout)
     {
         var effectiveTimeout = timeout ?? TestSettings.DefaultTimeout;

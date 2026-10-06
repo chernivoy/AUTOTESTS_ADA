@@ -28,6 +28,7 @@ public static class WindowMessageInput
 {
     private const uint WmKeyDown = 0x0100;
     private const uint WmKeyUp = 0x0101;
+    private const uint WmChar = 0x0102;
     private const uint WmMouseMove = 0x0200;
     private const uint WmLButtonDown = 0x0201;
     private const uint WmLButtonUp = 0x0202;
@@ -89,6 +90,14 @@ public static class WindowMessageInput
         // lParam: лічильник повторів 1 і скан-код у бітах 16–23; для відпускання ще біти 30 і 31.
         Post(window, WmKeyDown, virtualKey, 1 | (scanCode << 16));
         Post(window, WmKeyUp, virtualKey, unchecked((nint)0xC0000001) | (scanCode << 16));
+    }
+
+    /// <summary>Друкує текст у вікно елемента символами WM_CHAR — у поле, яке вже має фокус.</summary>
+    public static void TypeText(AutomationElement target, string text)
+    {
+        var window = HostWindow(target);
+        foreach (var symbol in text)
+            Post(window, WmChar, symbol, 1);
     }
 
     private static (nint Window, nint LParam) Target(AutomationElement target, Point? offset)
