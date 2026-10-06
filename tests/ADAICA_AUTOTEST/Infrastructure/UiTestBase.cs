@@ -25,8 +25,18 @@ public abstract class UiTestBase
 
         try
         {
+            // Скріншот може не вдатися (UI Automation не відповідає), але прибирання після тесту все одно потрібне.
             if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
-                CaptureScreenshot();
+            {
+                try
+                {
+                    CaptureScreenshot();
+                }
+                catch (Exception ex)
+                {
+                    TestContext.Out.WriteLine($"Не вдалося зняти скріншот падіння: {ex}");
+                }
+            }
 
             CloseApplication();
         }

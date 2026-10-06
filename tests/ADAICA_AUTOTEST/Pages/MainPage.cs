@@ -352,19 +352,22 @@ public sealed partial class MainPage : AdaicaWindow
             $"листа до {recipientAddress} в області перегляду");
 
     /// <summary>
-    /// Відкриває контакти виділеного запису: дочірній вузол «Kontakte» під ним (розгортає запис, якщо треба).
+    /// Відкриває вузол-папку <paramref name="folderName"/> («Kontakte», «Notizen» тощо) під записом
+    /// <paramref name="recordNode"/> (розгортає запис, якщо треба) і повертає її список в області перегляду.
+    /// Запис шукаємо серед виділеного вузла та його предків, як і в OpenNewChildMenu.
     /// </summary>
-    [AllureStep("Відкрити вузол Kontakte під виділеним записом")]
-    public RecordContactsList OpenSelectedRecordContacts()
+    [AllureStep("Відкрити вузол {folderName} під записом {recordNode}")]
+    public RecordList OpenRecordFolder(string recordNode, string folderName)
     {
-        const string contactsNodeName = "Kontakte";
-        var record = SelectedNodeWithAncestors().Last();
-        var node = ChildNode(record, contactsNodeName);
+        var record = SelectedOrAnyNode(recordNode);
+        var folder = ChildNode(record, folderName);
         UiInput.LeftClick(
-            () => NodeText(ScrolledIntoView(node)) ?? node,
-            () => SelectedNavigatorNodeName is { } selected && WithoutRecordRange(selected) == contactsNodeName,
-            $"виділення вузла «{contactsNodeName}» під записом");
-        return new RecordContactsList(Window);
+            () => NodeText(ScrolledIntoView(folder)) ?? folder,
+            () => SelectedNodeWithAncestors() is { Count: >= 2 } path
+                && WithoutRecordRange(NodeText(path[^1])!.Name) == folderName
+                && WithoutRecordRange(NodeText(path[^2])!.Name) == recordNode,
+            $"виділення вузла «{folderName}» під «{recordNode}»");
+        return new RecordList(Window);
     }
 
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]

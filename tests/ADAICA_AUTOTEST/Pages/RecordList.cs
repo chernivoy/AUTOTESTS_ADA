@@ -6,10 +6,10 @@ using FlaUI.Core.Definitions;
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
-/// Контакти запису — список, який ADAICA показує на вузлі «Kontakte» під записом (наприклад, під листом):
-/// «Kontaktart (Funktion)», «Name», «Aktuelle Adresse», «E-Mail», «Telefon», «Bemerkung».
+/// Список, який ADAICA показує в області перегляду на вузлі-папці під записом: «Kontakte» («Kontaktart (Funktion)»,
+/// «Name», «E-Mail», …, «Historisch: Kommunikationsnummer»), «Notizen» («Name», «Klasse», «Bemerkung», …) тощо.
 /// </summary>
-public sealed class RecordContactsList(Window window)
+public sealed class RecordList(Window window)
 {
     /// <summary>Рядки списку: заголовок колонки → текст комірки.</summary>
     public IReadOnlyList<IReadOnlyDictionary<string, string>> Rows
@@ -19,7 +19,7 @@ public sealed class RecordContactsList(Window window)
             var list = Wait.For(
                 () => window.FindFirstDescendant(cf => cf.ByClassName("InformationView"))?
                     .FindFirstDescendant(cf => cf.ByAutomationId("listView").And(cf.ByControlType(ControlType.DataGrid))),
-                "списку контактів запису");
+                "списку записів в області перегляду");
             var columns = list.FindFirstChild(cf => cf.ByControlType(ControlType.Header))
                 .FindAllChildren()
                 .Select(header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name ?? string.Empty)
@@ -34,16 +34,19 @@ public sealed class RecordContactsList(Window window)
         }
     }
 
-    /// <summary>Чекає контакт з адресою <paramref name="email"/> і перевіряє його функцію й ім'я.</summary>
-    public void ShouldHaveContact(string function, string name, string email) =>
-        AllureApi.Step($"Перевірити контакт запису: {function} {name}, {email}", () =>
+    /// <summary>Чекає рядок, у якому колонка <paramref name="column"/> має значення <paramref name="value"/>, і повертає його.</summary>
+    public IReadOnlyDictionary<string, string> WaitForRow(string column, string value) =>
+        AllureApi.Step($"Знайти в списку рядок «{column}»: {value}", () =>
         {
             var row = Wait.For(
-                () => Rows.FirstOrDefault(found => found.GetValueOrDefault("E-Mail") == $"E-Mail: {email}"),
-                $"контакту з адресою {email} у списку контактів запису");
-            row.ShouldSatisfyAllConditions(
-                () => row.GetValueOrDefault("Kontaktart (Funktion)").ShouldBe(function, "Колонка «Kontaktart (Funktion)»"),
-                () => row.GetValueOrDefault("Name").ShouldBe(name, "Колонка «Name»"));
+                () => Rows.FirstOrDefault(found => found.GetValueOrDefault(column) == value),
+                $"рядка «{column}»: {value}");
+            AllureApi.AddAttachment(
+                $"Рядок «{value}»",
+                "text/plain",
+                System.Text.Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, row.Select(cell => $"{cell.Key}: {cell.Value}"))),
+                ".txt");
+            return row;
         });
 
     // ADAICA дописує до деяких значень пробіл у кінці: «(An) ».

@@ -164,7 +164,28 @@ public sealed partial class SearchWindow
             $"{what} у результатах пошуку «{words}»",
             IndexTimeout);
 
-    private SearchResult? FindRow(string keyColumn, string keyValue)
+    private SearchResult? FindRow(string keyColumn, string keyValue) =>
+        FindRowElement(keyColumn, keyValue) is var (row, columns) ? ReadRow(row, columns) : null;
+
+    /// <summary>
+    /// Вибирає запис <paramref name="number"/>, знайдений за словами <paramref name="words"/>, і натискає OK. Так вікно
+    /// працює, коли його відкрито для вибору запису (наприклад, лупою на вкладці «Dokumentation» вікна збереження листа),
+    /// а не з меню System. Новий запис Elasticsearch індексує не одразу, тож пошук повторюється, доки запис не знайдеться.
+    /// </summary>
+    [AllureStep("Вибрати у вікні «Finden» запис {number} і натиснути OK")]
+    public void Choose(string words, string number)
+    {
+        WaitUntilFound(words, number);
+        var (row, _) = FindRowElement("Nummer / Version", number)
+            ?? throw new InvalidOperationException($"Запис {number} зник із результатів пошуку «{words}».");
+        row.Patterns.SelectionItem.Pattern.Select();
+        var ok = new ButtonControl("OK", Locate.ById(Root, "btnHide"));
+        Wait.Until(() => ok.IsEnabled, "доступної кнопки OK у вікні «Finden»");
+        ok.Click();
+        Wait.Until(() => !IsOpen, "закриття вікна «Finden» після вибору запису");
+    }
+
+    private (AutomationElement Row, List<string> Columns)? FindRowElement(string keyColumn, string keyValue)
     {
         var list = Root.FindByAutomationId("RecordTabControl").FindFirstDescendant(cf => cf.ByAutomationId("listView"));
         var headers = list?.FindFirstChild(cf => cf.ByControlType(ControlType.Header));
@@ -187,7 +208,7 @@ public sealed partial class SearchWindow
             var row = list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
                 .FirstOrDefault(candidate => CellText(candidate, keyIndex) == keyValue);
             if (row is not null)
-                return ReadRow(row, columns);
+                return (row, columns);
             if (!scrollable)
                 return null;
 

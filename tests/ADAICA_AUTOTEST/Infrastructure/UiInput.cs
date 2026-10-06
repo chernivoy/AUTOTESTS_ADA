@@ -34,10 +34,12 @@ public enum InputMode
 public static class UiInput
 {
     /// <summary>Клік лівою кнопкою по <paramref name="target"/>, після якого має виконатися <paramref name="done"/>.</summary>
-    public static void LeftClick(Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+    /// <param name="offset">Точка кліку відносно лівого верхнього кута елемента (див. <see cref="RightClick"/>).</param>
+    public static void LeftClick(
+        Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
-            () => WindowMessageInput.LeftClick(target()),
-            () => AtomicMouse.LeftClick(target()),
+            () => WindowMessageInput.LeftClick(target(), offset),
+            () => AtomicMouse.LeftClick(target(), offset),
             "клік мишею",
             done, expectation, timeout);
 
@@ -46,15 +48,16 @@ public static class UiInput
     /// закриває, якщо застосунок неактивний; правий клік ADAICA активує сама, а кнопку — ні. Тому перед кліком ADAICA
     /// стає активною, а <see cref="ForegroundGuard"/> поверне фокус користувачеві, щойно меню закриється.
     /// </summary>
-    public static void LeftClickOpeningMenu(Func<AutomationElement> target, Func<bool> opened, string expectation, TimeSpan? timeout = null) =>
+    public static void LeftClickOpeningMenu(
+        Func<AutomationElement> target, Func<bool> opened, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
             () =>
             {
                 var element = target();
                 WindowMessageInput.Activate(element);
-                WindowMessageInput.LeftClick(element);
+                WindowMessageInput.LeftClick(element, offset);
             },
-            () => AtomicMouse.LeftClick(target()),
+            () => AtomicMouse.LeftClick(target(), offset),
             "клік мишею",
             opened, expectation, timeout);
 

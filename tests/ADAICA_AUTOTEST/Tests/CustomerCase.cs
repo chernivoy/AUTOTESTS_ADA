@@ -462,24 +462,28 @@ public sealed class CustomerCase
     }
 
     /// <summary>
-    /// Лист новій людині в справі клієнта, якої ще немає серед контактів ADAICA. Адреса — на домені example.com
-    /// (зарезервований для прикладів, листи туди не доходять) і щоразу унікальна завдяки номеру з дати й часу, як
-    /// у <see cref="NewCompany"/>: «thomas.weber.261005161500@example.com». За нею тест упізнає і лист, і створену
-    /// з нього персону.
+    /// Лист новій людині в справі клієнта, якої ще немає серед контактів ADAICA. Адреса — «vorname.nachname@…»: з такої
+    /// ADAICA сама бере ім'я для пошуку контакту. Щоб адреса була унікальна, як назви фірм (<see cref="NewCompany"/>),
+    /// номер із дати й часу стоїть у піддомені example.com (зарезервований для прикладів, листи туди не доходять):
+    /// «thomas.weber@t261005161500.example.com». За адресою тест упізнає і лист, і створену з нього персону.
     /// </summary>
-    public MailData NewMail()
+    /// <param name="withCopy">Додати в копію (CC) ще одну людину з унікальною адресою.</param>
+    public MailData NewMail(bool withCopy = false)
     {
-        var isWoman = System.Random.Shared.Next(2) == 0;
-        var recipient = new EmployeeData(
-            FirstName: Pick(isWoman ? WomenFirstNames : MenFirstNames),
-            LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
-            Salutation: isWoman ? "Frau" : "Herr",
-            ShortName: ShortName,
-            Function: "Mitarbeiter");
-        var greeting = isWoman ? $"Sehr geehrte Frau {recipient.LastName}," : $"Sehr geehrter Herr {recipient.LastName},";
+        var recipient = NewMailPerson();
+        var copy = withCopy ? NewMailPerson() : null;
+        return NewMailTo(recipient) with { Cc = copy is null ? string.Empty : MailAddress(copy) };
+    }
+
+    /// <summary>Ще один лист тій самій людині, але на нову унікальну адресу (наприклад, з іншої поштової скриньки).</summary>
+    public MailData NewMailTo(EmployeeData recipient)
+    {
+        var greeting = recipient.Salutation == "Frau"
+            ? $"Sehr geehrte Frau {recipient.LastName},"
+            : $"Sehr geehrter Herr {recipient.LastName},";
         return new MailData(
             Recipient: recipient,
-            To: $"{EmailPart(recipient.FirstName)}.{EmailPart(recipient.LastName)}.{NewCustomerNumber()}@example.com",
+            To: MailAddress(recipient),
             Subject: PickUnused(
                 $"Unterlagen {_topic.Title} – {_customer.Company}",
                 $"Rückfrage zu {_topic.Object}",
@@ -493,6 +497,21 @@ public sealed class CustomerCase
                     $"vielen Dank für Ihre Anfrage zu {_topic.Object}. Die Offerte erhalten Sie bis Ende Woche."),
                 "Freundliche Grüße"));
     }
+
+    // Людина, якій пишуть лист: не контактна особа фірми, щоб це була нова людина.
+    private EmployeeData NewMailPerson()
+    {
+        var isWoman = System.Random.Shared.Next(2) == 0;
+        return new EmployeeData(
+            FirstName: Pick(isWoman ? WomenFirstNames : MenFirstNames),
+            LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
+            Salutation: isWoman ? "Frau" : "Herr",
+            ShortName: ShortName,
+            Function: "Mitarbeiter");
+    }
+
+    private static string MailAddress(EmployeeData person) =>
+        $"{EmailPart(person.FirstName)}.{EmailPart(person.LastName)}@t{NewCustomerNumber()}.example.com";
 
     /// <summary>
     /// Завдання для списку «Meine Aufgaben» навігатора Dashboard. Список показує лише завдання з датами поблизу
