@@ -307,6 +307,18 @@ public sealed partial class MainPage : AdaicaWindow
         return new SearchWindow(Window);
     }
 
+    /// <summary>
+    /// System → «Finden &amp; Erstellen» на вкладці «Kontakte»: пошук контакту з будь-якого навігатора.
+    /// </summary>
+    [AllureStep("Відкрити пошук контактів: System → Finden & Erstellen → Kontakte")]
+    public ContactFindCreateWindow OpenContactSearch()
+    {
+        new MenuItemControl("System", Locate.ById(Window, SystemMenuId)).Expand();
+        PopupMenuItem("Finden & Erstellen", "mnuSystemFindCreate").Click();
+        new TabItemControl("Kontakte", () => Wait.FindByAutomationId(Window, "tiPersonsAndCompanies")).Select();
+        return new ContactFindCreateWindow(Window);
+    }
+
     [AllureStep("Відкрити налаштування: Konfiguration → Einstellungen")]
     public OptionsWindow OpenOptions()
     {

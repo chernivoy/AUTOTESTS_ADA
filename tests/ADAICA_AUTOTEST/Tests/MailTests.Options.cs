@@ -100,53 +100,9 @@ public partial class MailTests
     }
 
     /// <summary>
-    /// Адреса є у двох персон, алгоритм «… zu allen Kontakten …, die als Empfänger adressiert wurden» (стандартний).
-    /// Тест створює в навігаторі Kontakte дві персони з однаковою адресою. Лист на цю адресу: ADAICA сама розпізнає
-    /// обидві — головну як «An», другу як додатковий рядок «Kontakt»; лист можна зберегти, і в «Zugriffspfade» — обидві.
-    /// </summary>
-    [Test]
-    [AllureSeverity(SeverityLevel.normal)]
-    public void DokumentationNavigator_MailToAddressOfTwoContactsAsRecipients()
-    {
-        SetMailOptionsAndRestart(options => options with { MultipleContacts = MailMultipleContactsMode.Recipients, SalutationUser = false });
-        var (mainPage, customer, shared, persons) = CreateTwoPersonsWithOneAddress();
-
-        var mail = customer.NewMailTo(persons[0]) with { To = shared };
-        var (saveDialog, _) = SendMail(mainPage, mail);
-        saveDialog.ShouldHaveContactState(RecipientRow, MailContactState.Linked);
-        saveDialog.ShouldHaveContactState(RecipientRow + 1, MailContactState.Additional);
-        saveDialog.ShouldHaveContactRows(3);
-        saveDialog.ShouldBeSavable(true);
-        saveDialog.Save();
-        ContactsInAccessPathsShouldBe(mainPage, shared, persons);
-    }
-
-    /// <summary>
-    /// Адреса є у двох персон, алгоритм «… zu allen Kontakten …, die als Empfänger adressiert wurden (ohne Empfänger
-    /// von Kopien (CC))» (стандартний). Лист новій людині з цією адресою в копії: за описом опції для копії береться
-    /// лише одна персона, без додаткового рядка «Kontakt».
-    /// <para>
-    /// Падає навмисно (імовірний баг, 06.10.2026): ADAICA додає й другу персону — у коді
-    /// <c>EmailContactLinksViewModelBase.Add</c> цей режим бере «An», «CC» і «BCC», тобто поводиться як «inklusive
-    /// aller Empfänger von Kopien (CC)».
-    /// </para>
-    /// </summary>
-    [Test]
-    [AllureSeverity(SeverityLevel.normal)]
-    public void DokumentationNavigator_MailCopyToAddressOfTwoContactsAsRecipients()
-    {
-        SetMailOptionsAndRestart(options => options with { MultipleContacts = MailMultipleContactsMode.Recipients, SalutationUser = false });
-        var (mainPage, customer, shared, persons) = CreateTwoPersonsWithOneAddress();
-
-        var mail = customer.NewMail() with { Others = [new MailAddressee(persons[0], shared, MailAddresseeKind.Cc)] };
-        var (saveDialog, _) = SendMail(mainPage, mail);
-        saveDialog.ShouldHaveContactState(CopyRow, MailContactState.Linked);
-        AllureApi.Step("Адреса лише в копії — друга персона не додається", () => saveDialog.ShouldHaveContactRows(3));
-    }
-
-    /// <summary>
-    /// Адреса є у двох персон, алгоритм «Kontakterkennung nach Priorität»: лист на цю адресу ADAICA зв'язує лише
-    /// з однією персоною — додаткового рядка «Kontakt» немає, у «Zugriffspfade» — одна з двох.
+    /// Алгоритм для адреси кількох контактів, варіант 1 «Kontakterkennung nach Priorität» — лише головні контакти,
+    /// без додаткових. Дві персони з однією адресою; лист на цю адресу ADAICA зв'язує лише з однією: рядка «Kontakt»
+    /// немає, у «Zugriffspfade» — одна з двох.
     /// </summary>
     [Test]
     [AllureSeverity(SeverityLevel.normal)]
@@ -168,12 +124,48 @@ public partial class MailTests
     }
 
     /// <summary>
-    /// Адреса є у двох персон, алгоритм «… zu allen Kontakten … (inklusive aller Empfänger von Kopien (CC))»: лист новій
-    /// людині з цією адресою в копії — ADAICA бере обидві персони (друга — рядком «Kontakt»), у «Zugriffspfade» — обидві.
+    /// Алгоритм для адреси кількох контактів, варіант 2 (стандартний) — головні контакти й усі додаткові для
+    /// отримувачів («An» і «CC»), але не для відправника. Підпис варіанта в ADAICA («… als Empfänger adressiert
+    /// (ohne Empfänger von Kopien (CC))») перекладено неправильно — логіку підтвердив користувач 06.10.2026.
+    /// Дві персони з однією адресою: лист на неї — друга персона рядком «Kontakt», у «Zugriffspfade» — обидві; лист
+    /// з цією адресою в копії — так само рядок «Kontakt». Тимчасова персона з адресою відправника рядка «Kontakt» не дає
+    /// (адресу тест одразу прибирає).
     /// </summary>
     [Test]
     [AllureSeverity(SeverityLevel.normal)]
-    public void DokumentationNavigator_MailToAddressOfTwoContactsIncludingCopies()
+    public void DokumentationNavigator_MailToAddressOfTwoContactsForRecipients()
+    {
+        SetMailOptionsAndRestart(options => options with { MultipleContacts = MailMultipleContactsMode.Recipients, SalutationUser = false });
+        var (mainPage, customer, shared, persons) = CreateTwoPersonsWithOneAddress();
+
+        var toShared = customer.NewMailTo(persons[0]) with { To = shared };
+        var (saveDialog, _) = SendMail(mainPage, toShared);
+        saveDialog.ShouldHaveContactState(RecipientRow, MailContactState.Linked);
+        saveDialog.ShouldHaveContactState(RecipientRow + 1, MailContactState.Additional);
+        saveDialog.ShouldHaveContactRows(3);
+        saveDialog.ShouldBeSavable(true);
+        saveDialog.Save();
+        ContactsInAccessPathsShouldBe(mainPage, shared, persons);
+
+        var copyToShared = customer.NewMail() with { Others = [new MailAddressee(persons[0], shared, MailAddresseeKind.Cc)] };
+        (saveDialog, _) = SendMail(mainPage, copyToShared);
+        saveDialog.ShouldHaveContactState(CopyRow, MailContactState.Linked);
+        saveDialog.ShouldHaveContactState(CopyRow + 1, MailContactState.Additional);
+        saveDialog.ShouldHaveContactRows(4);
+        saveDialog.Cancel();
+
+        SenderOfTwoContactsShouldGiveAdditionalRow(mainPage, customer, expected: false);
+    }
+
+    /// <summary>
+    /// Алгоритм для адреси кількох контактів, варіант 3 — усі головні й усі додаткові контакти для всіх адрес листа,
+    /// зокрема відправника (підпис «… inklusive aller Empfänger von Kopien (CC)» перекладено неправильно). Лист новій
+    /// людині з адресою двох персон у копії — обидві персони, у «Zugriffspfade» — обидві. Тимчасова персона з адресою
+    /// відправника — ще й рядок «Kontakt» з нею (адресу тест одразу прибирає).
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.normal)]
+    public void DokumentationNavigator_MailToAddressOfTwoContactsForAllAddresses()
     {
         SetMailOptionsAndRestart(options => options with { MultipleContacts = MailMultipleContactsMode.All, SalutationUser = false });
         var (mainPage, customer, shared, persons) = CreateTwoPersonsWithOneAddress();
@@ -192,7 +184,73 @@ public partial class MailTests
                 [mainPage.UserDisplayName, mail.Recipient.SortName, .. persons.Select(person => person.SortName)],
                 ignoreOrder: true,
                 "Контакти в «Zugriffspfade»"));
+
+        SenderOfTwoContactsShouldGiveAdditionalRow(mainPage, customer, expected: true);
     }
+
+    /// <summary>
+    /// Адреса відправника в другого контакту: тест створює тимчасову персону з адресою облікового запису Outlook
+    /// (у навігаторі Kontakte, новою вкладкою), надсилає лист новій людині й дивиться, чи з'явився для відправника
+    /// рядок «Kontakt» з цією персоною. Лист не зберігає (щоб персона ні з чим не зв'язалася), а адресу з персони
+    /// одразу видаляє: інакше ADAICA впізнавала б її в листах користувача. Якщо тест упаде раніше, адресу видалить
+    /// прибирання.
+    /// </summary>
+    private void SenderOfTwoContactsShouldGiveAdditionalRow(MainPage mainPage, CustomerCase customer, bool expected) =>
+        AllureApi.Step(expected
+                ? "Адреса відправника є ще в одному контакті — рядок «Kontakt» з ним"
+                : "Адреса відправника є ще в одному контакті — рядка «Kontakt» немає",
+            () =>
+            {
+                var account = OutlookApplication.DefaultAccountAddress();
+                var senderTwin = customer.NewMailPerson();
+                mainPage.OpenNavigator("Kontakte");
+                CreatePersonWithEmail(mainPage, senderTwin, account);
+                var removed = false;
+                OnCleanup(() =>
+                {
+                    if (!removed)
+                        RemoveEmailFromPerson(new MainPage(Session), senderTwin, account);
+                });
+                mainPage.OpenNavigator("Dokumentation");
+
+                var mail = customer.NewMail();
+                var (saveDialog, _) = SendMail(mainPage, mail);
+                saveDialog.ShouldHaveContactState(SenderRow, MailContactState.Linked);
+                if (expected)
+                {
+                    saveDialog.ShouldHaveContactState(RecipientRow + 1, MailContactState.Additional);
+                    saveDialog.ShouldHaveContactRows(3);
+                }
+                else
+                {
+                    saveDialog.ShouldHaveContactRows(2);
+                }
+
+                saveDialog.Cancel();
+                RemoveEmailFromPerson(mainPage, senderTwin, account);
+                removed = true;
+            });
+
+    /// <summary>
+    /// Видаляє адресу <paramref name="email"/> з картки персони: System → «Finden &amp; Erstellen» (пошук за адресою)
+    /// → картка в окремому вікні → «Verbindung» → «Löschen».
+    /// </summary>
+    private static void RemoveEmailFromPerson(MainPage mainPage, EmployeeData person, string email) =>
+        AllureApi.Step($"Видалити адресу {email} з персони {person.SortName}", () =>
+        {
+            var search = mainPage.OpenContactSearch();
+            try
+            {
+                search.Email.Fill(email);
+                var card = search.OpenFoundInWindow(person.SortName);
+                new CommunicationsList(mainPage.Window, card, "communications").Delete(email);
+                card.Close();
+            }
+            finally
+            {
+                search.CloseIfOpen();
+            }
+        });
 
     /// <summary>
     /// «Anreden von E-Mail-Empfängern hinzufügen» увімкнено: щойно в листі з'являються отримувачі, надбудова ADAICA
