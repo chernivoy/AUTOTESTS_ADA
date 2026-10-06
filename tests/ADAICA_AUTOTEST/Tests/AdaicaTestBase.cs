@@ -45,6 +45,63 @@ public abstract class AdaicaTestBase : UiTestBase
     }
 
     /// <summary>
+    /// Входить в ADAICA, ставить опції пошти, які повертає <paramref name="change"/> з поточних, і перезапускає ADAICA:
+    /// опції діють лише після перезапуску. Після тесту попередні опції повертаються (без перезапуску: тест на той час
+    /// уже закінчено). Далі тест входить сам, наприклад <see cref="LogInAndOpenDokumentation"/>.
+    /// </summary>
+    protected void SetMailOptionsAndRestart(Func<MailOptions, MailOptions> change) =>
+        AllureApi.Step("Змінити опції пошти й перезапустити ADAICA", () =>
+        {
+            var mainPage = new LoginPage(Session).LoginAs(
+                TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+            var window = mainPage.OpenOptions().OpenMailOptions();
+            var before = window.ReadMailOptions();
+            OnCleanup(() => RestoreMailOptions(before));
+            window.SetMailOptions(change(before));
+            RestartApplication(() => new AdaicaWindow(Session).Exit());
+        });
+
+    /// <summary>
+    /// Повертає опції пошти. Частина з них системна, тож лишати їх зміненими не можна: якщо ADAICA після падіння
+    /// тесту не відповідає, тест перезапускає її, входить і пробує ще раз.
+    /// </summary>
+    private void RestoreMailOptions(MailOptions options) =>
+        AllureApi.Step($"Повернути опції пошти: {options}", () =>
+        {
+            try
+            {
+                SetMailOptions(new MainPage(Session), options);
+            }
+            catch (Exception ex)
+            {
+                TestContext.Out.WriteLine($"Опції пошти не повернуто з першої спроби, ADAICA буде перезапущено: {ex.Message}");
+                RestartApplication(() =>
+                {
+                    try
+                    {
+                        new AdaicaWindow(Session).Exit();
+                    }
+                    catch (Exception exitError)
+                    {
+                        TestContext.Out.WriteLine($"ADAICA не закрилася коректно, процес буде зупинено: {exitError.Message}");
+                    }
+                });
+                SetMailOptions(
+                    new LoginPage(Session).LoginAs(TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema),
+                    options);
+            }
+        });
+
+    private static void SetMailOptions(MainPage mainPage, MailOptions options)
+    {
+        var window = mainPage.OpenOptions().OpenMailOptions();
+        if (window.ReadMailOptions() == options)
+            window.Close();
+        else
+            window.SetMailOptions(options);
+    }
+
+    /// <summary>
     /// Входить в ADAICA й показує навігатор <paramref name="navigatorName"/>, який може бути відкритий лише в одній
     /// вкладці (як Dashboard: у списку «+» відкритий Dashboard недоступний). Якщо вкладка вже є, перемикається на неї,
     /// а після тесту повертає вкладку, яка була активною; інакше відкриває нову й після тесту закриває її.

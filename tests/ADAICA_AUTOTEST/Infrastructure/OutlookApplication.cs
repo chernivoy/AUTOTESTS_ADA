@@ -195,6 +195,9 @@ public static class OutlookApplication
             }
         }
 
+        /// <summary>Закриває вікно листа без надсилання й без збереження чернетки.</summary>
+        public void Discard() => AllureApi.Step("Закрити лист в Outlook без надсилання", () => _inspector.Close(OlDiscard));
+
         /// <summary>Для прибирання після тесту: закриває вікно ненадісланого листа без збереження чернетки.</summary>
         public void DiscardIfNotSent()
         {

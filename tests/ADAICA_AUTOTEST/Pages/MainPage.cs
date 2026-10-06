@@ -307,6 +307,14 @@ public sealed partial class MainPage : AdaicaWindow
         return new SearchWindow(Window);
     }
 
+    [AllureStep("Відкрити налаштування: Konfiguration → Einstellungen")]
+    public OptionsWindow OpenOptions()
+    {
+        new MenuItemControl("Konfiguration", Locate.ById(Window, "mnuConfigurationWndMain")).Expand();
+        PopupMenuItem("Einstellungen", "mnuOptionsWndMain").Click();
+        return new OptionsWindow(Window);
+    }
+
     [AllureStep("Відкрити асистент пошти: Benutzereinstellungen → Maileinstellungen")]
     public MailSettingsWizard OpenMailSettings()
     {

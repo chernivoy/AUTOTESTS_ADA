@@ -17,6 +17,12 @@ public enum MailContactState
 
     /// <summary>«Ignorieren» (червоний хрестик): адресу не зберігати.</summary>
     Ignored,
+
+    /// <summary>
+    /// Додатковий контакт («Kontakt»): доданий вручну або ще один контакт з тією самою адресою
+    /// (<see cref="MailMultipleContactsMode"/>). Його можна прибрати зі списку.
+    /// </summary>
+    Additional,
 }
 
 /// <summary>Контекстні меню рядка для кожного <see cref="MailContactState"/>, як їх показує ADAICA (перевірено 05.10.2026).</summary>
@@ -58,6 +64,14 @@ public static class MailContactStates
             new("Keine Kontaktzuordnung", true),
             new("Manuell", true),
             new("Wiederherstellen", true),
+            new("Aktualisieren", true),
+        ],
+        MailContactState.Additional =>
+        [
+            new("Zugehörigen Kontakt finden/erstellen", false),
+            new("Weiteren Kontakt hinzufügen", true),
+            new("Öffnen", true),
+            new("Entfernen", true),
             new("Aktualisieren", true),
         ],
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),

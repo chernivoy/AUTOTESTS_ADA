@@ -13,7 +13,7 @@ namespace ADAICA_AUTOTEST.Tests;
 /// листи не доходять. Збережені листи, персони й записи лишаються в базі.
 /// </summary>
 [AllureSuite("Навігатори")]
-public class MailTests : AdaicaTestBase
+public partial class MailTests : AdaicaTestBase
 {
     // За скільки днів ADAICA синхронізує листи з Outlook («Innerhalb der letzten … Tage»).
     private const int SyncDays = 30;
@@ -37,6 +37,7 @@ public class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.critical)]
     public void DokumentationNavigator_NewMailToNewContact()
     {
+        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         var mail = CustomerCase.Random().NewMail();
         var recipient = mail.Recipient;
@@ -94,8 +95,9 @@ public class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.normal)]
     public void DokumentationNavigator_MailSaveDialogContactStates()
     {
+        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
-        var mail = CustomerCase.Random().NewMail(withCopy: true);
+        var mail = CustomerCase.Random().NewMail(copies: 1);
 
         EnsureOutlookAccount(mainPage, OutlookApplication.DefaultAccountAddress());
 
@@ -144,6 +146,7 @@ public class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.critical)]
     public void DokumentationNavigator_MailToExistingContactWithRecords()
     {
+        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         var customer = CustomerCase.Random();
         var account = OutlookApplication.DefaultAccountAddress();
@@ -218,7 +221,7 @@ public class MailTests : AdaicaTestBase
 
         // Якщо тест упаде до надсилання, вікно листа закриється без чернетки.
         OnCleanup(outlookMail.DiscardIfNotSent);
-        outlookMail.Fill(mail.To, mail.Subject, mail.Body, mail.Cc);
+        outlookMail.Fill(mail.ToLine, mail.Subject, mail.Body, mail.CcLine);
         var sentFrom = DateTime.Now;
         outlookMail.Send();
 
@@ -233,22 +236,43 @@ public class MailTests : AdaicaTestBase
     /// Нова персона для отримувача: «Zugehörigen Kontakt finden/erstellen» → «Finden &amp; Erstellen» (ім'я ADAICA
     /// вписує з адреси «vorname.nachname@…» сама, e-mail — ні) → «Neu» → «Neue Person/Firma» → OK.
     /// </summary>
-    private void CreateRecipient(MailSaveDialog saveDialog, MailData mail)
+    private void CreateRecipient(MailSaveDialog saveDialog, MailData mail) => CreateContactForRow(saveDialog, RecipientRow, mail);
+
+    /// <summary>
+    /// Нова персона для адреси в рядку <paramref name="contactRow"/>: «Zugehörigen Kontakt finden/erstellen» →
+    /// «Finden &amp; Erstellen» → «Neu» → «Neue Person/Firma» → OK. Чия це адреса, тест дізнається з імені, яке ADAICA
+    /// вписує в рядок пошуку з адреси «vorname.nachname@…» (порядок отримувачів у списку визначає ADAICA).
+    /// Повертає адресата, для якого створено персону.
+    /// </summary>
+    private MailAddressee CreateContactForRow(MailSaveDialog saveDialog, int contactRow, MailData mail)
     {
-        var findCreateWindow = saveDialog.OpenFindCreateContact(RecipientRow);
+        var findCreateWindow = saveDialog.OpenFindCreateContact(contactRow);
         OnCleanup(findCreateWindow.CloseIfOpen);
-        AllureApi.Step("Перевірити рядок пошуку: ім'я з адреси, e-mail порожній", () =>
-            findCreateWindow.ShouldSatisfyAllConditions(
-                () => findCreateWindow.Person.ShouldHaveText(mail.PrefilledName),
-                () => findCreateWindow.Email.ShouldHaveText(string.Empty)));
+        var prefilled = findCreateWindow.Person.Text;
+        var addressee = mail.Addressees.SingleOrDefault(candidate => candidate.Person.PrefilledName() == prefilled)
+            ?? throw new InvalidOperationException(
+                $"У рядку пошуку «{prefilled}», а серед адресатів листа такої людини немає: {string.Join("; ", mail.Addressees.Select(candidate => candidate.Address))}.");
+        AllureApi.Step($"Рядок {contactRow + 1} — {addressee.Address}: в рядку пошуку ім'я з адреси, e-mail порожній", () =>
+            findCreateWindow.Email.ShouldHaveText(string.Empty));
 
         var personDialog = findCreateWindow.OpenNewPersonDialog();
         OnCleanup(personDialog.CancelIfOpen);
-        personDialog.Person.ShouldHaveText(mail.Recipient.SortName);
-        personDialog.Salutation.Select(mail.Recipient.Salutation);
+        personDialog.Person.ShouldHaveText(addressee.Person.SortName);
+        personDialog.Salutation.Select(addressee.Person.Salutation);
         personDialog.Save();
         findCreateWindow.WaitUntilClosed();
+        return addressee;
     }
+
+    /// <summary>
+    /// Вимикає «Anreden von E-Mail-Empfängern hinzufügen» для користувача й перезапускає ADAICA; після тесту опція
+    /// повертається. Звертання, яке надбудова ADAICA дописує в лист, валить Outlook під час надсилання
+    /// (RICHED20.DLL, приблизно кожен 3–5-й лист; без звертання 12 листів поспіль — без аварій, перевірено 06.10.2026),
+    /// тож тести, що надсилають листи, працюють без нього. Саме звертання перевіряє <see cref="DokumentationNavigator_MailSalutation"/>
+    /// без надсилання.
+    /// </summary>
+    private void TurnOffSalutationForSending() =>
+        SetMailOptionsAndRestart(options => options with { SalutationUser = false });
 
     /// <summary>
     /// Рядок контакту під листом: функція, ім'я, адреса, з якою контакт у листі («Historisch: Kommunikationsnummer»),

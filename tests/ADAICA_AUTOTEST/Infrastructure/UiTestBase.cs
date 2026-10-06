@@ -17,6 +17,17 @@ public abstract class UiTestBase
     [SetUp]
     public void StartApplication() => Session = AppSession.Launch(TestSettings.AppPath);
 
+    /// <summary>
+    /// Перезапускає застосунок посеред тесту — наприклад, щоб застосувати опції, які діють лише після перезапуску.
+    /// <paramref name="exit"/> коректно закриває застосунок; якщо він так і не завершився, процес зупиняється.
+    /// </summary>
+    protected void RestartApplication(Action exit)
+    {
+        exit();
+        Session.Dispose();
+        Session = AppSession.Launch(TestSettings.AppPath);
+    }
+
     [TearDown]
     public void StopApplication()
     {

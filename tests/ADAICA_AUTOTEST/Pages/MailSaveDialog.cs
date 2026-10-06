@@ -130,6 +130,31 @@ public sealed class MailSaveDialog
         });
 
     /// <summary>
+    /// Чи є на вкладці «Kontakte» рядок <paramref name="contactRow"/>: правий клік по рядку відкриває меню рядка
+    /// («ContactMenu»), а по порожньому місцю під рядками — меню списку («ContactsListContextMenu»).
+    /// </summary>
+    public bool HasContactRow(int contactRow) =>
+        AllureApi.Step($"Перевірити, чи є рядок {contactRow + 1} на вкладці «Kontakte»", () =>
+        {
+            SelectTab("Kontakte");
+            UiInput.RightClick(
+                () => Links,
+                () => FindPopup("ContactMenu") is not null || FindPopup("ContactsListContextMenu") is not null,
+                $"контекстного меню на місці рядка {contactRow + 1}",
+                offset: Row(contactRow));
+            var exists = FindPopup("ContactMenu") is not null;
+            CloseMenu(exists ? "ContactMenu" : "ContactsListContextMenu");
+            return exists;
+        });
+
+    /// <summary>Перевіряє, скільки рядків на вкладці «Kontakte»: відправник, отримувачі, копії й додаткові контакти.</summary>
+    public void ShouldHaveContactRows(int expected) =>
+        AllureApi.Step($"Перевірити, що на вкладці «Kontakte» {expected} рядки", () =>
+            this.ShouldSatisfyAllConditions(
+                () => HasContactRow(expected - 1).ShouldBeTrue($"Рядка {expected} на вкладці «Kontakte» немає"),
+                () => HasContactRow(expected).ShouldBeFalse($"На вкладці «Kontakte» є зайвий рядок {expected + 1}")));
+
+    /// <summary>
     /// Перевіряє стан контакту в рядку <paramref name="contactRow"/> за його контекстним меню: ADAICA показує в ньому
     /// лише ті дії, які в цьому стані можливі (<see cref="MailContactState"/>).
     /// </summary>

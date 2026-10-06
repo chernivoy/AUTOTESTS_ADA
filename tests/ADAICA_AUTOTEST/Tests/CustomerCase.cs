@@ -467,12 +467,19 @@ public sealed class CustomerCase
     /// номер із дати й часу стоїть у піддомені example.com (зарезервований для прикладів, листи туди не доходять):
     /// «thomas.weber@t261005161500.example.com». За адресою тест упізнає і лист, і створену з нього персону.
     /// </summary>
-    /// <param name="withCopy">Додати в копію (CC) ще одну людину з унікальною адресою.</param>
-    public MailData NewMail(bool withCopy = false)
+    /// <param name="moreRecipients">Скільки ще нових людей додати в «Кому».</param>
+    /// <param name="copies">Скільки нових людей додати в копію (CC).</param>
+    public MailData NewMail(int moreRecipients = 0, int copies = 0)
     {
-        var recipient = NewMailPerson();
-        var copy = withCopy ? NewMailPerson() : null;
-        return NewMailTo(recipient) with { Cc = copy is null ? string.Empty : MailAddress(copy) };
+        var others = Enumerable.Range(0, moreRecipients).Select(_ => MailAddresseeKind.To)
+            .Concat(Enumerable.Range(0, copies).Select(_ => MailAddresseeKind.Cc))
+            .Select(kind =>
+            {
+                var person = NewMailPerson();
+                return new MailAddressee(person, NewMailAddress(person), kind);
+            })
+            .ToList();
+        return NewMailTo(NewMailPerson()) with { Others = others };
     }
 
     /// <summary>Ще один лист тій самій людині, але на нову унікальну адресу (наприклад, з іншої поштової скриньки).</summary>
@@ -483,7 +490,7 @@ public sealed class CustomerCase
             : $"Sehr geehrter Herr {recipient.LastName},";
         return new MailData(
             Recipient: recipient,
-            To: MailAddress(recipient),
+            To: NewMailAddress(recipient),
             Subject: PickUnused(
                 $"Unterlagen {_topic.Title} – {_customer.Company}",
                 $"Rückfrage zu {_topic.Object}",
@@ -495,11 +502,12 @@ public sealed class CustomerCase
                     $"{Contact.Nominative} hat mir Ihre Adresse gegeben. Gerne sende ich Ihnen die Unterlagen für {_topic.Object}.",
                     $"wie mit {Contact.Dative} besprochen, melde ich mich wegen {_topic.Object}. Passt Ihnen ein Termin nächste Woche?",
                     $"vielen Dank für Ihre Anfrage zu {_topic.Object}. Die Offerte erhalten Sie bis Ende Woche."),
-                "Freundliche Grüße"));
+                "Freundliche Grüße"),
+            Others: []);
     }
 
-    // Людина, якій пишуть лист: не контактна особа фірми, щоб це була нова людина.
-    private EmployeeData NewMailPerson()
+    /// <summary>Людина, якій пишуть лист: не контактна особа фірми, щоб це була нова людина.</summary>
+    public EmployeeData NewMailPerson()
     {
         var isWoman = System.Random.Shared.Next(2) == 0;
         return new EmployeeData(
@@ -510,7 +518,8 @@ public sealed class CustomerCase
             Function: "Mitarbeiter");
     }
 
-    private static string MailAddress(EmployeeData person) =>
+    /// <summary>Нова унікальна адреса людини: «vorname.nachname@t261005161500.example.com».</summary>
+    public static string NewMailAddress(EmployeeData person) =>
         $"{EmailPart(person.FirstName)}.{EmailPart(person.LastName)}@t{NewCustomerNumber()}.example.com";
 
     /// <summary>
