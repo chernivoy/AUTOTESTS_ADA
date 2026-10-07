@@ -27,13 +27,15 @@ public static class AtomicMouse
     private const int SmCxVirtualScreen = 78;
     private const int SmCyVirtualScreen = 79;
 
-    public static void LeftClick(AutomationElement target) => Click(target, MouseEventLeftDown, MouseEventLeftUp);
+    /// <param name="offset">Точка кліку відносно лівого верхнього кута елемента (див. <see cref="WindowMessageInput.LeftClick"/>).</param>
+    public static void LeftClick(AutomationElement target, Point? offset = null) => Click(target, offset, MouseEventLeftDown, MouseEventLeftUp);
 
-    public static void RightClick(AutomationElement target) => Click(target, MouseEventRightDown, MouseEventRightUp);
+    public static void RightClick(AutomationElement target, Point? offset = null) => Click(target, offset, MouseEventRightDown, MouseEventRightUp);
 
-    private static void Click(AutomationElement target, uint buttonDown, uint buttonUp)
+    private static void Click(AutomationElement target, Point? offset, uint buttonDown, uint buttonUp)
     {
-        var point = target.GetClickablePoint();
+        var bounds = target.BoundingRectangle;
+        var point = offset is { } relative ? new Point(bounds.X + relative.X, bounds.Y + relative.Y) : target.GetClickablePoint();
         EnsureTargetIsOnTop(target, point);
 
         var (x, y) = ToAbsolute(point);

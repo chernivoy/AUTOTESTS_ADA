@@ -462,6 +462,67 @@ public sealed class CustomerCase
     }
 
     /// <summary>
+    /// Лист новій людині в справі клієнта, якої ще немає серед контактів ADAICA. Адреса — «vorname.nachname@…»: з такої
+    /// ADAICA сама бере ім'я для пошуку контакту. Щоб адреса була унікальна, як назви фірм (<see cref="NewCompany"/>),
+    /// номер із дати й часу стоїть у піддомені example.com (зарезервований для прикладів, листи туди не доходять):
+    /// «thomas.weber@t261005161500.example.com». За адресою тест упізнає і лист, і створену з нього персону.
+    /// </summary>
+    /// <param name="moreRecipients">Скільки ще нових людей додати в «Кому».</param>
+    /// <param name="copies">Скільки нових людей додати в копію (CC).</param>
+    public MailData NewMail(int moreRecipients = 0, int copies = 0)
+    {
+        var others = Enumerable.Range(0, moreRecipients).Select(_ => MailAddresseeKind.To)
+            .Concat(Enumerable.Range(0, copies).Select(_ => MailAddresseeKind.Cc))
+            .Select(kind =>
+            {
+                var person = NewMailPerson();
+                return new MailAddressee(person, NewMailAddress(person), kind);
+            })
+            .ToList();
+        return NewMailTo(NewMailPerson()) with { Others = others };
+    }
+
+    /// <summary>Ще один лист тій самій людині, але на нову унікальну адресу (наприклад, з іншої поштової скриньки).</summary>
+    public MailData NewMailTo(EmployeeData recipient)
+    {
+        var greeting = recipient.Salutation == "Frau"
+            ? $"Sehr geehrte Frau {recipient.LastName},"
+            : $"Sehr geehrter Herr {recipient.LastName},";
+        return new MailData(
+            Recipient: recipient,
+            To: NewMailAddress(recipient),
+            Subject: PickUnused(
+                $"Unterlagen {_topic.Title} – {_customer.Company}",
+                $"Rückfrage zu {_topic.Object}",
+                $"Terminvorschlag {_topic.Title}"),
+            Body: string.Join(
+                Environment.NewLine + Environment.NewLine,
+                greeting,
+                Pick(
+                    $"{Contact.Nominative} hat mir Ihre Adresse gegeben. Gerne sende ich Ihnen die Unterlagen für {_topic.Object}.",
+                    $"wie mit {Contact.Dative} besprochen, melde ich mich wegen {_topic.Object}. Passt Ihnen ein Termin nächste Woche?",
+                    $"vielen Dank für Ihre Anfrage zu {_topic.Object}. Die Offerte erhalten Sie bis Ende Woche."),
+                "Freundliche Grüße"),
+            Others: []);
+    }
+
+    /// <summary>Людина, якій пишуть лист: не контактна особа фірми, щоб це була нова людина.</summary>
+    public EmployeeData NewMailPerson()
+    {
+        var isWoman = System.Random.Shared.Next(2) == 0;
+        return new EmployeeData(
+            FirstName: Pick(isWoman ? WomenFirstNames : MenFirstNames),
+            LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
+            Salutation: isWoman ? "Frau" : "Herr",
+            ShortName: ShortName,
+            Function: "Mitarbeiter");
+    }
+
+    /// <summary>Нова унікальна адреса людини: «vorname.nachname@t261005161500.example.com».</summary>
+    public static string NewMailAddress(EmployeeData person) =>
+        $"{EmailPart(person.FirstName)}.{EmailPart(person.LastName)}@t{NewCustomerNumber()}.example.com";
+
+    /// <summary>
     /// Завдання для списку «Meine Aufgaben» навігатора Dashboard. Список показує лише завдання з датами поблизу
     /// сьогодні, тож завдання почалося вчора зранку. Термін, виконання й закриття тест задає сам, залежно від фільтра.
     /// Annahmeart «Bestätigung» пропонує ADAICA: автор, він же виконавець, приймає таке завдання одразу.

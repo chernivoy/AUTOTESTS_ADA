@@ -4,6 +4,7 @@ using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Tools;
 
 namespace ADAICA_AUTOTEST.Pages;
 
@@ -19,6 +20,9 @@ public sealed class ContactFindCreateWindow
 
     // «Nein» у вікні «Meinten Sie vielleicht…» (wndExistObjects).
     private const string ExistingPersonsCancelId = "btnCancelWndExistObjects";
+
+    // Пошук контактів триває від кількох секунд до хвилини: за e-mail, що є в багатьох листах, — найдовше.
+    private static readonly TimeSpan SearchTimeout = TimeSpan.FromSeconds(120);
 
     private readonly Window _owner;
 
@@ -43,6 +47,9 @@ public sealed class ContactFindCreateWindow
         Email = new TextBoxControl("E-Mail", Locate.ById(Root, SearchLineId, "txtBoxPACEmail", "txtBox"));
         Action = new LabelControl("Aktion", Locate.ById(Root, SearchLineId, "tbActionInfo"));
         NewButton = new ButtonControl("Neu", Locate.ById(Root, "btnNewFindBoxPAC"));
+        FindButton = new ButtonControl("Finden", Locate.ById(Root, "btnSearchFindBoxPAC"));
+        StopButton = new ButtonControl("Abbrechen", Locate.ById(Root, "btnStopFindBoxPAC"));
+        OkButton = new ButtonControl("OK", Locate.ById(Root, "btnHide"));
         CloseButton = new ButtonControl("Schließen", Locate.ById(Root, "btnClose"));
     }
 
@@ -78,6 +85,16 @@ public sealed class ContactFindCreateWindow
     public ButtonControl NewButton { get; }
 
     public ButtonControl CloseButton { get; }
+
+    public ButtonControl FindButton { get; }
+
+    public ButtonControl StopButton { get; }
+
+    /// <summary>
+    /// «OK» є, лише коли вікно відкрито для вибору контакту (наприклад, з вікна збереження листа): бере вибраний
+    /// у результатах контакт.
+    /// </summary>
+    public ButtonControl OkButton { get; }
 
     // IsAvailable для закритого вікна WPF лишається true, тому перевіряємо, чи вікно ще серед дочірніх.
     public bool IsOpen => ChildWindows(_owner).Contains(Root);
@@ -152,6 +169,102 @@ public sealed class ContactFindCreateWindow
         }
 
         return new NewPersonDialog(_owner, Root);
+    }
+
+    /// <summary>
+    /// «Finden» за тим, що введено в рядку пошуку, і вибір контакту з адресою <paramref name="email"/> у результатах
+    /// (колонка «E-Mail»), потім «OK». Так у вікні, відкритому для вибору контакту, береться наявна персона чи фірма.
+    /// </summary>
+    [AllureStep("Знайти контакт і вибрати той, що має e-mail {email}")]
+    public void ChooseFound(string email)
+    {
+        Find();
+
+        var row = Wait.For(() => ResultRow("E-Mail", email), $"контакту з e-mail {email} у результатах пошуку");
+        row.Patterns.SelectionItem.Pattern.Select();
+        Wait.Until(() => OkButton.IsEnabled, "доступної кнопки OK у вікні «Finden & Erstellen»");
+        OkButton.Click();
+        Wait.Until(() => !IsOpen, "закриття вікна «Finden & Erstellen» після вибору контакту");
+    }
+
+    /// <summary>
+    /// «Finden» і картка контакту <paramref name="name"/> з результатів в окремому вікні: контекстне меню рядка →
+    /// «Öffnen» → «In separatem Fenster». Вікно картки — дочірнє вікно цього вікна, з назвою контакту.
+    /// </summary>
+    [AllureStep("Знайти контакт {name} і відкрити його картку в окремому вікні")]
+    public Window OpenFoundInWindow(string name)
+    {
+        Find();
+
+        AutomationElement? Item(string id) =>
+            Popups.FindDescendant(Root, cf => cf.ByAutomationId(id)) ?? Popups.FindDescendant(_owner, cf => cf.ByAutomationId(id));
+        UiInput.RightClick(
+            () => Wait.For(() => ResultRow("Person # Firma", name), $"контакту «{name}» у результатах пошуку"),
+            () => Item("mnuOpen") is not null,
+            $"контекстного меню контакту «{name}»");
+        new MenuItemControl("Öffnen", () => Wait.For(() => Item("mnuOpen"), "пункту «Öffnen»")).Expand();
+        new MenuItemControl("In separatem Fenster", () => Wait.For(() => Item("mnuOpenInOwnWindow"), "пункту «In separatem Fenster»")).Click();
+        return Wait.For(
+            () => Root.FindFirstChild(cf => cf.ByControlType(ControlType.Window).And(cf.ByName(name)))?.AsWindow(),
+            $"вікна картки «{name}»");
+    }
+
+    /// <summary>
+    /// «Finden» і очікування результатів. Якщо ADAICA під час пошуку питає підтвердження (наприклад, коли результатів
+    /// багато), відповідає «Ja», а текст питання записує у звіт.
+    /// </summary>
+    public void Find() => AllureApi.Step("Знайти контакти кнопкою «Finden»", () =>
+    {
+        FindButton.Click();
+        // Поки пошук триває, доступна «Abbrechen»; на швидкому пошуку вона може й не встигнути стати доступною.
+        Retry.WhileFalse(() => StopButton.IsEnabled, TimeSpan.FromSeconds(3), ignoreException: true);
+        Wait.Until(() =>
+        {
+            if ((MessageBoxDialog.Find(Root) ?? MessageBoxDialog.Find(_owner)) is { } question)
+            {
+                AllureApi.Step($"ADAICA питає під час пошуку: «{question.Message.Text}» — «Ja»");
+                TestContext.Out.WriteLine($"[Finden & Erstellen] {question.Message.Text} — Ja");
+                question.Button("Ja").Click();
+            }
+
+            return !StopButton.IsEnabled;
+        }, "завершення пошуку контактів", SearchTimeout);
+    });
+
+    /// <summary>«Person # Firma» усіх рядків результатів пошуку.</summary>
+    public IReadOnlyList<string> FoundNames
+    {
+        get
+        {
+            var list = Root.FindFirstDescendant(cf => cf.ByAutomationId("lvPersonsAndCompaniesResult"))?
+                .FindFirstDescendant(cf => cf.ByAutomationId("listView"));
+            var headers = list?.FindFirstChild(cf => cf.ByControlType(ControlType.Header))?.FindAllChildren();
+            if (list is null || headers is null)
+                return [];
+
+            var index = Array.FindIndex(headers, header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name == "Person # Firma");
+            return list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+                .Select(row => string.Join(" ", row.FindAllChildren().ElementAtOrDefault(index)?
+                    .FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Select(text => text.Name) ?? []))
+                .ToList();
+        }
+    }
+
+    // Рядок результатів, у якому колонка column має значення value; колонки беремо за заголовками.
+    private AutomationElement? ResultRow(string column, string value)
+    {
+        var list = Root.FindFirstDescendant(cf => cf.ByAutomationId("lvPersonsAndCompaniesResult"))?
+            .FindFirstDescendant(cf => cf.ByAutomationId("listView"));
+        var headers = list?.FindFirstChild(cf => cf.ByControlType(ControlType.Header))?.FindAllChildren();
+        if (list is null || headers is null)
+            return null;
+
+        var index = Array.FindIndex(headers, header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name == column);
+        return index < 0
+            ? null
+            : list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+                .FirstOrDefault(row => row.FindAllChildren().ElementAtOrDefault(index)?
+                    .FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Any(text => text.Name == value) == true);
     }
 
     /// <summary>Після OK у «Neue Person/Firma» ADAICA закриває й це вікно, але трохи пізніше.</summary>

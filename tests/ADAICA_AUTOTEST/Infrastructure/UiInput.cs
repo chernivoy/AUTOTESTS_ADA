@@ -1,3 +1,4 @@
+using System.Drawing;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Tools;
@@ -33,10 +34,12 @@ public enum InputMode
 public static class UiInput
 {
     /// <summary>Клік лівою кнопкою по <paramref name="target"/>, після якого має виконатися <paramref name="done"/>.</summary>
-    public static void LeftClick(Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+    /// <param name="offset">Точка кліку відносно лівого верхнього кута елемента (див. <see cref="RightClick"/>).</param>
+    public static void LeftClick(
+        Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
-            () => WindowMessageInput.LeftClick(target()),
-            () => AtomicMouse.LeftClick(target()),
+            () => WindowMessageInput.LeftClick(target(), offset),
+            () => AtomicMouse.LeftClick(target(), offset),
             "клік мишею",
             done, expectation, timeout);
 
@@ -45,15 +48,16 @@ public static class UiInput
     /// закриває, якщо застосунок неактивний; правий клік ADAICA активує сама, а кнопку — ні. Тому перед кліком ADAICA
     /// стає активною, а <see cref="ForegroundGuard"/> поверне фокус користувачеві, щойно меню закриється.
     /// </summary>
-    public static void LeftClickOpeningMenu(Func<AutomationElement> target, Func<bool> opened, string expectation, TimeSpan? timeout = null) =>
+    public static void LeftClickOpeningMenu(
+        Func<AutomationElement> target, Func<bool> opened, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
             () =>
             {
                 var element = target();
                 WindowMessageInput.Activate(element);
-                WindowMessageInput.LeftClick(element);
+                WindowMessageInput.LeftClick(element, offset);
             },
-            () => AtomicMouse.LeftClick(target()),
+            () => AtomicMouse.LeftClick(target(), offset),
             "клік мишею",
             opened, expectation, timeout);
 
@@ -62,15 +66,20 @@ public static class UiInput
     /// відкриває контекстне меню, а меню WPF живе лише в активному застосунку, тож ADAICA спершу стає активною
     /// (див. <see cref="LeftClickOpeningMenu"/>).
     /// </summary>
-    public static void RightClick(Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+    /// <param name="offset">
+    /// Точка кліку відносно лівого верхнього кута елемента, у фізичних пікселях, — для вмісту, якого UI Automation
+    /// не показує; без неї — середина елемента.
+    /// </param>
+    public static void RightClick(
+        Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
         Perform(
             () =>
             {
                 var element = target();
                 WindowMessageInput.Activate(element);
-                WindowMessageInput.RightClick(element);
+                WindowMessageInput.RightClick(element, offset);
             },
-            () => AtomicMouse.RightClick(target()),
+            () => AtomicMouse.RightClick(target(), offset),
             "правий клік мишею",
             done, expectation, timeout);
 
@@ -93,6 +102,26 @@ public static class UiInput
                 Keyboard.Type(key);
             },
             $"клавіша {key} на клавіатурі",
+            done, expectation, timeout);
+
+    /// <summary>
+    /// Друкує текст у поле з фокусом у вікні <paramref name="target"/> — для полів, яких UI Automation не бачить
+    /// (поле треба спершу клацнути). Що текст надруковано, видно лише з наслідку, тож умову передає виклик.
+    /// </summary>
+    public static void TypeText(Func<AutomationElement> target, string text, Func<bool> done, string expectation, TimeSpan? timeout = null) =>
+        Perform(
+            () =>
+            {
+                var element = target();
+                WindowMessageInput.Activate(element);
+                WindowMessageInput.TypeText(element, text);
+            },
+            () =>
+            {
+                AtomicMouse.TopLevelWindow(target()).SetForeground();
+                Keyboard.Type(text);
+            },
+            $"текст «{text}» на клавіатурі",
             done, expectation, timeout);
 
     private static void Perform(Action viaMessages, Action viaDevice, string deviceAction, Func<bool> done, string expectation, TimeSpan? timeout)

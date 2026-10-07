@@ -17,6 +17,17 @@ public abstract class UiTestBase
     [SetUp]
     public void StartApplication() => Session = AppSession.Launch(TestSettings.AppPath);
 
+    /// <summary>
+    /// Перезапускає застосунок посеред тесту — наприклад, щоб застосувати опції, які діють лише після перезапуску.
+    /// <paramref name="exit"/> коректно закриває застосунок; якщо він так і не завершився, процес зупиняється.
+    /// </summary>
+    protected void RestartApplication(Action exit)
+    {
+        exit();
+        Session.Dispose();
+        Session = AppSession.Launch(TestSettings.AppPath);
+    }
+
     [TearDown]
     public void StopApplication()
     {
@@ -25,8 +36,18 @@ public abstract class UiTestBase
 
         try
         {
+            // Скріншот може не вдатися (UI Automation не відповідає), але прибирання після тесту все одно потрібне.
             if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
-                CaptureScreenshot();
+            {
+                try
+                {
+                    CaptureScreenshot();
+                }
+                catch (Exception ex)
+                {
+                    TestContext.Out.WriteLine($"Не вдалося зняти скріншот падіння: {ex}");
+                }
+            }
 
             CloseApplication();
         }

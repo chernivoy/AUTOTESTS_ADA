@@ -56,6 +56,27 @@ public sealed class CommunicationsList(Window owner, AutomationElement root, str
                 throw new InvalidOperationException($"Рядок «{communication.Value}» у «Verbindung» не збережено: {error}");
         });
 
+    /// <summary>
+    /// Видаляє рядок зі значенням <paramref name="value"/>: контекстне меню рядка → «Löschen» → «Möchten Sie diese
+    /// Verbindung löschen?» → «Ja». ADAICA зберігає зміну одразу, без OK картки.
+    /// </summary>
+    public void Delete(string value) => AllureApi.Step($"Видалити з «Verbindung» {value}", () =>
+    {
+        AutomationElement? Row() =>
+            List.FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
+                .FirstOrDefault(item => item.FindFirstChild(cf => cf.ByControlType(ControlType.Text).And(cf.ByName(value))) is not null);
+
+        UiInput.RightClick(
+            () => Wait.For(Row, $"рядка «{value}» у «Verbindung»"),
+            () => FindInPopups("Löschen") is not null,
+            $"контекстного меню рядка «{value}»");
+        new MenuItemControl("Löschen", () => Wait.For(() => FindInPopups("Löschen"), "пункту «Löschen»")).Click();
+        var question = Wait.For(() => MessageBoxDialog.Find(owner), "питання «Möchten Sie diese Verbindung löschen?»");
+        question.Message.ShouldHaveText("Möchten Sie diese Verbindung löschen?");
+        question.Button("Ja").Click();
+        Wait.Until(() => Row() is null, $"видалення рядка «{value}» з «Verbindung»");
+    });
+
     /// <summary>Збережені рядки в порядку показу: групи й рядки в групі.</summary>
     public IReadOnlyList<CommunicationData> Items =>
         List.FindAllChildren(cf => cf.ByControlType(ControlType.TreeItem))
@@ -80,7 +101,9 @@ public sealed class CommunicationsList(Window owner, AutomationElement root, str
         List.FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
             .FirstOrDefault(item => item.FindFirstChild(cf => cf.ByControlType(ControlType.Edit)) is not null);
 
-    // Меню кнопки «+» відкривається у WPF Popup (див. Popups).
+    // Меню відкриваються у WPF Popup (див. Popups): дочірньому вікну головного вікна або вікна картки, якщо картку
+    // відкрито окремим вікном.
     private AutomationElement? FindInPopups(string itemName) =>
-        Popups.FindDescendant(owner, cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName)));
+        Popups.FindDescendant(owner, cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName)))
+        ?? Popups.FindDescendant(root, cf => cf.ByControlType(ControlType.MenuItem).And(cf.ByName(itemName)));
 }

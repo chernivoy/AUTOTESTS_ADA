@@ -48,7 +48,11 @@ public sealed class NewPersonDialog : ChildDialog
         MaidenName = new TextBoxControl("Geburtsname", Locate.ById(Root, "txtWndPCCreateMaidenName"));
         Department = new ComboBoxControl("Organisationseinheit", Locate.ById(Root, "cmbWndPCCreateDepartment"));
         Function = new ComboBoxControl("Funktion", Locate.ById(Root, "cmbWndPCCreateVacancion"));
+        LetterSalutation = new TextBoxControl("Briefanrede", Locate.ById(Root, "txtWndPCCreateShortSalutation"));
     }
+
+    /// <summary>Briefanrede, яку ADAICA складає з Anrede, титулу й імені («Sehr geehrter Herr Weber,»).</summary>
+    public TextBoxControl LetterSalutation { get; }
 
     public TextBoxControl Company { get; }
 
