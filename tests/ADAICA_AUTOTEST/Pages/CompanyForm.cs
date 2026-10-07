@@ -103,6 +103,15 @@ public class CompanyForm(Window owner, AutomationElement root)
         return new CategoriesDialog(owner);
     }
 
+    /// <summary>Кнопка з ключем під «+» біля «Verbindung» (підказка «Konfiguration der Liste von Kommunikationsarten»).</summary>
+    [AllureStep("Відкрити довідники контактів кнопкою «Konfiguration der Liste von Kommunikationsarten»")]
+    public ContactDefaultsWindow OpenContactDefaults()
+    {
+        GeneralTab.Select();
+        new ButtonControl("Konfiguration der Liste von Kommunikationsarten", Locate.ById(root, "btnConfigurationWndCompanyCommunication")).Click();
+        return new ContactDefaultsWindow(owner);
+    }
+
     [AllureStep("Відкрити вікно нового банківського рахунку кнопкою «+»")]
     public BankAccountDialog OpenNewBankAccountDialog()
     {
