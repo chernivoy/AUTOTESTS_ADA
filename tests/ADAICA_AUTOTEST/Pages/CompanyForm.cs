@@ -51,6 +51,9 @@ public class CompanyForm(Window owner, AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "txtRemark"));
 
+    /// <summary>«Vorauswahl Korrespondenz → Mitarbeiter»: основний одержувач листів фірми («Primärer Briefempfänger»).</summary>
+    public ComboBoxControl CorrespondenceEmployee { get; } = new("Vorauswahl Korrespondenz: Mitarbeiter", Locate.ById(root, "cmbEmployeeCompany"));
+
     public ComboBoxControl CorrespondencePreference { get; } = new("Korrespondenz-Präferenz", Locate.ById(root, "cmbCorrespondencePreference"));
 
     public ComboBoxControl ElectronicContact { get; } =

@@ -480,19 +480,22 @@ public sealed partial class MainPage : AdaicaWindow
         return new ContactFindCreateWindow(Window);
     }
 
-    /// <summary>Вузол співробітника → «Mitarbeiter umziehen». Співробітника шукаємо серед виділеного вузла та його предків.</summary>
-    [AllureStep("Відкрити вікно «Mitarbeiter umziehen»: вузол {employeeNode} → контекстне меню → Mitarbeiter umziehen")]
-    public EmployeeMoveWindow OpenEmployeeMoveWindow(string employeeNode)
+    /// <summary>
+    /// Вузол співробітника за шляхом «Фірма», «Mitarbeiter», «Відділ», «Співробітник» (див. <see cref="NodeAt"/>): після
+    /// «Mitarbeiter kopieren» той самий співробітник є у двох відділах → «Mitarbeiter umziehen».
+    /// </summary>
+    [AllureStep("Відкрити вікно «Mitarbeiter umziehen»: вузол {employeePath} → контекстне меню → Mitarbeiter umziehen")]
+    public EmployeeMoveWindow OpenEmployeeMoveWindow(params string[] employeePath)
     {
-        OpenNodeContextMenu(SelectedOrAnyNode(employeeNode));
+        OpenNodeContextMenu(NodeAt(employeePath));
         PopupMenuItem("Mitarbeiter umziehen", "MnuEmployeeMove").Click();
         return new EmployeeMoveWindow(Window);
     }
 
-    [AllureStep("Відкрити вікно «Mitarbeiter bearbeiten»: вузол {employeeNode} → контекстне меню → Mitarbeiter bearbeiten")]
-    public EmployeeEditWindow OpenEmployeeEditWindow(string employeeNode)
+    [AllureStep("Відкрити вікно «Mitarbeiter bearbeiten»: вузол {employeePath} → контекстне меню → Mitarbeiter bearbeiten")]
+    public EmployeeEditWindow OpenEmployeeEditWindow(params string[] employeePath)
     {
-        OpenNodeContextMenu(SelectedOrAnyNode(employeeNode));
+        OpenNodeContextMenu(NodeAt(employeePath));
         PopupMenuItem("Mitarbeiter bearbeiten", "MnuEmployeeEdit").Click();
         return new EmployeeEditWindow(Window);
     }
@@ -501,24 +504,37 @@ public sealed partial class MainPage : AdaicaWindow
     /// Вузол співробітника → «Mitarbeiter aus der Organisationseinheit lösen». ADAICA питає «Verbindung zu … lösen?»
     /// (вікно «Beziehung lösen»); питання повертаємо тесту. У співробітника з «andere Tätigkeiten» цього пункту немає.
     /// </summary>
-    [AllureStep("Відв'язати співробітника від відділу: вузол {employeeNode} → контекстне меню → Mitarbeiter aus der Organisationseinheit lösen")]
-    public MessageBoxDialog DetachEmployeeFromDepartment(string employeeNode)
+    [AllureStep("Відв'язати співробітника від відділу: вузол {employeePath} → контекстне меню → Mitarbeiter aus der Organisationseinheit lösen")]
+    public MessageBoxDialog DetachEmployeeFromDepartment(params string[] employeePath)
     {
-        OpenNodeContextMenu(SelectedOrAnyNode(employeeNode));
+        OpenNodeContextMenu(NodeAt(employeePath));
         PopupMenuItem("Mitarbeiter aus der Organisationseinheit lösen", "MnuEmployeeDeleteFromDepartment").Click();
         return Wait.For(FindMessageBox, "питання «Verbindung zu … lösen?»");
     }
 
+    /// <summary>Виділяє вузол за шляхом (див. <see cref="NodeAt"/>), наприклад відділ: «Фірма», «Mitarbeiter», «Відділ».</summary>
+    [AllureStep("Вибрати вузол {path} у дереві навігатора")]
+    public MainPage SelectNavigatorNodeAt(params string[] path)
+    {
+        UiInput.LeftClick(
+            () =>
+            {
+                var node = NodeAt(path);
+                return NodeText(ScrolledIntoView(node)) ?? node;
+            },
+            () => SelectedNodeWithAncestors() is { Count: > 0 } selected
+                && selected.Select(node => WithoutRecordRange(NodeText(node)!.Name)).TakeLast(path.Length).SequenceEqual(path),
+            $"виділення вузла «{string.Join(" → ", path)}»");
+        return this;
+    }
+
     /// <summary>
-    /// Назви дочірніх вузлів (без вкладених глибше) вузла за шляхом <paramref name="path"/>: перший вузол шукаємо серед
-    /// виділеного та його предків, як у <see cref="OpenNewDepartmentDialog"/>, наступні — серед дочірніх. Згорнуті вузли
-    /// шляху розгортає. Наприклад, співробітники відділу: «Фірма», «Mitarbeiter», «Відділ».
+    /// Назви дочірніх вузлів (без вкладених глибше) вузла за шляхом <paramref name="path"/> (див. <see cref="NodeAt"/>).
+    /// Наприклад, співробітники відділу: «Фірма», «Mitarbeiter», «Відділ».
     /// </summary>
     public IReadOnlyList<string> ChildNodeNames(params string[] path)
     {
-        var node = SelectedOrAnyNode(path[0]);
-        foreach (var name in path.Skip(1))
-            node = ChildNode(node, name);
+        var node = NodeAt(path);
 
         // Вузла без дочірніх (наприклад, порожнього відділу) трикутник не має.
         if (node.FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) is null)
@@ -688,6 +704,18 @@ public sealed partial class MainPage : AdaicaWindow
         return Wait.For(
             () => ChildNodes(parent).FirstOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == nodeName),
             $"вузла «{nodeName}» під «{WithoutRecordRange(NodeText(parent)!.Name)}»");
+    }
+
+    /// <summary>
+    /// Вузол за шляхом: перший вузол шукаємо серед виділеного та його предків, як у <see cref="OpenNewDepartmentDialog"/>,
+    /// наступні — серед дочірніх попереднього. Згорнуті вузли шляху розгортає.
+    /// </summary>
+    private AutomationElement NodeAt(IReadOnlyList<string> path)
+    {
+        var node = SelectedOrAnyNode(path[0]);
+        foreach (var name in path.Skip(1))
+            node = ChildNode(node, name);
+        return node;
     }
 
     // Згорнутий вузол розгортає кліком по трикутнику.

@@ -28,13 +28,40 @@ public abstract class EmployeeWindow
             $"вікна «{title}»");
 
         Functions = new EmployeeFunctionsGrid(Root);
+        PrimaryForDepartment = new CheckBoxControl(
+            "Primärer Briefempfänger für diese Organisationseinheit", () => CheckBox("Primärer Briefempfänger für diese Organisationseinheit"));
+        PrimaryForCompany = new CheckBoxControl(
+            "Primärer Briefempfänger für das gesamte Unternehmen", () => CheckBox("Primärer Briefempfänger für das gesamte Unternehmen"));
         OkButton = new ButtonControl("OK", () => Button("OK"));
         CancelButton = new ButtonControl("Abbrechen", () => Button("Abbrechen"));
     }
 
     public EmployeeFunctionsGrid Functions { get; }
 
+    /// <summary>
+    /// Основний одержувач листів відділу. Увімкнений прапорець недоступний: зняти його не можна, лише призначити іншого
+    /// співробітника, і тоді ADAICA знімає його в попереднього.
+    /// </summary>
+    public CheckBoxControl PrimaryForDepartment { get; }
+
+    /// <summary>Основний одержувач листів фірми; як і <see cref="PrimaryForDepartment"/>, лише передається іншому.</summary>
+    public CheckBoxControl PrimaryForCompany { get; }
+
     public ButtonControl OkButton { get; }
+
+    /// <summary>
+    /// Перевіряє обидва прапорці «Primärer Briefempfänger…»: увімкнений має бути недоступним (його лише передають
+    /// іншому), вимкнений — доступним.
+    /// </summary>
+    public void ShouldHavePrimaryRecipient(bool forDepartment, bool forCompany) =>
+        AllureApi.Step($"Перевірити «Primärer Briefempfänger»: відділ — {OnOff(forDepartment)}, фірма — {OnOff(forCompany)}", () =>
+            this.ShouldSatisfyAllConditions(
+                () => PrimaryForDepartment.ShouldBeChecked(forDepartment),
+                () => PrimaryForDepartment.IsEnabled.ShouldBe(!forDepartment, $"Доступність «{PrimaryForDepartment.Name}»"),
+                () => PrimaryForCompany.ShouldBeChecked(forCompany),
+                () => PrimaryForCompany.IsEnabled.ShouldBe(!forCompany, $"Доступність «{PrimaryForCompany.Name}»")));
+
+    private static string OnOff(bool value) => value ? "так" : "ні";
 
     public ButtonControl CancelButton { get; }
 

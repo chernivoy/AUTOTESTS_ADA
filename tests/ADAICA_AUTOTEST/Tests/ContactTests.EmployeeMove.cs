@@ -76,7 +76,7 @@ public partial class ContactTests
         MoveEmployee(mainPage, company.Name, departments, original, departments[1],
             [customer.ActiveFunction(customer.PickEmployeeFunction())], copy: true);
 
-        EmployeeFunctionsShouldBe(mainPage, original);
+        EmployeeFunctionsShouldBe(mainPage, company.Name, original);
     }
 
     /// <summary>
@@ -104,19 +104,100 @@ public partial class ContactTests
 
         var moved = MoveEmployee(mainPage, company.Name, departments, inDefault, departments[0], []);
 
-        var question = mainPage.DetachEmployeeFromDepartment(moved.Node);
+        var question = mainPage.DetachEmployeeFromDepartment(moved.Path(company.Name));
         AllureApi.Step($"Перевірити питання: «Beziehung lösen» з іменем «{employee.LastName} {employee.FirstName}»", () =>
             question.ShouldSatisfyAllConditions(
                 () => question.Title.ShouldBe("Beziehung lösen"),
                 () => question.Message.Text.ShouldContain($"{employee.LastName} {employee.FirstName}")));
         question.Button("Ja").Click();
 
-        // Функцію відділу ADAICA не переносить: у «andere Tätigkeiten» співробітник знову «Mitarbeiter» (поведінку ще
-        // має підтвердити розробник, див. README «Переміщення співробітників»).
+        // Функцію відділу ADAICA не переносить: у «andere Tätigkeiten» співробітник знову «Mitarbeiter» (так задумано).
         var detached = moved with { Department = DefaultDepartment, Functions = [new EmployeeFunctionData(StandardFunction)] };
         EmployeeShouldBeIn(mainPage, company.Name, detached);
         EmployeeShouldNotBeIn(mainPage, company.Name, moved);
-        EmployeeFunctionsShouldBe(mainPage, detached);
+        EmployeeFunctionsShouldBe(mainPage, company.Name, detached);
+    }
+
+    /// <summary>
+    /// «Primärer Briefempfänger» — основний одержувач листів відділу й фірми. Перший співробітник фірми стає ним для
+    /// фірми й свого відділу, перший у відділі — для відділу; увімкнений прапорець недоступний, його лише передають
+    /// іншому співробітнику («Mitarbeiter bearbeiten» чи «Mitarbeiter umziehen»), і в попереднього він знімається.
+    /// Основного одержувача показує «Vorauswahl Korrespondenz → Mitarbeiter» у картках фірми й відділу. Співробітник,
+    /// який переходить в інший відділ, лишається основним для фірми; у порожньому відділі він стає основним сам, а з
+    /// «Mitarbeiter kopieren» — ще й лишається ним у старому відділі.
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void KontakteNavigator_PrimaryLetterRecipient()
+    {
+        var mainPage = LogInAndOpenNavigator("Kontakte");
+        var customer = CustomerCase.Random();
+        var company = customer.NewCompany();
+        var departments = new[] { customer.NewDepartment(), customer.NewDepartment(), customer.NewDepartment() };
+        var (first, second, third) = (customer.NewEmployee(), customer.NewEmployee(), customer.NewEmployee());
+
+        CreateCompany(mainPage, company);
+        CreateDepartmentWithEmployee(mainPage, company.Name, departments[0], first);
+        CreateDepartmentEmployee(mainPage, company.Name, departments[0], second);
+        CreateDepartmentWithEmployee(mainPage, company.Name, departments[1], third);
+        CreateDepartment(mainPage, company.Name, departments[2]);
+
+        EmployeeInDepartment In(EmployeeData employee, string department) =>
+            new(employee, department, [new EmployeeFunctionData(StandardFunction)]);
+        var (firstInA, secondInA, thirdInB) = (In(first, departments[0]), In(second, departments[0]), In(third, departments[1]));
+
+        // Перший співробітник фірми й перший у відділі стають основними одержувачами самі.
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInA, forDepartment: true, forCompany: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, secondInA, forDepartment: false, forCompany: false);
+        PrimaryRecipientShouldBe(mainPage, company.Name, thirdInB, forDepartment: true, forCompany: false);
+        CompanyPrimaryRecipientShouldBe(mainPage, company.Name, firstInA);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], firstInA);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], thirdInB);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[2], null);
+
+        // «Mitarbeiter bearbeiten»: роль переходить до іншого співробітника.
+        SetPrimaryRecipient(mainPage, company.Name, secondInA, forDepartment: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, secondInA, forDepartment: true, forCompany: false);
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInA, forDepartment: false, forCompany: true);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
+
+        SetPrimaryRecipient(mainPage, company.Name, thirdInB, forCompany: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, thirdInB, forDepartment: true, forCompany: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInA, forDepartment: false, forCompany: false);
+        CompanyPrimaryRecipientShouldBe(mainPage, company.Name, thirdInB);
+
+        // «Mitarbeiter umziehen» з обома прапорцями: співробітник забирає обидві ролі.
+        var firstInB = MoveEmployee(mainPage, company.Name, departments, firstInA, departments[1], [], inWindow: window =>
+        {
+            window.ShouldHavePrimaryRecipient(forDepartment: false, forCompany: false);
+            window.PrimaryForDepartment.SetChecked(true);
+            window.PrimaryForCompany.SetChecked(true);
+        });
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInB, forDepartment: true, forCompany: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, thirdInB, forDepartment: false, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], firstInB);
+        CompanyPrimaryRecipientShouldBe(mainPage, company.Name, firstInB);
+
+        // Без прапорців основним одержувачем відділу лишається той, хто ним був.
+        var thirdInA = MoveEmployee(mainPage, company.Name, departments, thirdInB, departments[0], [],
+            inWindow: window => window.ShouldHavePrimaryRecipient(forDepartment: false, forCompany: false));
+        PrimaryRecipientShouldBe(mainPage, company.Name, thirdInA, forDepartment: false, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
+
+        // Основний одержувач фірми лишається ним і в іншому відділі; у порожньому відділі він стає основним сам.
+        var firstInC = MoveEmployee(mainPage, company.Name, departments, firstInB, departments[2], [],
+            inWindow: window => window.ShouldHavePrimaryRecipient(forDepartment: true, forCompany: true));
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInC, forDepartment: true, forCompany: true);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[2], firstInC);
+        CompanyPrimaryRecipientShouldBe(mainPage, company.Name, firstInC);
+
+        // Копія основного одержувача відділу в порожній відділ: він основний і там, і там.
+        var secondInB = MoveEmployee(mainPage, company.Name, departments, secondInA, departments[1], [], copy: true,
+            inWindow: window => window.ShouldHavePrimaryRecipient(forDepartment: true, forCompany: false));
+        PrimaryRecipientShouldBe(mainPage, company.Name, secondInB, forDepartment: true, forCompany: false);
+        PrimaryRecipientShouldBe(mainPage, company.Name, secondInA, forDepartment: true, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], secondInB);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
     }
 
     /// <summary>Співробітник у відділі та його функції там.</summary>
@@ -124,6 +205,9 @@ public partial class ContactTests
     {
         /// <summary>Вузол співробітника під відділом.</summary>
         public string Node => Employee.NodeNameWith(Functions.Select(function => function.Function));
+
+        /// <summary>Шлях до вузла співробітника в дереві: «Фірма», «Mitarbeiter», «Відділ», «Співробітник».</summary>
+        public string[] Path(string companyName) => [companyName, EmployeesNode, Department, Node];
     }
 
     /// <summary>
@@ -189,6 +273,7 @@ public partial class ContactTests
     /// співробітник має бути виділений у новому відділі, зникнути зі старого (або лишитися там, якщо
     /// <paramref name="copy"/>), а «Mitarbeiter bearbeiten» — показати збережені функції.
     /// </summary>
+    /// <param name="inWindow">Що ще зробити у вікні перед OK, наприклад перевірити чи ввімкнути «Primärer Briefempfänger…».</param>
     private EmployeeInDepartment MoveEmployee(
         MainPage mainPage,
         string companyName,
@@ -196,10 +281,11 @@ public partial class ContactTests
         EmployeeInDepartment source,
         string to,
         IReadOnlyList<EmployeeFunctionData> functions,
-        bool copy = false) =>
+        bool copy = false,
+        Action<EmployeeMoveWindow>? inWindow = null) =>
         AllureApi.Step($"Перемістити «{source.Node}» з «{source.Department}» у «{to}»{(copy ? " (копія)" : string.Empty)}", () =>
         {
-            var window = mainPage.OpenEmployeeMoveWindow(source.Node);
+            var window = mainPage.OpenEmployeeMoveWindow(source.Path(companyName));
             OnCleanup(window.CancelIfOpen);
 
             window.SourceDepartment.ShouldHaveText(source.Department);
@@ -221,6 +307,7 @@ public partial class ContactTests
             window.Functions.ShouldHaveFunctions(expected, isNew: true);
 
             window.CopyEmployee.SetChecked(copy);
+            inWindow?.Invoke(window);
             window.Confirm();
 
             var moved = source with { Department = to, Functions = expected };
@@ -230,15 +317,55 @@ public partial class ContactTests
                 EmployeeShouldBeIn(mainPage, companyName, source);
             else
                 EmployeeShouldNotBeIn(mainPage, companyName, source);
-            EmployeeFunctionsShouldBe(mainPage, moved);
+            EmployeeFunctionsShouldBe(mainPage, companyName, moved);
             return moved;
         });
 
+    /// <summary>«Mitarbeiter bearbeiten» → прапорці «Primärer Briefempfänger…» співробітника; вікно закривається без змін.</summary>
+    private void PrimaryRecipientShouldBe(MainPage mainPage, string companyName, EmployeeInDepartment employee, bool forDepartment, bool forCompany) =>
+        AllureApi.Step($"Перевірити «Primärer Briefempfänger» «{employee.Node}» у «{employee.Department}»", () =>
+        {
+            var window = mainPage.OpenEmployeeEditWindow(employee.Path(companyName));
+            OnCleanup(window.CancelIfOpen);
+            window.ShouldHavePrimaryRecipient(forDepartment, forCompany);
+            window.Cancel();
+        });
+
+    /// <summary>«Mitarbeiter bearbeiten» → увімкнути прапорець «Primärer Briefempfänger…» → OK.</summary>
+    private void SetPrimaryRecipient(
+        MainPage mainPage, string companyName, EmployeeInDepartment employee, bool forDepartment = false, bool forCompany = false) =>
+        AllureApi.Step($"Зробити «{employee.Node}» основним одержувачем {(forDepartment ? "відділу" : "фірми")}", () =>
+        {
+            var window = mainPage.OpenEmployeeEditWindow(employee.Path(companyName));
+            OnCleanup(window.CancelIfOpen);
+            if (forDepartment)
+                window.PrimaryForDepartment.SetChecked(true);
+            if (forCompany)
+                window.PrimaryForCompany.SetChecked(true);
+            window.Confirm();
+        });
+
+    /// <summary>Картка фірми: «Vorauswahl Korrespondenz → Mitarbeiter» — основний одержувач листів фірми.</summary>
+    private static void CompanyPrimaryRecipientShouldBe(MainPage mainPage, string companyName, EmployeeInDepartment employee) =>
+        AllureApi.Step($"Перевірити, що основний одержувач фірми — «{employee.Node}»", () =>
+        {
+            mainPage.SelectNavigatorNode(companyName);
+            mainPage.WaitForOpenedCompany(companyName).CorrespondenceEmployee.ShouldHaveSelected(employee.Node);
+        });
+
+    /// <summary>Картка відділу: «Vorauswahl Korrespondenz → Mitarbeiter»; null — основного одержувача немає.</summary>
+    private static void DepartmentPrimaryRecipientShouldBe(MainPage mainPage, string companyName, string department, EmployeeInDepartment? employee) =>
+        AllureApi.Step($"Перевірити, що основний одержувач відділу «{department}» — «{employee?.Node ?? "немає"}»", () =>
+        {
+            mainPage.SelectNavigatorNodeAt(companyName, EmployeesNode, department);
+            mainPage.WaitForOpenedDepartment(department).CorrespondenceEmployee.ShouldHaveSelected(employee?.Node);
+        });
+
     /// <summary>«Mitarbeiter bearbeiten» показує функції співробітника в його відділі; вікно закривається без змін.</summary>
-    private void EmployeeFunctionsShouldBe(MainPage mainPage, EmployeeInDepartment employee) =>
+    private void EmployeeFunctionsShouldBe(MainPage mainPage, string companyName, EmployeeInDepartment employee) =>
         AllureApi.Step($"Перевірити функції «{employee.Node}» у «{employee.Department}»", () =>
         {
-            var window = mainPage.OpenEmployeeEditWindow(employee.Node);
+            var window = mainPage.OpenEmployeeEditWindow(employee.Path(companyName));
             OnCleanup(window.CancelIfOpen);
             window.Functions.ShouldHaveFunctions(employee.Functions);
             window.Cancel();
