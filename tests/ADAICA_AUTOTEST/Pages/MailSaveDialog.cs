@@ -79,8 +79,9 @@ public sealed class MailSaveDialog
     // Після OK ADAICA зберігає лист і його вкладення.
     private static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(60);
 
-    // Після кількох листів поспіль ADAICA відкриває вікно повільніше, а виклики UI Automation до неї тим часом
-    // закінчуються таймаутом COM (перевірено 08.10.2026: четвертий лист тесту пропозицій).
+    // Зазвичай ADAICA готує надісланий лист до вікна за 1–7 с, але буває й майже 30 с (08.10.2026: один лист із 41 —
+    // 28,6 с, причини в логах немає; від кількості листів у сесії час не залежить). Виклики UI Automation тим часом
+    // закінчуються таймаутом COM.
     private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(30);
 
     private readonly Window _mainWindow;
