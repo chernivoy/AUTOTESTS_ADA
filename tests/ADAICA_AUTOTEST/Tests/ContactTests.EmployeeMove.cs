@@ -200,6 +200,49 @@ public partial class ContactTests
         DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
     }
 
+    /// <summary>
+    /// Коли основний одержувач листів відділу йде з відділу, роль переходить до співробітника, що лишився. Після
+    /// «Mitarbeiter aus der Organisationseinheit lösen» ADAICA так і робить, а після «Mitarbeiter umziehen» — ні:
+    /// старий відділ лишається без основного одержувача. Це баг ADAICA, тест падає навмисно (README, «Тести, що падають
+    /// навмисно»).
+    /// </summary>
+    [Test]
+    [AllureSeverity(SeverityLevel.critical)]
+    public void KontakteNavigator_PrimaryRecipientPassesToRemainingEmployee()
+    {
+        var mainPage = LogInAndOpenNavigator("Kontakte");
+        var customer = CustomerCase.Random();
+        var company = customer.NewCompany();
+        var departments = new[] { customer.NewDepartment(), customer.NewDepartment() };
+        var employees = Enumerable.Range(0, 4).Select(_ => customer.NewEmployee()).ToArray();
+
+        CreateCompany(mainPage, company);
+        CreateDepartmentWithEmployee(mainPage, company.Name, departments[0], employees[0]);
+        CreateDepartmentEmployee(mainPage, company.Name, departments[0], employees[1]);
+        CreateDepartmentWithEmployee(mainPage, company.Name, departments[1], employees[2]);
+        CreateDepartmentEmployee(mainPage, company.Name, departments[1], employees[3]);
+
+        EmployeeInDepartment In(EmployeeData employee, string department) =>
+            new(employee, department, [new EmployeeFunctionData(StandardFunction)]);
+        var (firstInA, secondInA) = (In(employees[0], departments[0]), In(employees[1], departments[0]));
+        var (thirdInB, fourthInB) = (In(employees[2], departments[1]), In(employees[3], departments[1]));
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], firstInA);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], thirdInB);
+
+        // «lösen»: основним одержувачем відділу стає той, хто лишився.
+        var question = mainPage.DetachEmployeeFromDepartment(thirdInB.Path(company.Name));
+        question.Button("Ja").Click();
+        EmployeeShouldBeIn(mainPage, company.Name, thirdInB with { Department = DefaultDepartment });
+        PrimaryRecipientShouldBe(mainPage, company.Name, fourthInB, forDepartment: true, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], fourthInB);
+
+        // «Mitarbeiter umziehen»: так само має бути й тут, але ADAICA лишає відділ без основного одержувача (баг).
+        var firstInB = MoveEmployee(mainPage, company.Name, departments, firstInA, departments[1], []);
+        PrimaryRecipientShouldBe(mainPage, company.Name, firstInB, forDepartment: false, forCompany: true);
+        PrimaryRecipientShouldBe(mainPage, company.Name, secondInA, forDepartment: true, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
+    }
+
     /// <summary>Співробітник у відділі та його функції там.</summary>
     private sealed record EmployeeInDepartment(EmployeeData Employee, string Department, IReadOnlyList<EmployeeFunctionData> Functions)
     {
