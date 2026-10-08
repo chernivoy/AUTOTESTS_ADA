@@ -12,7 +12,7 @@ namespace ADAICA_AUTOTEST.Pages;
 /// Поки що тест працює лише з опціями пошти (<see cref="MailOptions"/>). Опції зберігаються в базі: системні — для
 /// всіх користувачів, «Anwender» — для поточного; діють після перезапуску ADAICA.
 /// </summary>
-public sealed class OptionsWindow
+public sealed partial class OptionsWindow
 {
     public const string WindowId = "wndConfiguration";
     private const string RestartMessage = "Änderungen werden erst nach dem Neustart der Anwendung wirksam";

@@ -49,6 +49,9 @@ public sealed class MailSaveDialog
     // Пункт, який є лише в меню рядка «Dokumentation», а в меню порожнього місця (тільки «Neu» і «Finden») — ні.
     private const string RecordRowMenuItem = "Beziehung lösen";
 
+    // Пункт меню рядка «Dokumentation», що ставить позначку «Verknüpft».
+    private const string LinkItem = "Verknüpfung erstellen";
+
     // Заголовок вікна дочірнього запису: «Neue Notiz (übergeordnet: Назва батька)».
     private const string ParentTitlePrefix = "(übergeordnet: ";
 
@@ -76,6 +79,10 @@ public sealed class MailSaveDialog
     // Після OK ADAICA зберігає лист і його вкладення.
     private static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(60);
 
+    // Після кількох листів поспіль ADAICA відкриває вікно повільніше, а виклики UI Automation до неї тим часом
+    // закінчуються таймаутом COM (перевірено 08.10.2026: четвертий лист тесту пропозицій).
+    private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(30);
+
     private readonly Window _mainWindow;
 
     public MailSaveDialog(Window mainWindow)
@@ -84,7 +91,8 @@ public sealed class MailSaveDialog
         Root = Wait.For(
             () => mainWindow.FindAllChildren(cf => cf.ByControlType(ControlType.Window))
                 .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByAutomationId("lvMail")) is not null)?.AsWindow(),
-            $"вікна «{WindowTitle}»");
+            $"вікна «{WindowTitle}»",
+            OpenTimeout);
 
         OkButton = new ButtonControl("OK", () => Root.FindFirstChild(cf => cf.ByControlType(ControlType.Button).And(cf.ByName("OK"))));
         CancelButton = new ButtonControl("Abbrechen", () => Root.FindFirstChild(cf => cf.ByControlType(ControlType.Button).And(cf.ByName("Abbrechen"))));
@@ -319,6 +327,44 @@ public sealed class MailSaveDialog
         AllureApi.Step($"Рядок {recordRow + 1}: «{label}»");
         return label;
     });
+
+    /// <summary>
+    /// Підписи всіх записів на вкладці «Dokumentation», починаючи з рядка <paramref name="fromRow"/> (рядок 0 —
+    /// «ROOT EMAIL»), згори вниз (<see cref="RecordRowLabel"/>; кілька секунд на рядок).
+    /// </summary>
+    public IReadOnlyList<string> RecordRowLabels(int fromRow = 0) =>
+        AllureApi.Step($"Прочитати записи на вкладці «Dokumentation» з рядка {fromRow + 1}", () =>
+        {
+            var labels = new List<string>();
+            for (var row = fromRow; HasRecordRow(row); row++)
+                labels.Add(RecordRowLabel(row));
+            AllureApi.Step($"Записи: {(labels.Count == 0 ? "немає" : string.Join("; ", labels))}");
+            return (IReadOnlyList<string>)labels;
+        });
+
+    /// <summary>
+    /// Чи позначено запис у рядку <paramref name="recordRow"/> «Verknüpft» (лист буде під ним): у меню такого рядка
+    /// доступний «Beziehung lösen», а в запропонованого ADAICA запису — лише «Verknüpfung erstellen».
+    /// </summary>
+    public bool IsRecordRowLinked(int recordRow) =>
+        AllureApi.Step($"Перевірити, чи позначено «Verknüpft» рядок {recordRow + 1} на вкладці «Dokumentation»", () =>
+        {
+            SelectTab("Dokumentation");
+            UiInput.RightClick(() => Links, () => RecordRowMenu() is not null, $"контекстного меню рядка {recordRow + 1}", offset: RecordRow(recordRow));
+            var linked = MenuItem(RecordRowMenu, RecordRowMenuItem).IsEnabled;
+            CloseMenu(RecordListMenu);
+            return linked;
+        });
+
+    /// <summary>Меню рядка <paramref name="recordRow"/> на вкладці «Dokumentation» → «Verknüpfung erstellen»: позначка «Verknüpft».</summary>
+    public void LinkRecordRow(int recordRow) =>
+        AllureApi.Step($"Рядок {recordRow + 1} на вкладці «Dokumentation» → контекстне меню → «{LinkItem}»", () =>
+        {
+            SelectTab("Dokumentation");
+            UiInput.RightClick(() => Links, () => RecordRowMenu() is not null, $"контекстного меню рядка {recordRow + 1}", offset: RecordRow(recordRow));
+            MenuItem(RecordRowMenu, LinkItem).Click();
+            Wait.Until(() => IsRecordRowLinked(recordRow), $"позначки «Verknüpft» у рядку {recordRow + 1}");
+        });
 
     /// <summary>
     /// Чи є на вкладці «Dokumentation» рядок <paramref name="recordRow"/>: правий клік по рядку відкриває меню рядка
