@@ -23,6 +23,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string AppointmentsNodeName = "Termine";
     private const string NotesNodeName = "Notizen";
     private const string MailsNodeName = "E-Mails";
+    private const string RecycleBinNodeName = "Papierkorb";
     private const string SaveSentMailQuestion = "Soll diese Nachricht gespeichert werden?";
     private const string ContactsRootNodeName = "Gesamtliste";
     private const string ContactFavoritesNodeName = "Favoriten";
@@ -388,6 +389,54 @@ public sealed partial class MainPage : AdaicaWindow
                 && WithoutRecordRange(NodeText(path[^2])!.Name) == recordNode,
             $"виділення вузла «{folderName}» під «{recordNode}»");
         return new RecordList(Window);
+    }
+
+    /// <summary>Вузол «Papierkorb» навігатора Dokumentation: видалені записи.</summary>
+    [AllureStep("Відкрити вузол Papierkorb")]
+    public RecycleBin OpenRecycleBin()
+    {
+        SelectNavigatorNode(RecycleBinNodeName);
+        return new RecycleBin(Window);
+    }
+
+    /// <summary>
+    /// Внутрішній ID запису <paramref name="recordNode"/> з вікна «Eigenschaften» (контекстне меню запису). Запис
+    /// шукаємо серед виділеного вузла та його предків, як і в OpenNewChildMenu.
+    /// </summary>
+    [AllureStep("Прочитати ID запису {recordNode}: контекстне меню → Eigenschaften")]
+    public string ReadRecordId(string recordNode)
+    {
+        OpenNodeContextMenu(SelectedOrAnyNode(recordNode));
+        PopupMenuItem("Eigenschaften", "mnuProperties").Click();
+        var properties = new PropertiesWindow(Window);
+        var id = properties.Id;
+        properties.Close();
+        return id;
+    }
+
+    /// <summary>
+    /// «Löschen» з контекстного меню запису <paramref name="recordNode"/> (шукаємо серед виділеного вузла та його предків).
+    /// ADAICA питає «Folgende Elemente werden gelöscht: …»; питання повертаємо тесту. «Ja» переносить запис разом із
+    /// дочірніми, не пов'язаними з іншими записами, у Papierkorb.
+    /// </summary>
+    [AllureStep("Видалити запис {recordNode}: контекстне меню → Löschen")]
+    public MessageBoxDialog DeleteRecord(string recordNode)
+    {
+        OpenNodeContextMenu(SelectedOrAnyNode(recordNode));
+        PopupMenuItem("Löschen", "mnuRecordDeleteItem").Click();
+        return Wait.For(FindMessageBox, "питання «Löschen»");
+    }
+
+    /// <summary>
+    /// «Aktualisieren» з контекстного меню вузла (шукаємо серед виділеного вузла та його предків): дерево під ним
+    /// ADAICA перечитує з бази.
+    /// </summary>
+    [AllureStep("Оновити вузол {nodeName}: контекстне меню → Aktualisieren")]
+    public MainPage RefreshNavigatorNode(string nodeName)
+    {
+        OpenNodeContextMenu(SelectedOrAnyNode(nodeName));
+        PopupMenuItem("Aktualisieren", "mnuRefresh").Click();
+        return this;
     }
 
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
