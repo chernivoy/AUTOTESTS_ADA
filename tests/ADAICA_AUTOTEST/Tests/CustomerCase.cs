@@ -69,6 +69,9 @@ public sealed class CustomerCase
     private static readonly string[] Departments =
         ["Buchhaltung", "Geschäftsleitung", "Verkauf", "Einkauf", "Personalwesen", "Kundendienst", "Technik"];
 
+    // Ролі для нової функції, яку тест додає в довідник щоразу (див. NewEmployeeFunction).
+    private static readonly string[] CaseRoles = ["Projektleitung", "Ansprechperson", "Koordination", "Fachverantwortung"];
+
     private static readonly string[] WomenFirstNames = ["Sabine", "Andrea", "Claudia", "Nicole", "Petra", "Sandra", "Monika"];
 
     private static readonly string[] MenFirstNames = ["Thomas", "Daniel", "Markus", "Stefan", "Andreas", "Peter", "Martin"];
@@ -128,6 +131,53 @@ public sealed class CustomerCase
         Name: $"{_customer.Company} {NewCustomerNumber()}",
         ShortName: ShortName);
 
+    /// <summary>
+    /// Функції співробітників (Mitarbeiterfunktion), які тест додає в довідник один раз: дублікатів довідник не приймає,
+    /// тож якщо функція вже є, тест її не додає. Назви не залежать від справи клієнта, бо довідник спільний для всіх фірм.
+    /// </summary>
+    public static IReadOnlyList<string> EmployeeFunctions { get; } =
+    [
+        "Abteilungsleitung",
+        "Stellvertretende Abteilungsleitung",
+        "Teamleitung",
+        "Projektleitung",
+        "Sachbearbeitung",
+        "Assistenz der Geschäftsleitung",
+        "Kundenberatung",
+        "Qualitätssicherung",
+        "Datenschutzbeauftragte",
+        "Lernende",
+    ];
+
+    /// <summary>
+    /// Нова функція, яку тест додає в довідник, коли <see cref="EmployeeFunctions"/> там уже є: «Koordination 261007150102».
+    /// Номер, як у <see cref="NewCompany"/>, робить назву унікальною. Поле назви приймає до 50 символів, а тест пише в нього
+    /// через UI Automation в обхід цього обмеження, і довшу назву ADAICA мовчки не зберігає (README «Переміщення
+    /// співробітників»), тож тема справи в назву не йде.
+    /// </summary>
+    public string NewEmployeeFunction() => $"{Pick(CaseRoles)} {NewCustomerNumber()}";
+
+    /// <summary>Функція з <see cref="EmployeeFunctions"/>, якої ще не було в цій справі.</summary>
+    public string PickEmployeeFunction() => PickUnused(EmployeeFunctions.ToArray());
+
+    /// <summary>Функція, яка діє з дня в минулому, без кінця: статус «Aktiv».</summary>
+    public EmployeeFunctionData ActiveFunction(string function) =>
+        new(function, ValidFrom: UniqueDays(1, toDay: -1)[0]);
+
+    /// <summary>Функція, яка діяла в минулому: статус «Beendet».</summary>
+    public EmployeeFunctionData EndedFunction(string function)
+    {
+        var days = UniqueDays(2, toDay: -1);
+        return new EmployeeFunctionData(function, days[0], days[1]);
+    }
+
+    /// <summary>Функція, яка почне діяти в майбутньому: статус «Geplant».</summary>
+    public EmployeeFunctionData PlannedFunction(string function)
+    {
+        var days = UniqueDays(2, fromDay: 1);
+        return new EmployeeFunctionData(function, days[0], days[1]);
+    }
+
     /// <summary>Відділ (Organisationseinheit) фірми клієнта.</summary>
     public string NewDepartment() => PickUnused(Departments);
 
@@ -135,7 +185,8 @@ public sealed class CustomerCase
     /// Співробітник фірми клієнта. Ім'я й Anrede узгоджені, бо ADAICA вгадує Anrede за ім'ям. Прізвище не збігається
     /// з контактною особою фірми, щоб співробітник був іншою людиною.
     /// </summary>
-    public EmployeeData NewEmployee()
+    /// <param name="function">Funktion у вікні «Neue Person/Firma»; за замовчуванням єдина стандартна «Mitarbeiter».</param>
+    public EmployeeData NewEmployee(string function = "Mitarbeiter")
     {
         var isWoman = System.Random.Shared.Next(2) == 0;
         return new EmployeeData(
@@ -143,7 +194,7 @@ public sealed class CustomerCase
             LastName: PickUnused(Surnames.Where(surname => surname != Contact.Surname).ToArray()),
             Salutation: isWoman ? "Frau" : "Herr",
             ShortName: ShortName,
-            Function: "Mitarbeiter");
+            Function: function);
     }
 
     /// <summary>

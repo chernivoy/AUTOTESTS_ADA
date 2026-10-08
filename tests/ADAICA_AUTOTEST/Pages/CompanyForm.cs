@@ -51,6 +51,9 @@ public class CompanyForm(Window owner, AutomationElement root)
 
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "txtRemark"));
 
+    /// <summary>«Vorauswahl Korrespondenz → Mitarbeiter»: основний одержувач листів фірми («Primärer Briefempfänger»).</summary>
+    public ComboBoxControl CorrespondenceEmployee { get; } = new("Vorauswahl Korrespondenz: Mitarbeiter", Locate.ById(root, "cmbEmployeeCompany"));
+
     public ComboBoxControl CorrespondencePreference { get; } = new("Korrespondenz-Präferenz", Locate.ById(root, "cmbCorrespondencePreference"));
 
     public ComboBoxControl ElectronicContact { get; } =
@@ -101,6 +104,15 @@ public class CompanyForm(Window owner, AutomationElement root)
         GeneralTab.Select();
         new ButtonControl("...", Locate.ById(root, "categoriesCompany", "btnMoreCategories")).Click();
         return new CategoriesDialog(owner);
+    }
+
+    /// <summary>Кнопка з ключем під «+» біля «Verbindung» (підказка «Konfiguration der Liste von Kommunikationsarten»).</summary>
+    [AllureStep("Відкрити довідники контактів кнопкою «Konfiguration der Liste von Kommunikationsarten»")]
+    public ContactDefaultsWindow OpenContactDefaults()
+    {
+        GeneralTab.Select();
+        new ButtonControl("Konfiguration der Liste von Kommunikationsarten", Locate.ById(root, "btnConfigurationWndCompanyCommunication")).Click();
+        return new ContactDefaultsWindow(owner);
     }
 
     [AllureStep("Відкрити вікно нового банківського рахунку кнопкою «+»")]

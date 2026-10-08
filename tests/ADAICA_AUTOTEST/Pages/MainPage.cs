@@ -468,6 +468,88 @@ public sealed partial class MainPage : AdaicaWindow
     }
 
     /// <summary>
+    /// Новий співробітник фірми без відділу: вузол «Mitarbeiter» фірми → «Mitarbeiter zur Firma hinzufügen». ADAICA
+    /// відкриває той самий пошук «Finden &amp; Erstellen», а у «Neue Person/Firma» відділ — «andere Tätigkeiten» (його
+    /// можна змінити). Фірму шукаємо серед виділеного вузла та його предків.
+    /// </summary>
+    [AllureStep("Відкрити вікно нового співробітника фірми: вузол {companyNode} → Mitarbeiter → контекстне меню → Mitarbeiter zur Firma hinzufügen")]
+    public ContactFindCreateWindow OpenNewCompanyEmployeeWindow(string companyNode)
+    {
+        OpenNodeContextMenu(ChildNode(SelectedOrAnyNode(companyNode), EmployeesNodeName));
+        PopupMenuItem("Mitarbeiter zur Firma hinzufügen", "MnuEmployeesEmployeeNew").Click();
+        return new ContactFindCreateWindow(Window);
+    }
+
+    /// <summary>
+    /// Вузол співробітника за шляхом «Фірма», «Mitarbeiter», «Відділ», «Співробітник» (див. <see cref="NodeAt"/>): після
+    /// «Mitarbeiter kopieren» той самий співробітник є у двох відділах → «Mitarbeiter umziehen».
+    /// </summary>
+    [AllureStep("Відкрити вікно «Mitarbeiter umziehen»: вузол {employeePath} → контекстне меню → Mitarbeiter umziehen")]
+    public EmployeeMoveWindow OpenEmployeeMoveWindow(params string[] employeePath)
+    {
+        OpenNodeContextMenu(NodeAt(employeePath));
+        PopupMenuItem("Mitarbeiter umziehen", "MnuEmployeeMove").Click();
+        return new EmployeeMoveWindow(Window);
+    }
+
+    [AllureStep("Відкрити вікно «Mitarbeiter bearbeiten»: вузол {employeePath} → контекстне меню → Mitarbeiter bearbeiten")]
+    public EmployeeEditWindow OpenEmployeeEditWindow(params string[] employeePath)
+    {
+        OpenNodeContextMenu(NodeAt(employeePath));
+        PopupMenuItem("Mitarbeiter bearbeiten", "MnuEmployeeEdit").Click();
+        return new EmployeeEditWindow(Window);
+    }
+
+    /// <summary>
+    /// Вузол співробітника → «Mitarbeiter aus der Organisationseinheit lösen». ADAICA питає «Verbindung zu … lösen?»
+    /// (вікно «Beziehung lösen»); питання повертаємо тесту. У співробітника з «andere Tätigkeiten» цього пункту немає.
+    /// </summary>
+    [AllureStep("Відв'язати співробітника від відділу: вузол {employeePath} → контекстне меню → Mitarbeiter aus der Organisationseinheit lösen")]
+    public MessageBoxDialog DetachEmployeeFromDepartment(params string[] employeePath)
+    {
+        OpenNodeContextMenu(NodeAt(employeePath));
+        PopupMenuItem("Mitarbeiter aus der Organisationseinheit lösen", "MnuEmployeeDeleteFromDepartment").Click();
+        return Wait.For(FindMessageBox, "питання «Verbindung zu … lösen?»");
+    }
+
+    /// <summary>Виділяє вузол за шляхом (див. <see cref="NodeAt"/>), наприклад відділ: «Фірма», «Mitarbeiter», «Відділ».</summary>
+    [AllureStep("Вибрати вузол {path} у дереві навігатора")]
+    public MainPage SelectNavigatorNodeAt(params string[] path)
+    {
+        UiInput.LeftClick(
+            () =>
+            {
+                var node = NodeAt(path);
+                return NodeText(ScrolledIntoView(node)) ?? node;
+            },
+            () => SelectedNodeWithAncestors() is { Count: > 0 } selected
+                && selected.Select(node => WithoutRecordRange(NodeText(node)!.Name)).TakeLast(path.Length).SequenceEqual(path),
+            $"виділення вузла «{string.Join(" → ", path)}»");
+        return this;
+    }
+
+    /// <summary>
+    /// Назви дочірніх вузлів (без вкладених глибше) вузла за шляхом <paramref name="path"/> (див. <see cref="NodeAt"/>).
+    /// Наприклад, співробітники відділу: «Фірма», «Mitarbeiter», «Відділ».
+    /// </summary>
+    public IReadOnlyList<string> ChildNodeNames(params string[] path)
+    {
+        var node = NodeAt(path);
+
+        // Вузла без дочірніх (наприклад, порожнього відділу) трикутник не має.
+        if (node.FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) is null)
+            return [];
+
+        Expand(node);
+        var children = ChildNodes(node);
+        var indent = children.Select(child => NodeText(child)!.BoundingRectangle.Left).DefaultIfEmpty().Min();
+        return children
+            .Where(child => NodeText(child)!.BoundingRectangle.Left == indent)
+            .Select(child => WithoutRecordRange(NodeText(child)!.Name))
+            .ToList();
+    }
+
+    /// <summary>
     /// Нова персона в навігаторі Kontakte: як і для фірми, ADAICA спершу відкриває пошук «Finden &amp; Erstellen».
     /// Якщо в рядку пошуку є й фірма, «Neu» створює персону разом із фірмою.
     /// </summary>
@@ -618,28 +700,48 @@ public sealed partial class MainPage : AdaicaWindow
     /// </summary>
     private AutomationElement ChildNode(AutomationElement parent, string nodeName)
     {
+        Expand(parent);
+        return Wait.For(
+            () => ChildNodes(parent).FirstOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == nodeName),
+            $"вузла «{nodeName}» під «{WithoutRecordRange(NodeText(parent)!.Name)}»");
+    }
+
+    /// <summary>
+    /// Вузол за шляхом: перший вузол шукаємо серед виділеного та його предків, як у <see cref="OpenNewDepartmentDialog"/>,
+    /// наступні — серед дочірніх попереднього. Згорнуті вузли шляху розгортає.
+    /// </summary>
+    private AutomationElement NodeAt(IReadOnlyList<string> path)
+    {
+        var node = SelectedOrAnyNode(path[0]);
+        foreach (var name in path.Skip(1))
+            node = ChildNode(node, name);
+        return node;
+    }
+
+    // Згорнутий вузол розгортає кліком по трикутнику.
+    private void Expand(AutomationElement parent)
+    {
         var parentName = WithoutRecordRange(NodeText(parent)!.Name);
         var toggle = parent.FindFirstChild(cf => cf.ByAutomationId("ToggleButton"))
             ?? throw new InvalidOperationException($"Вузол «{parentName}» не має дочірніх вузлів.");
-        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.On)
-        {
-            UiInput.LeftClick(
-                () => ScrolledIntoView(parent).FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) ?? toggle,
-                () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On,
-                $"розгортання вузла «{parentName}»");
-        }
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On)
+            return;
 
-        return Wait.For(
-            () =>
-            {
-                var nodes = NavigatorTree.FindAllChildren();
-                var index = Array.IndexOf(nodes, parent);
-                var indent = NodeText(parent)!.BoundingRectangle.Left;
-                return nodes.Skip(index + 1)
-                    .TakeWhile(node => NodeText(node) is { } text && text.BoundingRectangle.Left > indent)
-                    .FirstOrDefault(node => WithoutRecordRange(NodeText(node)!.Name) == nodeName);
-            },
-            $"вузла «{nodeName}» під «{parentName}»");
+        UiInput.LeftClick(
+            () => ScrolledIntoView(parent).FindFirstChild(cf => cf.ByAutomationId("ToggleButton")) ?? toggle,
+            () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On,
+            $"розгортання вузла «{parentName}»");
+    }
+
+    // Усі вкладені вузли: ті, що йдуть за батьком і мають більший відступ.
+    private List<AutomationElement> ChildNodes(AutomationElement parent)
+    {
+        var nodes = NavigatorTree.FindAllChildren();
+        var index = Array.IndexOf(nodes, parent);
+        var indent = NodeText(parent)!.BoundingRectangle.Left;
+        return nodes.Skip(index + 1)
+            .TakeWhile(node => NodeText(node) is { } text && text.BoundingRectangle.Left > indent)
+            .ToList();
     }
 
     /// <summary>

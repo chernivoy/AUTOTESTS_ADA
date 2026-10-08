@@ -27,5 +27,15 @@ public sealed record EmployeeData(
     /// <summary>Вузол персони в дереві навігатора: «von Gerber, Claudia Dr. (Mitarbeiter)».</summary>
     public string NodeName => $"{JoinWords(NameSuffix, LastName)}, {JoinWords(FirstName, Title)} ({Function})";
 
+    /// <summary>
+    /// Вузол співробітника з функціями <paramref name="functions"/> у відділі: якщо їх кілька, ADAICA показує першу за
+    /// абеткою й «,...»: «Fischer, Thomas (Projektleitung,...)».
+    /// </summary>
+    public string NodeNameWith(IEnumerable<string> functions)
+    {
+        var sorted = functions.Order(StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("de-DE"), ignoreCase: false)).ToList();
+        return (this with { Function = sorted.Count > 1 ? $"{sorted[0]},..." : sorted.Single() }).NodeName;
+    }
+
     private static string JoinWords(params string[] words) => string.Join(" ", words.Where(word => word.Length > 0));
 }

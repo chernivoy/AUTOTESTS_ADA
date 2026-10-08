@@ -11,7 +11,7 @@ namespace ADAICA_AUTOTEST.Tests;
 /// (<see cref="CustomerCase.NewCompany"/>), тож за нею фірму можна знайти пошуком і відрізнити від створених раніше.
 /// </summary>
 [AllureSuite("Навігатори")]
-public class ContactTests : AdaicaTestBase
+public partial class ContactTests : AdaicaTestBase
 {
     [Test]
     [Category("Smoke")]
@@ -314,6 +314,13 @@ public class ContactTests : AdaicaTestBase
     /// </summary>
     private void CreateDepartmentWithEmployee(MainPage mainPage, string companyName, string department, EmployeeData employee)
     {
+        CreateDepartment(mainPage, companyName, department);
+        CreateDepartmentEmployee(mainPage, companyName, department, employee);
+    }
+
+    /// <summary>Під фірмою створює відділ: вузол «Mitarbeiter» → «Neue Organisationseinheit hinzufügen».</summary>
+    private void CreateDepartment(MainPage mainPage, string companyName, string department)
+    {
         var departmentDialog = mainPage.OpenNewDepartmentDialog(companyName);
         OnCleanup(departmentDialog.CancelIfOpen);
         departmentDialog.Name.Fill(department);
@@ -322,7 +329,14 @@ public class ContactTests : AdaicaTestBase
         mainPage.WaitForOpenedDepartment(department);
         AllureApi.Step($"Перевірити, що в дереві виділено «{companyName} → Mitarbeiter → {department}»",
             () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { companyName, "Mitarbeiter", department }));
+    }
 
+    /// <summary>
+    /// У відділі створює співробітника як нову персону: меню відділу → «Finden &amp; Erstellen» → «Neue Person/Firma».
+    /// Після збереження ADAICA виділяє співробітника в дереві під відділом і відкриває його картку.
+    /// </summary>
+    private void CreateDepartmentEmployee(MainPage mainPage, string companyName, string department, EmployeeData employee)
+    {
         var findCreateWindow = mainPage.OpenNewDepartmentEmployeeWindow(department);
         // Якщо тест упаде до збереження, вікна закриються без створення персони.
         OnCleanup(findCreateWindow.CloseIfOpen);
