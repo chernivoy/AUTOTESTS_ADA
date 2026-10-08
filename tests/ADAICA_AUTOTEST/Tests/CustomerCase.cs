@@ -151,8 +151,9 @@ public sealed class CustomerCase
 
     /// <summary>
     /// Нова функція, яку тест додає в довідник, коли <see cref="EmployeeFunctions"/> там уже є: «Koordination 261007150102».
-    /// Номер, як у <see cref="NewCompany"/>, робить назву унікальною. Назву, довшу за 50 символів, ADAICA мовчки не
-    /// зберігає (README «Переміщення співробітників»), тож тема справи в назву не йде.
+    /// Номер, як у <see cref="NewCompany"/>, робить назву унікальною. Поле назви приймає до 50 символів, а тест пише в нього
+    /// через UI Automation в обхід цього обмеження, і довшу назву ADAICA мовчки не зберігає (README «Переміщення
+    /// співробітників»), тож тема справи в назву не йде.
     /// </summary>
     public string NewEmployeeFunction() => $"{Pick(CaseRoles)} {NewCustomerNumber()}";
 
