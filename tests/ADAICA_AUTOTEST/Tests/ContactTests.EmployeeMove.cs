@@ -201,10 +201,10 @@ public partial class ContactTests
     }
 
     /// <summary>
-    /// Коли основний одержувач листів відділу йде з відділу, роль переходить до співробітника, що лишився. Після
-    /// «Mitarbeiter aus der Organisationseinheit lösen» ADAICA так і робить, а після «Mitarbeiter umziehen» — ні:
-    /// старий відділ лишається без основного одержувача. Це баг ADAICA, тест падає навмисно (README, «Тести, що падають
-    /// навмисно»).
+    /// Основний одержувач листів відділу йде з відділу: якщо там лишився один співробітник, роль переходить до нього,
+    /// а якщо кілька — ні до кого. Після «Mitarbeiter aus der Organisationseinheit lösen» ADAICA так і робить, а після
+    /// «Mitarbeiter umziehen» відділ лишається без основного одержувача й тоді, коли там лишився один співробітник. Це
+    /// баг ADAICA, тест падає навмисно (README, «Тести, що падають навмисно»).
     /// </summary>
     [Test]
     [AllureSeverity(SeverityLevel.critical)]
@@ -214,35 +214,49 @@ public partial class ContactTests
         var customer = CustomerCase.Random();
         var company = customer.NewCompany();
         var departments = new[] { customer.NewDepartment(), customer.NewDepartment() };
-        var employees = Enumerable.Range(0, 4).Select(_ => customer.NewEmployee()).ToArray();
+        var employees = Enumerable.Range(0, 5).Select(_ => customer.NewEmployee()).ToArray();
 
         CreateCompany(mainPage, company);
         CreateDepartmentWithEmployee(mainPage, company.Name, departments[0], employees[0]);
         CreateDepartmentEmployee(mainPage, company.Name, departments[0], employees[1]);
-        CreateDepartmentWithEmployee(mainPage, company.Name, departments[1], employees[2]);
-        CreateDepartmentEmployee(mainPage, company.Name, departments[1], employees[3]);
+        CreateDepartmentEmployee(mainPage, company.Name, departments[0], employees[2]);
+        CreateDepartmentWithEmployee(mainPage, company.Name, departments[1], employees[3]);
+        CreateDepartmentEmployee(mainPage, company.Name, departments[1], employees[4]);
 
         EmployeeInDepartment In(EmployeeData employee, string department) =>
             new(employee, department, [new EmployeeFunctionData(StandardFunction)]);
-        var (firstInA, secondInA) = (In(employees[0], departments[0]), In(employees[1], departments[0]));
-        var (thirdInB, fourthInB) = (In(employees[2], departments[1]), In(employees[3], departments[1]));
-        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], firstInA);
-        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], thirdInB);
+        var (a1, a2, a3) = (In(employees[0], departments[0]), In(employees[1], departments[0]), In(employees[2], departments[0]));
+        var (b1, b2) = (In(employees[3], departments[1]), In(employees[4], departments[1]));
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], a1);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], b1);
 
-        // «lösen»: основним одержувачем відділу стає той, хто лишився.
-        var question = mainPage.DetachEmployeeFromDepartment(thirdInB.Path(company.Name));
-        question.Button("Ja").Click();
-        EmployeeShouldBeIn(mainPage, company.Name, thirdInB with { Department = DefaultDepartment });
-        PrimaryRecipientShouldBe(mainPage, company.Name, fourthInB, forDepartment: true, forCompany: false);
-        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], fourthInB);
+        void Detach(EmployeeInDepartment employee)
+        {
+            mainPage.DetachEmployeeFromDepartment(employee.Path(company.Name)).Button("Ja").Click();
+            EmployeeShouldBeIn(mainPage, company.Name, employee with { Department = DefaultDepartment });
+        }
 
-        // «Mitarbeiter umziehen»: так само має бути й тут, але ADAICA лишає відділ без основного одержувача (баг).
-        var firstInB = MoveEmployee(mainPage, company.Name, departments, firstInA, departments[1], []);
-        PrimaryRecipientShouldBe(mainPage, company.Name, firstInB, forDepartment: false, forCompany: true);
-        PrimaryRecipientShouldBe(mainPage, company.Name, secondInA, forDepartment: true, forCompany: false);
-        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], secondInA);
+        // Лишилося кілька співробітників — основного одержувача немає (і після переміщення, і після «lösen»).
+        var a1InB = MoveEmployee(mainPage, company.Name, departments, a1, departments[1], []);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], null);
+        PrimaryRecipientShouldBe(mainPage, company.Name, a2, forDepartment: false, forCompany: false);
+        PrimaryRecipientShouldBe(mainPage, company.Name, a3, forDepartment: false, forCompany: false);
+
+        Detach(b1);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], null);
+
+        // Лишився один — він і стає основним одержувачем. Після «lösen» так і є.
+        SetPrimaryRecipient(mainPage, company.Name, a2, forDepartment: true);
+        Detach(a2);
+        PrimaryRecipientShouldBe(mainPage, company.Name, a3, forDepartment: true, forCompany: false);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[0], a3);
+
+        // Після переміщення має бути так само, але ADAICA лишає відділ без основного одержувача (баг).
+        SetPrimaryRecipient(mainPage, company.Name, b2, forDepartment: true);
+        MoveEmployee(mainPage, company.Name, departments, b2, departments[0], []);
+        PrimaryRecipientShouldBe(mainPage, company.Name, a1InB, forDepartment: true, forCompany: true);
+        DepartmentPrimaryRecipientShouldBe(mainPage, company.Name, departments[1], a1InB);
     }
-
     /// <summary>Співробітник у відділі та його функції там.</summary>
     private sealed record EmployeeInDepartment(EmployeeData Employee, string Department, IReadOnlyList<EmployeeFunctionData> Functions)
     {
