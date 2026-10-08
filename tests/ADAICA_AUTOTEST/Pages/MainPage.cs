@@ -427,18 +427,6 @@ public sealed partial class MainPage : AdaicaWindow
         return Wait.For(FindMessageBox, "питання «Löschen»");
     }
 
-    /// <summary>
-    /// «Aktualisieren» з контекстного меню вузла (шукаємо серед виділеного вузла та його предків): дерево під ним
-    /// ADAICA перечитує з бази.
-    /// </summary>
-    [AllureStep("Оновити вузол {nodeName}: контекстне меню → Aktualisieren")]
-    public MainPage RefreshNavigatorNode(string nodeName)
-    {
-        OpenNodeContextMenu(SelectedOrAnyNode(nodeName));
-        PopupMenuItem("Aktualisieren", "mnuRefresh").Click();
-        return this;
-    }
-
     [AllureStep("Відкрити нове вікно проєкту: вузол Projekte → контекстне меню → Neu")]
     public ProjectDialog OpenNewProjectDialog()
     {

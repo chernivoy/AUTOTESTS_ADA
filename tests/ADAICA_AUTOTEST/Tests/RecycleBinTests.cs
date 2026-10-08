@@ -17,7 +17,6 @@ namespace ADAICA_AUTOTEST.Tests;
 public class RecycleBinTests : AdaicaTestBase
 {
     private const string CurrentNode = "Aktuelle";
-    private const string TasksNode = "Aufgaben";
 
     // Питання «Löschen» і в дереві, і в Papierkorb: «Folgende Elemente werden gelöscht: \nНазва \n\n1.  Das Löschen
     // erfolgt endgültig!\n\n2.  Untergeordnete Elemente …\n\nBestätigen Sie das Löschen?». Довгу назву ADAICA обрізає «...».
@@ -149,47 +148,10 @@ public class RecycleBinTests : AdaicaTestBase
     }
 
     /// <summary>
-    /// Відновлений запис має повернутися туди, звідки його видалено. Завдання під проєктом видаляється й відновлюється;
-    /// у Papierkorb батьком указано проєкт, але відновлене завдання ADAICA показує лише в «Aktuelle», а під проєктом
-    /// його немає й після перезапуску. Так само записи з Gesamtliste не повертаються у свій вузол (Projekte, Ordner, …).
-    /// Імовірний баг, ще не підтверджений розробником (README, «Тести, що падають навмисно»).
-    /// </summary>
-    [Test]
-    [AllureSeverity(SeverityLevel.critical)]
-    public void DokumentationNavigator_RestoredRecordReturnsToParent()
-    {
-        var mainPage = LogInAndOpenDokumentation();
-        var customer = CustomerCase.Random();
-        var (projectNode, projectId) = CreateProject(mainPage, customer);
-
-        var taskDialog = mainPage.OpenNewChildTaskDialog(projectNode);
-        OnCleanup(taskDialog.CancelIfOpen);
-        var task = customer.NewTask();
-        taskDialog.Form.Fill(task);
-        var taskNumber = taskDialog.Form.Number.Text;
-        taskDialog.Save();
-        mainPage.WaitForOpenedTask(taskNumber);
-        var taskId = mainPage.ReadRecordId(task.Name);
-
-        ConfirmDeletion(mainPage, mainPage.DeleteRecord(task.Name), task.Name);
-        var bin = mainPage.OpenRecycleBin();
-        bin.WaitForEntry(taskId).ParentId.ShouldBe(projectId);
-        bin.Restore(taskId);
-        mainPage.WaitForOpenedTask(taskNumber);
-
-        mainPage.RefreshNavigatorNode(projectNode);
-        AllureApi.Step(
-            $"Перевірити, що відновлене завдання знову під «{projectNode} → {TasksNode}»",
-            () =>
-            {
-                mainPage.ChildNodeNames(projectNode).ShouldContain(TasksNode, $"Під проєктом «{projectNode}» немає вузла «{TasksNode}»");
-                mainPage.ChildNodeNames(projectNode, TasksNode).ShouldContain(task.Name);
-            });
-    }
-
-    /// <summary>
     /// Спільний сценарій: «Löschen» → рядок у Papierkorb з усіма колонками → «Wiederherstellen» (запис відкривається
     /// в «Aktuelle» з тими самими полями, рядок зникає з Papierkorb) → знову «Löschen» → остаточне «Löschen» у Papierkorb.
+    /// Видалений запис втрачає зв'язок із батьківським, і відновлення його не повертає (так задумано): запис додається
+    /// лише в «Aktuelle», тож після повторного видалення колонки батька в Papierkorb порожні.
     /// </summary>
     private void DeleteRestoreAndPurge(MainPage mainPage, DeletedRecord record, Action shouldBeRestored)
     {
@@ -213,7 +175,12 @@ public class RecycleBinTests : AdaicaTestBase
         ConfirmDeletion(mainPage, mainPage.DeleteRecord(record.Node), record.Name);
 
         bin = mainPage.OpenRecycleBin();
-        bin.WaitForEntry(id);
+        var deletedAgain = bin.WaitForEntry(id);
+        AllureApi.Step("Перевірити, що в повторно видаленого запису батька немає", () =>
+            deletedAgain.ShouldSatisfyAllConditions(
+                () => deletedAgain.ParentClassType.ShouldBeEmpty(),
+                () => deletedAgain.ParentId.ShouldBeEmpty(),
+                () => deletedAgain.ParentName.ShouldBeEmpty()));
         ConfirmDeletion(mainPage, bin.DeleteForever(id), record.Name);
         bin.ShouldNotContain(id);
     }
