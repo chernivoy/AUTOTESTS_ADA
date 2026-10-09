@@ -37,7 +37,6 @@ public partial class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.critical)]
     public void DokumentationNavigator_NewMailToNewContact()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         var mail = CustomerCase.Random().NewMail();
         var recipient = mail.Recipient;
@@ -95,7 +94,6 @@ public partial class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.normal)]
     public void DokumentationNavigator_MailSaveDialogContactStates()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         var mail = CustomerCase.Random().NewMail(copies: 1);
 
@@ -146,7 +144,6 @@ public partial class MailTests : AdaicaTestBase
     [AllureSeverity(SeverityLevel.critical)]
     public void DokumentationNavigator_MailToExistingContactWithRecords()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         var customer = CustomerCase.Random();
         var account = OutlookApplication.DefaultAccountAddress();
@@ -263,16 +260,6 @@ public partial class MailTests : AdaicaTestBase
         findCreateWindow.WaitUntilClosed();
         return addressee;
     }
-
-    /// <summary>
-    /// Вимикає «Anreden von E-Mail-Empfängern hinzufügen» для користувача й перезапускає ADAICA; після тесту опція
-    /// повертається. Звертання, яке надбудова ADAICA дописує в лист, валить Outlook під час надсилання
-    /// (RICHED20.DLL, приблизно кожен 3–5-й лист; без звертання 12 листів поспіль — без аварій, перевірено 06.10.2026),
-    /// тож тести, що надсилають листи, працюють без нього. Саме звертання перевіряє <see cref="DokumentationNavigator_MailSalutation"/>
-    /// без надсилання.
-    /// </summary>
-    private void TurnOffSalutationForSending() =>
-        SetMailOptionsAndRestart(options => options with { SalutationUser = false });
 
     /// <summary>
     /// Рядок контакту під листом: функція, ім'я, адреса, з якою контакт у листі («Historisch: Kommunikationsnummer»),

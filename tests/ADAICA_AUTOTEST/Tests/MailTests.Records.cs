@@ -77,7 +77,6 @@ public partial class MailTests
     [AllureSeverity(SeverityLevel.normal)]
     public void DokumentationNavigator_MailSaveDialogRecordsToolbar()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         EnsureOutlookAccount(mainPage, OutlookApplication.DefaultAccountAddress());
         var customer = CustomerCase.Random();
@@ -139,7 +138,6 @@ public partial class MailTests
     /// </summary>
     private void MailToNewRecordWithChildRecords(RecordKind parentKind)
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenDokumentation();
         EnsureOutlookAccount(mainPage, OutlookApplication.DefaultAccountAddress());
         var customer = CustomerCase.Random();

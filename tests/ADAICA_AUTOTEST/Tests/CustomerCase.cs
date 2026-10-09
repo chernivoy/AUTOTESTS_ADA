@@ -559,12 +559,13 @@ public sealed class CustomerCase
         return NewMailTo(NewMailPerson()) with { Others = others };
     }
 
-    /// <summary>Ще один лист тій самій людині, але на нову унікальну адресу (наприклад, з іншої поштової скриньки).</summary>
+    /// <summary>
+    /// Ще один лист тій самій людині, але на нову унікальну адресу (наприклад, з іншої поштової скриньки). Звертання
+    /// в тексті немає: його дописує надбудова ADAICA в Outlook («Anreden von E-Mail-Empfängern hinzufügen»), тож текст
+    /// продовжує звертання.
+    /// </summary>
     public MailData NewMailTo(EmployeeData recipient)
     {
-        var greeting = recipient.Salutation == "Frau"
-            ? $"Sehr geehrte Frau {recipient.LastName},"
-            : $"Sehr geehrter Herr {recipient.LastName},";
         return new MailData(
             Recipient: recipient,
             To: NewMailAddress(recipient),
@@ -574,7 +575,6 @@ public sealed class CustomerCase
                 $"Terminvorschlag {_topic.Title}"),
             Body: string.Join(
                 Environment.NewLine + Environment.NewLine,
-                greeting,
                 Pick(
                     $"{Contact.Nominative} hat mir Ihre Adresse gegeben. Gerne sende ich Ihnen die Unterlagen für {_topic.Object}.",
                     $"wie mit {Contact.Dative} besprochen, melde ich mich wegen {_topic.Object}. Passt Ihnen ein Termin nächste Woche?",

@@ -255,7 +255,7 @@ public partial class MailTests
     /// <summary>
     /// «Anreden von E-Mail-Empfängern hinzufügen» увімкнено: щойно в листі з'являються отримувачі, надбудова ADAICA
     /// дописує на початок тексту звертання. Невідомій адресі — «Sehr geehrte Damen und Herren,», адресі персони —
-    /// її Briefanrede з картки. Листи тест не надсилає (зі звертанням Outlook падає під час надсилання), а закриває.
+    /// її Briefanrede з картки. Листи тест не надсилає, а закриває.
     /// </summary>
     [Test]
     [AllureSeverity(SeverityLevel.normal)]

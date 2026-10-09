@@ -174,7 +174,6 @@ public partial class MailTests
     [AllureSeverity(SeverityLevel.normal)]
     public void DokumentationNavigator_MailSuggestsCompanyRecordsForEmployee()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenNavigator("Kontakte");
         EnsureOutlookAccount(mainPage, OutlookApplication.DefaultAccountAddress());
         var customer = CustomerCase.Random();
@@ -207,7 +206,6 @@ public partial class MailTests
     /// </summary>
     private (MainPage MainPage, CustomerCase Customer, EmployeeData Person, string Email) CreateMailContact()
     {
-        TurnOffSalutationForSending();
         var mainPage = LogInAndOpenNavigator("Kontakte");
         EnsureOutlookAccount(mainPage, OutlookApplication.DefaultAccountAddress());
         var customer = CustomerCase.Random();
