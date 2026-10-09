@@ -9,6 +9,12 @@ public sealed class ComboBoxControl(string name, Func<AutomationElement> find) :
 {
     public string? SelectedText => ComboBox.SelectedItem is { } item ? ItemText(item) : null;
 
+    /// <summary>
+    /// Name вибраного пункту або null. У пунктах-ключах (наприклад, «FILTER_TASK_UNDONE» з текстом «Unerledigt») це
+    /// ключ, що не залежить від мови; його видно й у згорнутому списку, а показаний текст — лише в розгорнутому.
+    /// </summary>
+    public string? SelectedItemName => ComboBox.SelectedItem?.Name;
+
     /// <summary>Текст у полі редагованого списку.</summary>
     public string Text => TextInput.Read(Element);
 

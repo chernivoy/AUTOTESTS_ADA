@@ -10,7 +10,7 @@ namespace ADAICA_AUTOTEST.Tests;
 /// Базовий клас тестів ADAICA: після тесту виконує зареєстроване прибирання і завершує застосунок
 /// з підтвердженням виходу, щоб коректно закрити сесію, а не зупиняти процес примусово.
 /// </summary>
-public abstract class AdaicaTestBase : UiTestBase
+public abstract partial class AdaicaTestBase : UiTestBase
 {
     private readonly List<Action> _cleanups = [];
 

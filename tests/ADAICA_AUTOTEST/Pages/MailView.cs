@@ -55,60 +55,10 @@ public sealed class MailView(AutomationElement view)
         });
 
     /// <summary>
-    /// Вкладка «Beziehungen» → «Zugriffspfade»: записи, контакти й об'єкти, з якими зв'язано лист. Після читання
-    /// повертає вкладку «Übersicht», бо ADAICA відкриває наступний лист на вкладці, яку відкривали останньою.
+    /// Вкладка «Beziehungen» → «Zugriffspfade»: записи, контакти й об'єкти, з якими зв'язано лист
+    /// (<see cref="RecordAccessPaths.Read"/>).
     /// </summary>
-    public RecordAccessPaths ReadAccessPaths() => AllureApi.Step("Прочитати «Beziehungen» → «Zugriffspfade» листа", () =>
-    {
-        SelectTab(() => view.FindFirstDescendant(cf => cf.ByControlType(ControlType.TabItem).And(cf.ByName("Beziehungen"))), "Beziehungen");
-        SelectTab(() => view.FindFirstDescendant(cf => cf.ByAutomationId("tiAscendingHierarchy")), "Zugriffspfade");
-        try
-        {
-            var tree = Wait.For(() => view.FindFirstDescendant(cf => cf.ByAutomationId("RecordAncestorTreeListView")), "дерева «Zugriffspfade»");
-            // Дані ADAICA завантажує після відкриття вкладки: лист завжди лежить хоча б в одному записі.
-            Wait.Until(() => tree.FindFirstChild(cf => cf.ByControlType(ControlType.TreeItem)) is not null, "записів у «Zugriffspfade»");
-
-            var paths = new RecordAccessPaths(
-                tree.FindAllChildren(cf => cf.ByControlType(ControlType.TreeItem)).Select(Chain).ToList(),
-                ListNames("ContactsListView"),
-                ListNames("UtObjectsListView"));
-            AllureApi.AddAttachment("Zugriffspfade", "text/plain", System.Text.Encoding.UTF8.GetBytes(paths.ToString()), ".txt");
-            return paths;
-        }
-        finally
-        {
-            SelectTab(() => view.FindFirstDescendant(cf => cf.ByControlType(ControlType.TabItem).And(cf.ByName("Übersicht"))), "Übersicht");
-        }
-    });
-
-    // Запис і його предки: у дереві кожен предок — дочірній вузол попереднього.
-    private static IReadOnlyList<string> Chain(AutomationElement item)
-    {
-        var chain = new List<string>();
-        for (var current = item; current is not null; current = current.FindFirstChild(cf => cf.ByControlType(ControlType.TreeItem)))
-        {
-            chain.Add(current.FindFirstChild(cf => cf.ByControlType(ControlType.Text))?.Name ?? string.Empty);
-            if (current.Patterns.ExpandCollapse.TryGetPattern(out var expand)
-                && expand.ExpandCollapseState.Value == ExpandCollapseState.Collapsed)
-                expand.Expand();
-        }
-
-        return chain;
-    }
-
-    private IReadOnlyList<string> ListNames(string listId) =>
-        view.FindFirstDescendant(cf => cf.ByAutomationId(listId))?
-            .FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
-            .Select(row => row.FindFirstDescendant(cf => cf.ByAutomationId("TextElement"))?.Name ?? string.Empty)
-            .ToList() ?? [];
-
-    private static void SelectTab(Func<AutomationElement?> find, string name)
-    {
-        var tab = Wait.For(find, $"вкладки «{name}»");
-        if (!tab.Patterns.SelectionItem.Pattern.IsSelected.Value)
-            tab.Patterns.SelectionItem.Pattern.Select();
-        Wait.Until(() => find()?.Patterns.SelectionItem.Pattern.IsSelected.Value == true, $"вибору вкладки «{name}»");
-    }
+    public RecordAccessPaths ReadAccessPaths() => RecordAccessPaths.Read(view, "листа");
 
     private string Field(string label) =>
         Field(view, label) ?? throw new InvalidOperationException($"У заголовку листа немає поля «{label}».");

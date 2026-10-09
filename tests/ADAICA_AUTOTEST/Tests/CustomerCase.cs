@@ -410,6 +410,32 @@ public sealed class CustomerCase
                 "Vor dem Versand kurz mit der Projektleitung abstimmen."));
     }
 
+    /// <summary>
+    /// Завдання для контакту з датами, які задає тест (наприклад, щоб перевірити період пропозицій у вікні збереження
+    /// листа). Без <paramref name="done"/> завдання незавершене; «Erledigt am» робить його «Aufgabe erledigt».
+    /// Термін — тиждень після початку. Назв більше, ніж у <see cref="NewTask"/>: під одним контактом їх буває до восьми.
+    /// </summary>
+    public DashboardTaskData NewContactTask(DateTime begin, DateTime? done = null, DateTime? closedOn = null) => new(
+        Name: PickUnused(
+            $"Offerte für {_topic.Object} erstellen",
+            $"Kosten für {_topic.Object} mit {Contact.Dative} besprechen",
+            $"Unterlagen für {_topic.Object} zusammenstellen",
+            $"Terminplan für {_topic.Object} aktualisieren",
+            $"Rückruf bei {Contact.Dative} wegen {_topic.Title}",
+            $"Vertrag für {_topic.Object} prüfen",
+            $"Rechnung für {_topic.Object} vorbereiten",
+            $"Protokoll über {_topic.Object} an {Contact.Dative} schicken"),
+        ShortName: ShortName,
+        Begin: begin.Date + WorkingTime(),
+        Due: begin.Date.AddDays(7) + WorkingTime(),
+        Done: done?.Date + WorkingTime(),
+        ClosedOn: closedOn?.Date,
+        AcceptanceType: "Automatisch",
+        Remark: Pick(
+            $"{Contact.Nominative} wartet auf eine Rückmeldung.",
+            "Vor dem Versand kurz mit der Projektleitung abstimmen.",
+            $"Die Unterlagen liegen im Projektordner {_topic.Title}."));
+
     public AppointmentData NewAppointment()
     {
         // Термін триває 2 години й закінчується того самого дня.

@@ -313,28 +313,6 @@ public partial class MailTests
     }
 
     /// <summary>
-    /// Нова персона з адресою <paramref name="email"/>: Kontakte → Gesamtliste → «Neue Person» → «Finden &amp; Erstellen»
-    /// (ім'я й e-mail) → «Neu» → «Neue Person/Firma» → OK. Повертає її Briefanrede.
-    /// </summary>
-    private string CreatePersonWithEmail(MainPage mainPage, EmployeeData person, string email) =>
-        AllureApi.Step($"Створити персону {person.SortName} з e-mail {email}", () =>
-        {
-            var findCreateWindow = mainPage.OpenNewPersonWindow();
-            OnCleanup(findCreateWindow.CloseIfOpen);
-            findCreateWindow.Person.Fill(person.PrefilledName());
-            findCreateWindow.Email.Fill(email);
-            findCreateWindow.Action.WaitForText("Person erstellen");
-
-            var personDialog = findCreateWindow.OpenNewPersonDialog();
-            OnCleanup(personDialog.CancelIfOpen);
-            personDialog.Salutation.Select(person.Salutation);
-            var letterSalutation = personDialog.LetterSalutation.Text;
-            personDialog.Save();
-            findCreateWindow.WaitUntilClosed();
-            return letterSalutation;
-        });
-
-    /// <summary>
     /// Відкриває новий лист з вузла «E-Mails», заповнює його й повертає текст, коли надбудова ADAICA закінчила його
     /// змінювати; лист закриває без надсилання.
     /// </summary>

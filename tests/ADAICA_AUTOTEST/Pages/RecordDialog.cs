@@ -45,6 +45,12 @@ public abstract class RecordDialog
 
     public ButtonControl CancelButton { get; }
 
+    /// <summary>
+    /// Панель зв'язків унизу вікна нового проєкту, Ordner, завдання, терміну чи інфозапису: «Kontakte» (контакт-батько
+    /// ADAICA додає сама), «Dokumentation» (батько-запис і пропозиції завдань і термінів контактів), «Objekte».
+    /// </summary>
+    public RecordLinksPanel Links => new(Root, _owner, "ctrRecNewCO", labelsFromRecordWindow: true);
+
     protected Window Root { get; }
 
     public void Save() => AllureApi.Step($"Зберегти {_recordName}", () =>
