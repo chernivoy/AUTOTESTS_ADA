@@ -595,6 +595,21 @@ public sealed class CustomerCase
             Function: "Mitarbeiter");
     }
 
+    /// <summary>
+    /// Чат колег про справу клієнта: перше повідомлення й відповідь. Назва унікальна, як у фірми (номер з дати й часу):
+    /// другий учасник знаходить чат за назвою серед сповіщень, де можуть лишитися чати з минулих прогонів.
+    /// </summary>
+    public ChatData NewChat() => new(
+        Name: $"{_topic.Title} – {_customer.Company} {NewCustomerNumber()}",
+        Message: Pick(
+            $"Hallo zusammen, können wir morgen kurz über {_topic.Object} sprechen? {Contact.Nominative} wartet auf unsere Rückmeldung.",
+            $"Kurze Frage zu {_topic.Object}: Sind die Unterlagen von {_customer.Company} schon da?",
+            $"{Contact.Nominative} hat angerufen, es geht um {_topic.Object}. Wer übernimmt das bis Freitag?"),
+        Reply: Pick(
+            "Ja, morgen um 10 Uhr passt mir gut. Ich bringe die Unterlagen mit.",
+            $"Die Unterlagen sind da, ich schicke sie dir gleich. Grüße aus {_customer.City}!",
+            $"Ich übernehme das und rufe {Contact.Dative} heute noch zurück."));
+
     /// <summary>Нова унікальна адреса людини: «vorname.nachname@t261005161500.example.com».</summary>
     public static string NewMailAddress(EmployeeData person) =>
         $"{EmailPart(person.FirstName)}.{EmailPart(person.LastName)}@t{NewCustomerNumber()}.example.com";

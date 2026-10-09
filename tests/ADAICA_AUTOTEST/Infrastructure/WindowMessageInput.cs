@@ -32,6 +32,7 @@ public static class WindowMessageInput
     private const uint WmMouseMove = 0x0200;
     private const uint WmLButtonDown = 0x0201;
     private const uint WmLButtonUp = 0x0202;
+    private const uint WmLButtonDblClk = 0x0203;
     private const uint WmRButtonDown = 0x0204;
     private const uint WmRButtonUp = 0x0205;
     private const nint MkLButton = 0x0001;
@@ -55,6 +56,14 @@ public static class WindowMessageInput
 
     public static void RightClick(AutomationElement target, Point? offset = null) =>
         Click(target, offset, new MouseButton(WmRButtonDown, WmRButtonUp, MkRButton, VkRButton));
+
+    /// <summary>
+    /// Подвійний клік лівою кнопкою: друге натискання Windows надсилає як WM_LBUTTONDBLCLK, і WPF рахує його другим
+    /// кліком (ClickCount = 2). Обидва кліки йдуть за одне захоплення миші: Popup (наприклад, список сповіщень) WPF
+    /// закриває, щойно втрачає захоплення, тож окремий перший клік закрив би його ще до другого.
+    /// </summary>
+    public static void DoubleClick(AutomationElement target, Point? offset = null) =>
+        Click(target, offset, new MouseButton(WmLButtonDown, WmLButtonUp, MkLButton, VkLButton), WmLButtonDblClk);
 
     /// <summary>
     /// Робить вікно елемента активним. Чужий процес не може просто викликати SetForegroundWindow, тому на мить
@@ -108,7 +117,8 @@ public static class WindowMessageInput
         return (window, ClientPoint(window, point));
     }
 
-    private static void Click(AutomationElement target, Point? offset, MouseButton button)
+    /// <param name="secondDown">Повідомлення другого натискання для подвійного кліку; без нього — один клік.</param>
+    private static void Click(AutomationElement target, Point? offset, MouseButton button, uint? secondDown = null)
     {
         var (window, lParam) = Target(target, offset);
 
@@ -124,12 +134,15 @@ public static class WindowMessageInput
 
             SetCapture(window);
             Send(window, WmMouseMove, 0, lParam);
-            keys[button.VirtualKey] = KeyPressed;
-            SetKeyboardState(keys);
-            Send(window, button.Down, button.Flag, lParam);
-            keys[button.VirtualKey] = 0;
-            SetKeyboardState(keys);
-            Send(window, button.Up, 0, lParam);
+            foreach (var down in secondDown is { } second ? [button.Down, second] : new[] { button.Down })
+            {
+                keys[button.VirtualKey] = KeyPressed;
+                SetKeyboardState(keys);
+                Send(window, down, button.Flag, lParam);
+                keys[button.VirtualKey] = 0;
+                SetKeyboardState(keys);
+                Send(window, button.Up, 0, lParam);
+            }
         }
         finally
         {
@@ -199,7 +212,8 @@ public static class WindowMessageInput
 
     private readonly record struct MouseButton(uint Down, uint Up, nint Flag, int VirtualKey);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    // Unicode-версія: через ANSI-версію WM_CHAR з умлаутами проходить кодову сторінку системи («ö» → «ц» у cp1251).
+    [DllImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
     private static extern bool PostMessage(nint window, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll")]

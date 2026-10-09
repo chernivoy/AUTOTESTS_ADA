@@ -24,6 +24,7 @@ public sealed partial class MainPage : AdaicaWindow
     private const string NotesNodeName = "Notizen";
     private const string MailsNodeName = "E-Mails";
     private const string RecycleBinNodeName = "Papierkorb";
+    private const string ChatsNodeName = "Meine Chats";
     private const string SaveSentMailQuestion = "Soll diese Nachricht gespeichert werden?";
     private const string ContactsRootNodeName = "Gesamtliste";
     private const string ContactFavoritesNodeName = "Favoriten";
@@ -299,6 +300,19 @@ public sealed partial class MainPage : AdaicaWindow
         SelectNavigatorNode(userName);
         return new DashboardTaskList(Window, userName);
     }
+
+    /// <summary>
+    /// Вибирає в навігаторі Dashboard вузол «Meine Chats» під користувачем: праворуч список його чатів.
+    /// </summary>
+    [AllureStep("Вибрати вузол «Meine Chats» у навігаторі Dashboard")]
+    public ChatList OpenUserChats()
+    {
+        SelectNavigatorNode(ChatsNodeName);
+        return new ChatList(Window);
+    }
+
+    /// <summary>Іконка чатів з лічильником нових повідомлень праворуч угорі.</summary>
+    public ChatNotifications ChatNotifications => new(Window);
 
     [AllureStep("Відкрити вікно пошуку: System → Finden…")]
     public SearchWindow OpenSearchWindow()

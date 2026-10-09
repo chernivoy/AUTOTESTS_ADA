@@ -22,6 +22,18 @@ public static class TestSettings
 
     public static string Password => Require("ADAICA_PASSWORD", "Password");
 
+    /// <summary>
+    /// Другий користувач для тестів, де двоє працюють разом (чат). Пароль у нього той самий, що й у
+    /// <see cref="UserName"/> (<see cref="Password"/>).
+    /// </summary>
+    public static string SecondUserName => Require("ADAICA_SECOND_USER", "SecondUserName");
+
+    /// <summary>
+    /// Як ADAICA показує другого користувача у списках користувачів і учасників чату («van de Goldun, Anna Dr.»):
+    /// це ім'я його контакту, а не «Прізвище, Ім'я» із заголовка вікна.
+    /// </summary>
+    public static string SecondUserContact => Require("ADAICA_SECOND_USER_CONTACT", "SecondUserContact");
+
     public static string Database => Require("ADAICA_DATABASE", "Database");
 
     public static string Schema => Require("ADAICA_SCHEMA", "Schema");
