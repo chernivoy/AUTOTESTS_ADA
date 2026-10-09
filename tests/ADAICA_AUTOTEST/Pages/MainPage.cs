@@ -373,6 +373,13 @@ public sealed partial class MainPage : AdaicaWindow
             $"листа до {recipientAddress} в області перегляду");
 
     /// <summary>
+    /// «Beziehungen» → «Zugriffspfade» запису, відкритого в області перегляду (після <c>WaitForOpened…</c>): записи, під
+    /// якими він лежить, і його контакти.
+    /// </summary>
+    public RecordAccessPaths ReadOpenedRecordAccessPaths() =>
+        RecordAccessPaths.Read(Wait.For(InformationView, "області перегляду"), "запису");
+
+    /// <summary>
     /// Відкриває вузол-папку <paramref name="folderName"/> («Kontakte», «Notizen» тощо) під записом
     /// <paramref name="recordNode"/> (розгортає запис, якщо треба) і повертає її список в області перегляду.
     /// Запис шукаємо серед виділеного вузла та його предків, як і в OpenNewChildMenu.
@@ -637,6 +644,19 @@ public sealed partial class MainPage : AdaicaWindow
         OpenNewChildMenu(parentNode);
         PopupMenuItem("Notiz", "mnuNewHistory", NewChildMenuItemId).Click();
         return new NoteDialog(Window);
+    }
+
+    /// <summary>
+    /// Вікно нового документа у вбудованому редакторі: контекстне меню вузла <paramref name="parentNode"/> → «Neu» →
+    /// «Dokument» → «Editor». На відміну від «Aus dem Dateisystem», тут є панель зв'язків.
+    /// </summary>
+    [AllureStep("Відкрити вікно нового документа: вузол {parentNode} → контекстне меню → Neu → Dokument → Editor")]
+    public DocumentEditorDialog OpenNewChildDocumentEditor(string parentNode)
+    {
+        OpenNewChildMenu(parentNode);
+        PopupMenuItem("Dokument", "mnuNewDocument", NewChildMenuItemId).Expand();
+        PopupMenuItem("Editor", "mnuNewDocumentFromEditor", NewChildMenuItemId, "mnuNewDocument").Click();
+        return new DocumentEditorDialog(Window);
     }
 
     /// <summary>

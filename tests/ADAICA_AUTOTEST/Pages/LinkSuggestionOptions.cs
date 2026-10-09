@@ -1,15 +1,15 @@
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
-/// Налаштування «Vorschläge für Verknüpfung der Dokumentation» → вкладка «E-Mails» (Konfiguration → Einstellungen →
-/// Dokumentation): які завдання й терміни контактів листа ADAICA пропонує на вкладці «Dokumentation» вікна збереження
-/// листа. Значення «Anwender» перекриває «Systemweit»; доки воно збігається із системним, воно успадковує системне.
-/// Об'єкти тест не перевіряє.
+/// Налаштування «Vorschläge für Verknüpfung der Dokumentation» (Konfiguration → Einstellungen → Dokumentation) на одній
+/// із вкладок <see cref="SuggestionTab"/>: які завдання й терміни контактів ADAICA пропонує на вкладці «Dokumentation»
+/// вікна збереження листа чи панелі зв'язків нового запису. Значення «Anwender» перекриває «Systemweit»; доки воно
+/// збігається із системним, воно успадковує системне. Об'єкти тест не перевіряє.
 /// </summary>
-public sealed record MailSuggestionOptions(TaskSuggestionOptions Tasks, AppointmentSuggestionOptions Appointments)
+public sealed record LinkSuggestionOptions(TaskSuggestionOptions Tasks, AppointmentSuggestionOptions Appointments)
 {
     /// <summary>Як у BLANK_IGOR стоїть «Systemweit»: незавершені завдання й терміни, створені ±2 місяці від сьогодні.</summary>
-    public static MailSuggestionOptions Default { get; } = new(
+    public static LinkSuggestionOptions Default { get; } = new(
         new TaskSuggestionOptions(true, TaskStatusFilter.Undone, SuggestionPeriod.Months(2), SuggestionPeriod.Months(2), CompanyRecords: false),
         new AppointmentSuggestionOptions(
             true, AppointmentDateField.Created, AppointmentPeriodMode.Period, SuggestionPeriod.Months(2), SuggestionPeriod.Months(2),
@@ -111,4 +111,19 @@ public enum AppointmentPeriodMode
     All,
     Between,
     Period,
+}
+
+/// <summary>
+/// Вкладки «Vorschläge für Verknüpfung der Dokumentation» — для яких записів діють налаштування: листи (вікно збереження
+/// листа) і нові записи кожного типу (панель зв'язків у вікні нового запису). Порядок — як у вікні.
+/// </summary>
+public enum SuggestionTab
+{
+    Mails,
+    Tasks,
+    Appointments,
+    Projects,
+    Folders,
+    Notes,
+    Documents,
 }

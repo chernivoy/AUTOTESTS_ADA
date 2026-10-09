@@ -2,22 +2,38 @@ using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
-/// Розділ «Vorschläge für Verknüpfung der Dokumentation» (вкладка «Dokumentation») → вкладка «E-Mails»:
-/// <see cref="MailSuggestionOptions"/>. Кожне налаштування має колонку «Anwender» і «Systemweit». Зміни ADAICA застосовує
+/// Розділ «Vorschläge für Verknüpfung der Dokumentation» (вкладка «Dokumentation») → вкладка <see cref="SuggestionTab"/>:
+/// <see cref="LinkSuggestionOptions"/>. Кожне налаштування має колонку «Anwender» і «Systemweit». Зміни ADAICA застосовує
 /// одразу, хоч і пише, що після перезапуску.
 /// </summary>
 /// <remarks>
 /// У XAML імена груп періоду завдань переплутано: група під підписом «Anwender» має AutomationId
 /// <c>TasksDateFilterSystemValue</c>, а «Systemweit» — <c>TasksDateFilterUserValue</c> (прив'язки при цьому правильні).
-/// Поки «Aufgaben/Termine vorschlagen» вимкнено, поля періоду недоступні, тож прапорець вмикається першим.
+/// Поки «Aufgaben/Termine vorschlagen» вимкнено, поля періоду недоступні, тож прапорець вмикається першим. Вкладки
+/// мають один шаблон: AutomationId елементів (з «Mail» у назві) однакові на всіх вкладках, а в дереві — лише вибрана.
 /// </remarks>
 public sealed partial class OptionsWindow
 {
     private const string SuggestionsNodeName = "Vorschläge für Verknüpfung der Dokumentation";
+
+    private static readonly IReadOnlyDictionary<SuggestionTab, string> TabHeaders = new Dictionary<SuggestionTab, string>
+    {
+        [SuggestionTab.Mails] = "E-Mails",
+        [SuggestionTab.Tasks] = "Aufgaben",
+        [SuggestionTab.Appointments] = "Termine",
+        [SuggestionTab.Projects] = "Projekte",
+        [SuggestionTab.Folders] = "Ordner",
+        [SuggestionTab.Notes] = "Notizen",
+        [SuggestionTab.Documents] = "Dokumente",
+    };
+
+    // Відкрита вкладка розділу пропозицій — для назв кроків.
+    private string _suggestionTab = TabHeaders[SuggestionTab.Mails];
 
     // Пункти списків: показаний текст для вибору й ключ (Name пункту), за яким вибране видно й у згорнутому списку.
     private static readonly IReadOnlyDictionary<TaskStatusFilter, (string Text, string Key)> TaskStatusItems =
@@ -52,8 +68,11 @@ public sealed partial class OptionsWindow
         [AppointmentPeriodMode.Period] = "radioPeriodPeriodCtrRecordsDateFilter",
     };
 
-    /// <summary>Вкладка «Dokumentation» → вузол «Vorschläge für Verknüpfung der Dokumentation» (лише клік) → «E-Mails».</summary>
-    public OptionsWindow OpenMailSuggestions() => AllureApi.Step($"Відкрити «Dokumentation» → «{SuggestionsNodeName}» → «E-Mails»", () =>
+    /// <summary>
+    /// Вкладка «Dokumentation» → вузол «Vorschläge für Verknüpfung der Dokumentation» (лише клік) → вкладка
+    /// <paramref name="tab"/>. Заголовки вкладок — у шаблоні, тож вкладку беремо за порядком.
+    /// </summary>
+    public OptionsWindow OpenLinkSuggestions(SuggestionTab tab) => AllureApi.Step($"Відкрити «Dokumentation» → «{SuggestionsNodeName}» → «{TabHeaders[tab]}»", () =>
     {
         new TabItemControl("Dokumentation", Locate.ById(Root, "tiRecordOptionsWndConfiguration")).Select();
         UiInput.LeftClick(
@@ -63,34 +82,36 @@ public sealed partial class OptionsWindow
                 $"вузла «{SuggestionsNodeName}» у дереві розділів"),
             () => Root.FindFirstDescendant(cf => cf.ByAutomationId("grpIsLoadTasksCOManager")) is not null,
             $"розділу «{SuggestionsNodeName}»");
-        new TabItemControl("E-Mails", () => Wait.For(
-                () => Root.FindFirstDescendant(cf => cf.ByAutomationId("tcRecordLinksSuggestionsGroup"))?.FindFirstChild(),
-                "вкладки «E-Mails»"))
+        new TabItemControl(TabHeaders[tab], () => Wait.For(
+                () => Root.FindFirstDescendant(cf => cf.ByAutomationId("tcRecordLinksSuggestionsGroup"))?
+                    .FindAllChildren(cf => cf.ByControlType(ControlType.TabItem)).ElementAtOrDefault((int)tab),
+                $"вкладки «{TabHeaders[tab]}»"))
             .Select();
+        _suggestionTab = TabHeaders[tab];
         return this;
     });
 
-    /// <summary>Налаштування пропозицій для листів у колонці «Anwender» (<paramref name="user"/>) чи «Systemweit».</summary>
-    public MailSuggestionOptions ReadMailSuggestions(bool user = true) =>
-        AllureApi.Step($"Прочитати пропозиції для листів: {Side(user)}", () =>
+    /// <summary>Налаштування пропозицій відкритої вкладки в колонці «Anwender» (<paramref name="user"/>) чи «Systemweit».</summary>
+    public LinkSuggestionOptions ReadLinkSuggestions(bool user = true) =>
+        AllureApi.Step($"Прочитати пропозиції «{_suggestionTab}»: {Side(user)}", () =>
         {
-            var options = new MailSuggestionOptions(ReadTasks(user), ReadAppointments(user));
+            var options = new LinkSuggestionOptions(ReadTasks(user), ReadAppointments(user));
             AllureApi.Step($"{Side(user)}: {options}");
             return options;
         });
 
-    /// <summary>Ставить налаштування пропозицій для листів у колонці «Anwender». Зберігає їх <see cref="SaveChanges"/>.</summary>
-    public void SetMailSuggestions(MailSuggestionOptions options) =>
-        AllureApi.Step($"Встановити пропозиції для листів (Anwender): {options}", () =>
+    /// <summary>Ставить налаштування пропозицій відкритої вкладки в колонці «Anwender». Зберігає їх <see cref="SaveChanges"/>.</summary>
+    public void SetLinkSuggestions(LinkSuggestionOptions options) =>
+        AllureApi.Step($"Встановити пропозиції «{_suggestionTab}» (Anwender): {options}", () =>
         {
             SetTasks(options.Tasks, user: true);
             SetAppointments(options.Appointments, user: true);
 
             // Дати «Zwischen» лишаються в полях і тоді, коли режим інший; якщо тест їх не задав, не порівнюємо.
-            var read = ReadMailSuggestions();
+            var read = ReadLinkSuggestions();
             if (options.Appointments.From is null)
                 read = read with { Appointments = read.Appointments with { From = null, To = null } };
-            read.ShouldBe(options, "Пропозиції для листів у колонці «Anwender»");
+            read.ShouldBe(options, $"Пропозиції «{_suggestionTab}» у колонці «Anwender»");
         });
 
     /// <summary>«Aufgaben vorschlagen» у колонці «Systemweit». Якщо «Anwender» збігався із системним, він змінюється теж.</summary>
@@ -104,8 +125,8 @@ public sealed partial class OptionsWindow
     /// змінюється, а потім ставиться рівним системному (дати «Zwischen» для термінів ADAICA теж порівнює). Власне значення
     /// користувача ставиться як було.
     /// </summary>
-    public void RestoreUserMailSuggestions(MailSuggestionOptions system, MailSuggestionOptions user) =>
-        AllureApi.Step($"Повернути пропозиції для листів (Anwender): {user}", () =>
+    public void RestoreUserLinkSuggestions(LinkSuggestionOptions system, LinkSuggestionOptions user) =>
+        AllureApi.Step($"Повернути пропозиції «{_suggestionTab}» (Anwender): {user}", () =>
         {
             if (user.Tasks == system.Tasks)
                 ResyncUserTasks(system.Tasks);
@@ -117,7 +138,7 @@ public sealed partial class OptionsWindow
             else
                 SetAppointments(user.Appointments, user: true);
 
-            ReadMailSuggestions().ShouldBe(user, "Пропозиції для листів у колонці «Anwender»");
+            ReadLinkSuggestions().ShouldBe(user, $"Пропозиції «{_suggestionTab}» у колонці «Anwender»");
         });
 
     /// <summary>

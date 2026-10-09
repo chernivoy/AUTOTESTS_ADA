@@ -8,21 +8,16 @@ namespace ADAICA_AUTOTEST.Tests;
 /// <summary>
 /// Пропозиції завдань і термінів у вікні збереження листа: на вкладці «Dokumentation» ADAICA показує записи контакту
 /// листа без позначки «Verknüpft», які відповідають налаштуванням «Vorschläge für Verknüpfung der Dokumentation» →
-/// «E-Mails» (<see cref="MailSuggestionOptions"/>). Тест створює персону з e-mail і під нею записи з потрібними датами,
-/// ставить налаштування в колонці «Anwender» (діють одразу, без перезапуску) і надсилає їй листи. Після тесту обидві
-/// колонки такі, як були до тесту: якщо «Anwender» збігався із «Systemweit», він знову його успадковує. Для колег — користувачів ADAICA — пропозицій немає (так задумано), тож
-/// відправник їх не дає.
+/// «E-Mails» (<see cref="LinkSuggestionOptions"/>, <see cref="SuggestionTab.Mails"/>). Тест створює персону з e-mail і
+/// під нею записи з потрібними датами, ставить налаштування в колонці «Anwender» (діють одразу, без перезапуску) і
+/// надсилає їй листи. Після тесту обидві колонки такі, як були до тесту: якщо «Anwender» збігався із «Systemweit», він
+/// знову його успадковує. Для колег — користувачів ADAICA — пропозицій немає (так задумано), тож відправник їх не дає.
+/// Ті самі налаштування для нових записів — <see cref="RecordSuggestionTests"/>.
 /// </summary>
 public partial class MailTests
 {
     // Рядок 0 вкладки «Dokumentation» — «ROOT EMAIL», пропозиції — нижче.
     private const int FirstSuggestionRow = 1;
-
-    // Пропозиції ADAICA додає, коли розпізнає контакти листа, тож перший прочитаний список може бути ще неповним.
-    private static readonly TimeSpan SuggestionsSettle = TimeSpan.FromSeconds(3);
-
-    // Чи вже запам'ятовано налаштування до тесту, які поверне прибирання (див. UseMailSuggestions).
-    private bool _suggestionsSaved;
 
     /// <summary>
     /// Завдання за статусом і періодом (терміни вимкнено). Під персоною — незавершені завдання з початком 15 днів
@@ -44,22 +39,22 @@ public partial class MailTests
         CreateContactTask(mainPage, customer, person.SortName, today.AddDays(-100), done: today.AddDays(-90), closedOn: today.AddDays(-1));
         mainPage.OpenNavigator("Dokumentation");
 
-        var tasksOnly = MailSuggestionOptions.Default with
+        var tasksOnly = LinkSuggestionOptions.Default with
         {
-            Appointments = MailSuggestionOptions.Default.Appointments with { Enabled = false },
+            Appointments = LinkSuggestionOptions.Default.Appointments with { Enabled = false },
         };
         var tasks = tasksOnly.Tasks;
 
-        UseMailSuggestions(mainPage, tasksOnly);
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, tasksOnly);
         MailShouldSuggest(mainPage, customer, person, email, openRecent, openSoon).Cancel();
 
-        UseMailSuggestions(mainPage, tasksOnly with { Tasks = tasks with { Status = TaskStatusFilter.Done } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, tasksOnly with { Tasks = tasks with { Status = TaskStatusFilter.Done } });
         MailShouldSuggest(mainPage, customer, person, email, doneRecent).Cancel();
 
-        UseMailSuggestions(mainPage, tasksOnly with { Tasks = tasks with { Status = TaskStatusFilter.All } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, tasksOnly with { Tasks = tasks with { Status = TaskStatusFilter.All } });
         MailShouldSuggest(mainPage, customer, person, email, openRecent, openSoon, doneRecent).Cancel();
 
-        UseMailSuggestions(mainPage, tasksOnly with { Tasks = tasks with { Previous = tasks.Previous.Off(), Next = SuggestionPeriod.Days(60) } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, tasksOnly with { Tasks = tasks with { Previous = tasks.Previous.Off(), Next = SuggestionPeriod.Days(60) } });
         MailShouldSuggest(mainPage, customer, person, email, openSoon).Cancel();
     }
 
@@ -79,19 +74,19 @@ public partial class MailTests
         var later = CreateContactAppointment(mainPage, customer, person.SortName, today.AddDays(90));
         mainPage.OpenNavigator("Dokumentation");
 
-        var appointmentsOnly = MailSuggestionOptions.Default with
+        var appointmentsOnly = LinkSuggestionOptions.Default with
         {
-            Tasks = MailSuggestionOptions.Default.Tasks with { Enabled = false },
+            Tasks = LinkSuggestionOptions.Default.Tasks with { Enabled = false },
         };
         var appointments = appointmentsOnly.Appointments;
 
-        UseMailSuggestions(mainPage, appointmentsOnly);
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, appointmentsOnly);
         MailShouldSuggest(mainPage, customer, person, email, past.Label, soon.Label, later.Label).Cancel();
 
-        UseMailSuggestions(mainPage, appointmentsOnly with { Appointments = appointments with { Field = AppointmentDateField.Begin } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, appointmentsOnly with { Appointments = appointments with { Field = AppointmentDateField.Begin } });
         MailShouldSuggest(mainPage, customer, person, email, soon.Label).Cancel();
 
-        UseMailSuggestions(mainPage, appointmentsOnly with
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, appointmentsOnly with
         {
             Appointments = appointments with
             {
@@ -103,7 +98,7 @@ public partial class MailTests
         });
         MailShouldSuggest(mainPage, customer, person, email, later.Label).Cancel();
 
-        UseMailSuggestions(mainPage, appointmentsOnly with { Appointments = appointments with { Previous = appointments.Previous.Off() } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, appointmentsOnly with { Appointments = appointments with { Previous = appointments.Previous.Off() } });
         MailShouldSuggest(mainPage, customer, person, email).Cancel();
     }
 
@@ -121,12 +116,12 @@ public partial class MailTests
         var task = CreateContactTask(mainPage, customer, person.SortName, today.AddDays(-15));
         var appointment = CreateContactAppointment(mainPage, customer, person.SortName, today.AddDays(10));
         mainPage.OpenNavigator("Dokumentation");
-        var defaults = MailSuggestionOptions.Default;
+        var defaults = LinkSuggestionOptions.Default;
 
-        UseMailSuggestions(mainPage, defaults with { Tasks = defaults.Tasks with { Enabled = false } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, defaults with { Tasks = defaults.Tasks with { Enabled = false } });
         MailShouldSuggest(mainPage, customer, person, email, appointment.Label).Cancel();
 
-        UseMailSuggestions(mainPage, defaults with { Appointments = defaults.Appointments with { Enabled = false } }, systemTasks: false);
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, defaults with { Appointments = defaults.Appointments with { Enabled = false } }, systemTasks: false);
         MailShouldSuggest(mainPage, customer, person, email, task).Cancel();
     }
 
@@ -146,7 +141,7 @@ public partial class MailTests
         var other = CreateContactTask(mainPage, customer, person.SortName, today.AddDays(-10));
         var appointment = CreateContactAppointment(mainPage, customer, person.SortName, today.AddDays(10));
         mainPage.OpenNavigator("Dokumentation");
-        UseMailSuggestions(mainPage, MailSuggestionOptions.Default);
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, LinkSuggestionOptions.Default);
 
         var saveDialog = MailShouldSuggest(mainPage, customer, person, email, linked, other, appointment.Label);
         saveDialog.LinkRecordRow(SuggestionRow(saveDialog, linked));
@@ -189,12 +184,12 @@ public partial class MailTests
         var companyTask = CreateContactTask(mainPage, customer, company, today.AddDays(-10));
         var companyAppointment = CreateContactAppointment(mainPage, customer, company, today.AddDays(10));
         mainPage.OpenNavigator("Dokumentation");
-        var defaults = MailSuggestionOptions.Default;
+        var defaults = LinkSuggestionOptions.Default;
 
-        UseMailSuggestions(mainPage, defaults);
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, defaults);
         MailShouldSuggest(mainPage, customer, employee, email, employeeTask).Cancel();
 
-        UseMailSuggestions(mainPage, defaults with { Tasks = defaults.Tasks with { CompanyRecords = true } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, defaults with { Tasks = defaults.Tasks with { CompanyRecords = true } });
         var saveDialog = MailShouldSuggest(mainPage, customer, employee, email, employeeTask, companyTask);
         saveDialog.ChooseInContactMenu(RecipientRow, "Ignorieren");
         SuggestionsShouldBe(saveDialog);
@@ -202,7 +197,7 @@ public partial class MailTests
         SuggestionsShouldBe(saveDialog, employeeTask, companyTask);
         saveDialog.Cancel();
 
-        UseMailSuggestions(mainPage, defaults with { Appointments = defaults.Appointments with { CompanyRecords = true } });
+        UseLinkSuggestions(mainPage, SuggestionTab.Mails, defaults with { Appointments = defaults.Appointments with { CompanyRecords = true } });
         MailShouldSuggest(mainPage, customer, employee, email, employeeTask, companyAppointment.Label).Cancel();
     }
 
@@ -223,97 +218,6 @@ public partial class MailTests
     }
 
     /// <summary>
-    /// Співробітник нової фірми з адресою: Gesamtliste → «Neue Person» → у рядку пошуку персона, фірма й e-mail →
-    /// «Neue Person/Firma» → OK. ADAICA кладе його у відділ «andere Tätigkeiten» і виділяє в «Aktuelle → Фірма → …».
-    /// </summary>
-    private (EmployeeData Employee, string Email, string Company) CreateEmployeeWithEmail(MainPage mainPage, CustomerCase customer)
-    {
-        var employee = customer.NewMailPerson();
-        var email = CustomerCase.NewMailAddress(employee);
-        var company = customer.NewCompany().Name;
-        return AllureApi.Step($"Створити співробітника {employee.SortName} <{email}> нової фірми {company}", () =>
-        {
-            var findCreateWindow = mainPage.OpenNewPersonWindow();
-            OnCleanup(findCreateWindow.CloseIfOpen);
-            findCreateWindow.Person.Fill(employee.PrefilledName());
-            findCreateWindow.Company.Fill(company);
-            findCreateWindow.Email.Fill(email);
-            findCreateWindow.Action.WaitForText("Firma erstellen, Person erstellen, Mitarbeiter zur Firma hinzufügen");
-
-            var personDialog = findCreateWindow.OpenNewPersonDialog();
-            OnCleanup(personDialog.CancelIfOpen);
-            personDialog.Salutation.Select(employee.Salutation);
-            personDialog.Save();
-            findCreateWindow.WaitUntilClosed();
-            return (employee, email, company);
-        });
-    }
-
-    /// <summary>Завдання під контактом <paramref name="parentNode"/> (меню вузла «Neu» → «Aufgabe»). Повертає його назву.</summary>
-    private string CreateContactTask(
-        MainPage mainPage, CustomerCase customer, string parentNode, DateTime begin, DateTime? done = null, DateTime? closedOn = null)
-    {
-        var dialog = mainPage.OpenNewChildTaskDialog(parentNode);
-        OnCleanup(dialog.CancelIfOpen);
-        var task = customer.NewContactTask(begin, done, closedOn);
-        dialog.Form.Fill(task);
-        var number = dialog.Form.Number.Text;
-        dialog.Save();
-        mainPage.WaitForOpenedTask(number);
-        return task.Name;
-    }
-
-    /// <summary>Двогодинний термін у день <paramref name="day"/> під контактом <paramref name="parentNode"/>.</summary>
-    private ContactAppointment CreateContactAppointment(MainPage mainPage, CustomerCase customer, string parentNode, DateTime day)
-    {
-        var dialog = mainPage.OpenNewChildAppointmentDialog(parentNode);
-        OnCleanup(dialog.CancelIfOpen);
-        var random = customer.NewAppointment();
-        var begin = day.Date + random.Begin.TimeOfDay;
-        var appointment = random with { Begin = begin, End = begin + (random.End - random.Begin) };
-        dialog.Form.Fill(appointment);
-        var number = dialog.Form.Number.Text;
-        dialog.Save();
-        mainPage.WaitForOpenedAppointment(number);
-        return new ContactAppointment(AppointmentNode(appointment), appointment.Begin);
-    }
-
-    /// <summary>
-    /// Ставить налаштування пропозицій для листів у колонці «Anwender» (і, якщо задано <paramref name="systemTasks"/>,
-    /// «Aufgaben vorschlagen» у колонці «Systemweit» — до користувацьких). Уперше запам'ятовує обидві колонки: після тесту
-    /// прибирання повертає системний прапорець, а «Anwender» — власне значення користувача або, якщо він збігався із
-    /// системним, знову успадкування від «Systemweit».
-    /// </summary>
-    private void UseMailSuggestions(MainPage mainPage, MailSuggestionOptions options, bool? systemTasks = null)
-    {
-        var window = mainPage.OpenOptions();
-        OnCleanup(window.CloseIfOpen);
-        window.OpenMailSuggestions();
-        if (!_suggestionsSaved)
-        {
-            var system = window.ReadMailSuggestions(user: false);
-            var user = window.ReadMailSuggestions(user: true);
-            _suggestionsSaved = true;
-            OnCleanup(() => RestoreMailSuggestions(system, user));
-        }
-
-        if (systemTasks is { } enabled)
-            window.SetSystemTaskSuggestions(enabled);
-        window.SetMailSuggestions(options);
-        window.SaveChanges();
-    }
-
-    private void RestoreMailSuggestions(MailSuggestionOptions system, MailSuggestionOptions user)
-    {
-        _suggestionsSaved = false;
-        var window = new MainPage(Session).OpenOptions();
-        window.OpenMailSuggestions();
-        window.SetSystemTaskSuggestions(system.Tasks.Enabled);
-        window.RestoreUserMailSuggestions(system, user);
-        window.SaveChanges();
-    }
-
-    /// <summary>
     /// Надсилає лист контакту <paramref name="recipient"/> і перевіряє пропозиції на вкладці «Dokumentation»: рівно
     /// <paramref name="expected"/> (підписи, як у дереві), у будь-якому порядку. Повертає вікно збереження.
     /// </summary>
@@ -326,27 +230,10 @@ public partial class MailTests
         return saveDialog;
     }
 
-    /// <summary>
-    /// Перевіряє записи під «ROOT EMAIL» на вкладці «Dokumentation» і повертає їх у порядку рядків. Якщо список ще не
-    /// такий, читає його ще раз за кілька секунд: ADAICA додає й прибирає пропозиції не одразу.
-    /// </summary>
-    private static IReadOnlyList<string> SuggestionsShouldBe(MailSaveDialog saveDialog, params string[] expected) =>
-        AllureApi.Step($"Перевірити пропозиції на вкладці «Dokumentation»: {(expected.Length == 0 ? "немає" : string.Join("; ", expected))}", () =>
-        {
-            var rows = saveDialog.RecordRowLabels(FirstSuggestionRow);
-            if (!rows.Order().SequenceEqual(expected.Order()))
-            {
-                Thread.Sleep(SuggestionsSettle);
-                rows = saveDialog.RecordRowLabels(FirstSuggestionRow);
-            }
-
-            rows.ShouldBe(expected, ignoreOrder: true, "Записи під «ROOT EMAIL» на вкладці «Dokumentation»");
-            return rows;
-        });
-
     private static int SuggestionRow(MailSaveDialog saveDialog, string label) =>
         FirstSuggestionRow + saveDialog.RecordRowLabels(FirstSuggestionRow).ToList().IndexOf(label);
 
-    /// <summary>Термін під контактом: підпис у дереві й на вкладці «Dokumentation» і початок.</summary>
-    private sealed record ContactAppointment(string Label, DateTime Begin);
+    /// <summary>Перевіряє записи під «ROOT EMAIL» на вкладці «Dokumentation» вікна збереження листа.</summary>
+    private static IReadOnlyList<string> SuggestionsShouldBe(MailSaveDialog saveDialog, params string[] expected) =>
+        SuggestionsShouldBe(saveDialog.Links, FirstSuggestionRow, expected);
 }
