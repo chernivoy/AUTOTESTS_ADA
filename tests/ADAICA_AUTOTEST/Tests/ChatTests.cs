@@ -183,6 +183,8 @@ public class ChatTests : AdaicaTestBase
             card.ClickSend();
             Thread.Sleep(TimeSpan.FromSeconds(2));
             card.Messages.Count.ShouldBe(2);
+            // Інакше пробіли лишилися б у чаті чернеткою.
+            card.ClearDraft();
         });
     }
 

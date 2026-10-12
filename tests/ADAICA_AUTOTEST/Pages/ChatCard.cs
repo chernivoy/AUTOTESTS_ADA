@@ -101,6 +101,7 @@ public sealed class ChatCard
     {
         Type(text);
         var before = Messages.Count;
+        RemindersPopup.Collapse(_window);
         UiInput.LeftClick(
             () => Root.FindByAutomationId("btnSendMessage"),
             () => Messages.Count == before + 1,
@@ -113,16 +114,16 @@ public sealed class ChatCard
     /// пробілами нічого не надсилає. Кнопка доступна й тоді, коли надсилати нічого.
     /// </summary>
     public void ClickSend() => AllureApi.Step("Натиснути кнопку надсилання повідомлення", () =>
-        UiInput.LeftClick(() => Root.FindByAutomationId("btnSendMessage"), () => true, "натискання кнопки надсилання"));
+    {
+        RemindersPopup.Collapse(_window);
+        UiInput.LeftClick(() => Root.FindByAutomationId("btnSendMessage"), () => true, "натискання кнопки надсилання");
+    });
 
     /// <summary>Друкує текст у поле нового повідомлення, не надсилаючи його.</summary>
     public void Type(string text) => AllureApi.Step($"Написати в полі повідомлення: {text}", () =>
     {
         var before = DraftText;
-        UiInput.LeftClick(
-            () => Root.FindByAutomationId("txtBottom"),
-            () => Root.FindByAutomationId("txtBottom").Properties.HasKeyboardFocus.ValueOrDefault,
-            "фокусу в полі повідомлення");
+        FocusDraft();
         UiInput.TypeText(
             () => Root.FindByAutomationId("txtBottom"),
             text,
@@ -130,6 +131,25 @@ public sealed class ChatCard
             "тексту в полі повідомлення",
             // Поле приймає символи по одному, а довгий текст ADAICA обробляє кілька секунд.
             TimeSpan.FromSeconds(10 + text.Length / 50));
+    });
+
+    /// <summary>
+    /// Стирає короткий текст у полі повідомлення клавішею Backspace. Ненадісланий текст ADAICA зберігає чернеткою
+    /// й показує, коли чат відкривають знову, тож тест не лишає його в полі. Клік посередині поля ставить курсор
+    /// у кінець тексту, лише поки текст займає менше половини поля.
+    /// </summary>
+    public void ClearDraft() => AllureApi.Step("Стерти текст у полі повідомлення", () =>
+    {
+        FocusDraft();
+        while (DraftText.Length > 0)
+        {
+            var before = DraftText.Length;
+            UiInput.PressKey(
+                () => Root.FindByAutomationId("txtBottom"),
+                FlaUI.Core.WindowsAPI.VirtualKeyShort.BACK,
+                () => DraftText.Length < before,
+                "стертого символу в полі повідомлення");
+        }
     });
 
     /// <summary>Enter у полі повідомлення: надсилає набраний текст, як кнопка зі стрілкою.</summary>
@@ -143,6 +163,16 @@ public sealed class ChatCard
             "нового повідомлення в чаті");
         return Messages[^1];
     });
+
+    // Після кнопки надсилання фокус лишається на ній, тож клавіші пішли б не в поле.
+    private void FocusDraft()
+    {
+        RemindersPopup.Collapse(_window);
+        UiInput.LeftClick(
+            () => Root.FindByAutomationId("txtBottom"),
+            () => Root.FindByAutomationId("txtBottom").Properties.HasKeyboardFocus.ValueOrDefault,
+            "фокусу в полі повідомлення");
+    }
 
     /// <summary>Текст у полі нового повідомлення (без кінцевого переходу на новий рядок, який додає RichTextBox).</summary>
     public string DraftText =>
@@ -207,11 +237,15 @@ public sealed class ChatCard
             PopupMenuItem(item).Click();
         });
 
-    private void OpenParticipantMenu(string node) =>
+    // Список учасників — праворуч унизу, там, де ADAICA показує нагадування про терміни.
+    private void OpenParticipantMenu(string node)
+    {
+        RemindersPopup.Collapse(_window);
         UiInput.RightClick(
             () => ParticipantText(node),
             () => Popups.FindDescendant(_window, cf => cf.ByControlType(ControlType.MenuItem)) is not null,
             $"контекстного меню «{node}» у списку учасників");
+    }
 
     private void CloseMenu() =>
         UiInput.PressKey(
