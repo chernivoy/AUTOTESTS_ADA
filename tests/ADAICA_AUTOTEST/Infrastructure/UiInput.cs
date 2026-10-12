@@ -44,6 +44,23 @@ public static class UiInput
             done, expectation, timeout);
 
     /// <summary>
+    /// Подвійний клік лівою кнопкою. ADAICA спершу стає активною: так подвійний клік працює й у Popup (наприклад, у
+    /// списку сповіщень), який WPF закриває в неактивному застосунку.
+    /// </summary>
+    public static void DoubleClick(
+        Func<AutomationElement> target, Func<bool> done, string expectation, TimeSpan? timeout = null, Point? offset = null) =>
+        Perform(
+            () =>
+            {
+                var element = target();
+                WindowMessageInput.Activate(element);
+                WindowMessageInput.DoubleClick(element, offset);
+            },
+            () => AtomicMouse.DoubleClick(target(), offset),
+            "подвійний клік мишею",
+            done, expectation, timeout);
+
+    /// <summary>
     /// Клік лівою кнопкою, який відкриває меню (наприклад, «+» біля «Adressen»). Меню — WPF Popup, а WPF його одразу
     /// закриває, якщо застосунок неактивний; правий клік ADAICA активує сама, а кнопку — ні. Тому перед кліком ADAICA
     /// стає активною, а <see cref="ForegroundGuard"/> поверне фокус користувачеві, щойно меню закриється.

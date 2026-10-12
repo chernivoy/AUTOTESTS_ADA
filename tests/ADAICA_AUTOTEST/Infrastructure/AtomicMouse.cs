@@ -32,7 +32,10 @@ public static class AtomicMouse
 
     public static void RightClick(AutomationElement target, Point? offset = null) => Click(target, offset, MouseEventRightDown, MouseEventRightUp);
 
-    private static void Click(AutomationElement target, Point? offset, uint buttonDown, uint buttonUp)
+    public static void DoubleClick(AutomationElement target, Point? offset = null) =>
+        Click(target, offset, MouseEventLeftDown, MouseEventLeftUp, clicks: 2);
+
+    private static void Click(AutomationElement target, Point? offset, uint buttonDown, uint buttonUp, int clicks = 1)
     {
         var bounds = target.BoundingRectangle;
         var point = offset is { } relative ? new Point(bounds.X + relative.X, bounds.Y + relative.Y) : target.GetClickablePoint();
@@ -40,11 +43,9 @@ public static class AtomicMouse
 
         var (x, y) = ToAbsolute(point);
         var move = MouseEventMove | MouseEventAbsolute | MouseEventVirtualDesk;
-        Input[] inputs =
-        [
-            MouseInput(x, y, move | buttonDown),
-            MouseInput(x, y, move | buttonUp),
-        ];
+        var inputs = Enumerable.Range(0, clicks)
+            .SelectMany(_ => new[] { MouseInput(x, y, move | buttonDown), MouseInput(x, y, move | buttonUp) })
+            .ToArray();
 
         // SendInput вставляє події підряд, не перемежовуючи їх з іншим введенням.
         if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>()) != inputs.Length)

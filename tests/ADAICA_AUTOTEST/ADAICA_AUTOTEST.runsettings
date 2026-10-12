@@ -17,6 +17,9 @@
     <Parameter name="DefaultTimeoutSeconds" value="10" />
     <Parameter name="LoginTimeoutSeconds" value="60" />
     <Parameter name="UserName" value="cher" />
+    <!-- Другий користувач (чат), пароль той самий (ADAICA_PASSWORD); контакт — як він підписаний у списку учасників. -->
+    <Parameter name="SecondUserName" value="anna" />
+    <Parameter name="SecondUserContact" value="van de Goldun, Anna Dr." />
     <Parameter name="Database" value="BLANK_IGOR" />
     <Parameter name="Schema" value="BLANK_IGOR" />
     <!--

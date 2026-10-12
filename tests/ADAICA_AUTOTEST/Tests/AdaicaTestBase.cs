@@ -106,10 +106,11 @@ public abstract partial class AdaicaTestBase : UiTestBase
     /// вкладці (як Dashboard: у списку «+» відкритий Dashboard недоступний). Якщо вкладка вже є, перемикається на неї,
     /// а після тесту повертає вкладку, яка була активною; інакше відкриває нову й після тесту закриває її.
     /// </summary>
-    protected MainPage LogInAndShowSingleNavigator(string navigatorName)
+    /// <param name="userName">Користувач; без нього — основний (<see cref="TestSettings.UserName"/>).</param>
+    protected MainPage LogInAndShowSingleNavigator(string navigatorName, string? userName = null)
     {
         var mainPage = new LoginPage(Session).LoginAs(
-            TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
+            userName ?? TestSettings.UserName, TestSettings.Password, TestSettings.Database, TestSettings.Schema);
         if (!mainPage.NavigatorTabNames.Contains(navigatorName))
         {
             var tabsBefore = mainPage.NavigatorTabNames;
@@ -256,7 +257,24 @@ public abstract partial class AdaicaTestBase : UiTestBase
         $"{note.Begin.ToString("dd.MM.yy", CultureInfo.InvariantCulture)} {note.Name}"
         + (note.Class is { } recordClass ? $" ({recordClass.Class} - {recordClass.SubClass})" : string.Empty);
 
+    /// <summary>
+    /// Виходить з ADAICA й запускає її знову для входу іншим користувачем (наприклад, щоб другий учасник чату прочитав
+    /// повідомлення). Прибирання, зареєстроване досі, стосується попереднього користувача, тож виконується до виходу.
+    /// Далі тест входить сам, наприклад <see cref="LogInAndShowSingleNavigator"/> з <see cref="TestSettings.SecondUserName"/>.
+    /// </summary>
+    protected void RestartForAnotherUser() => AllureApi.Step("Вийти з ADAICA й запустити її знову для іншого користувача", () =>
+    {
+        RunCleanups();
+        RestartApplication(() => new AdaicaWindow(Session).Exit());
+    });
+
     protected override void CloseApplication()
+    {
+        RunCleanups();
+        new AdaicaWindow(Session).Exit();
+    }
+
+    private void RunCleanups()
     {
         // Один екземпляр класу обслуговує всі тести, тому список очищаємо щоразу.
         var cleanups = _cleanups.AsEnumerable().Reverse().ToList();
@@ -273,7 +291,5 @@ public abstract partial class AdaicaTestBase : UiTestBase
                 TestContext.Out.WriteLine($"Прибирання після тесту не вдалося: {ex}");
             }
         }
-
-        new AdaicaWindow(Session).Exit();
     }
 }
