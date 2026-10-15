@@ -1,15 +1,24 @@
 using ADAICA_AUTOTEST.Controls;
+using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
 /// Бланк завдання. Ті самі поля ADAICA показує і у вікні «Neue Aufgabe», і в огляді збереженого завдання.
 /// </summary>
-public class TaskForm(AutomationElement root)
+/// <param name="root">Вікно завдання або область перегляду.</param>
+/// <param name="owner">Вікно, якому належать вікна бланку («Aufgabenzyklus»): вікно завдання або головне вікно.</param>
+public class TaskForm(AutomationElement root, Window owner)
 {
     public const string NumberId = "txtNumberRecordTask";
+
+    private const string MainTabId = "tiMainRecordTask";
+    private const string SeriesTabId = "tiCycleSettingCtrTask";
+
+    private static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(60);
 
     public TextBoxControl Name { get; } = new("Name", Locate.ById(root, "txtRecordName"));
 
@@ -71,6 +80,77 @@ public class TaskForm(AutomationElement root)
 
     /// <summary>«Serientyp»: відкриває вікно «Aufgabenzyklus» (<see cref="TaskSeriesDialog"/>).</summary>
     public ButtonControl SeriesTypeButton { get; } = new("Serientyp", Locate.ById(root, "btnTypeOfReiterationRecordTask"));
+
+    // Кнопки вкладки «Aufgabenzyklus» не мають AutomationId, тож шукаємо їх за підписом.
+    /// <summary>З'являється на вкладці «Aufgabenzyklus», коли для завдання задано серію.</summary>
+    public ButtonControl StartSeriesButton { get; } = SeriesButton(root, "Serie starten");
+
+    /// <summary>«Bearbeiten» на вкладці «Aufgabenzyklus» запущеної серії: те саме вікно «Aufgabenzyklus».</summary>
+    public ButtonControl EditSeriesButton { get; } = SeriesButton(root, "Bearbeiten");
+
+    /// <summary>
+    /// OK під оглядом: стає доступною, коли поля змінено, і зберігає зміни. У вікні нового завдання зберігає
+    /// <see cref="RecordDialog.Save"/>.
+    /// </summary>
+    public ButtonControl OkButton { get; } = new("OK", Locate.ById(root, "btnOKCtrMainForm"));
+
+    /// <summary>Відкриває вікно «Aufgabenzyklus» кнопкою «Serientyp» на головній вкладці.</summary>
+    public TaskSeriesDialog OpenSeriesType() => AllureApi.Step("Відкрити вікно «Aufgabenzyklus» кнопкою «Serientyp»", () =>
+    {
+        ShowTab(MainTabId, "Aufgabe");
+        SeriesTypeButton.Click();
+        return new TaskSeriesDialog(owner);
+    });
+
+    /// <summary>Відкриває вікно «Aufgabenzyklus» запущеної серії: вкладка «Aufgabenzyklus» → «Bearbeiten».</summary>
+    public TaskSeriesDialog EditSeries() => AllureApi.Step("Відкрити серію: вкладка «Aufgabenzyklus» → Bearbeiten", () =>
+    {
+        ShowTab(SeriesTabId, "Aufgabenzyklus");
+        EditSeriesButton.Click();
+        return new TaskSeriesDialog(owner);
+    });
+
+    /// <summary>
+    /// Запускає задану серію кнопкою «Serie starten» на вкладці «Aufgabenzyklus» і повертається на головну вкладку.
+    /// Завдання серії ADAICA створює, коли завдання збережено.
+    /// </summary>
+    public void StartSeries() => AllureApi.Step("Запустити серію: вкладка «Aufgabenzyklus» → Serie starten", () =>
+    {
+        ShowTab(SeriesTabId, "Aufgabenzyklus");
+        StartSeriesButton.Click();
+        // Запущену серію кнопка на тому самому місці вже зупиняє.
+        Wait.Until(() => FindButton(root, "Serie stoppen") is not null, "запуску серії («Serie stoppen»)");
+        ShowTab(MainTabId, "Aufgabe");
+    });
+
+    /// <summary>Для прибирання: відкидає незбережені зміни огляду кнопкою «Abbrechen».</summary>
+    public void CancelIfEditing()
+    {
+        var cancel = new ButtonControl("Abbrechen", Locate.ById(root, "btnCancelCtrMainForm"));
+        if (cancel.IsEnabled)
+            cancel.Click();
+    }
+
+    /// <summary>Зберігає зміни завдання в огляді кнопкою OK і чекає, доки ADAICA їх збереже (OK знову недоступна).</summary>
+    public void SaveChanges() => AllureApi.Step("Зберегти зміни завдання кнопкою OK під оглядом", () =>
+    {
+        OkButton.Click();
+        Wait.Until(() => !OkButton.IsEnabled, "збереження завдання", SaveTimeout);
+    });
+
+    /// <summary>
+    /// Перевіряє «Beginnt am» і «Fällig am» (null — поле порожнє). Поля є лише на головній вкладці, тож її відкриваємо:
+    /// після вікна «Aufgabenzyklus» ADAICA може показувати вкладку серії.
+    /// </summary>
+    public void ShouldHaveDates(DateTime? begin, DateTime? due) => AllureApi.Step(
+        $"Перевірити дати завдання: Beginnt am {Format(begin)}, Fällig am {Format(due)}",
+        () =>
+        {
+            ShowTab(MainTabId, "Aufgabe");
+            this.ShouldSatisfyAllConditions(
+                () => Begin.Value.ShouldBe(begin, $"Поле «{Begin.Name}»"),
+                () => Due.Value.ShouldBe(due, $"Поле «{Due.Name}»"));
+        });
 
     public void Fill(TaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
     {
@@ -150,4 +230,24 @@ public class TaskForm(AutomationElement root)
             () => HintText.ShouldHaveText(expected.HintText),
             () => Remark.ShouldHaveText(expected.Remark));
     });
+
+    private static string Format(DateTime? value) => value is { } date ? AdaicaFormat.FormatDateTime(date) : "порожнє";
+
+    private static ButtonControl SeriesButton(AutomationElement root, string name) =>
+        new(name, () => Wait.For(() => FindButton(root, name), $"кнопки «{name}»"));
+
+    private static AutomationElement? FindButton(AutomationElement root, string name) =>
+        root.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button).And(cf.ByName(name)));
+
+    // Вкладки бланку завдання перемикаємо кліком, як користувач.
+    private void ShowTab(string automationId, string name) => AllureApi.Step($"Відкрити вкладку «{name}»", () =>
+    {
+        var tab = Locate.ById(root, automationId);
+        if (IsSelected(tab()))
+            return;
+
+        UiInput.LeftClick(tab, () => IsSelected(tab()), $"вибору вкладки «{name}»");
+    });
+
+    private static bool IsSelected(AutomationElement tab) => tab.Patterns.SelectionItem.Pattern.IsSelected.Value;
 }

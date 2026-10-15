@@ -7,7 +7,30 @@ namespace ADAICA_AUTOTEST.Controls;
 /// <summary>Випадний список (ComboBox), зокрема редагований.</summary>
 public sealed class ComboBoxControl(string name, Func<AutomationElement> find) : Control(name, find)
 {
-    public string? SelectedText => ComboBox.SelectedItem is { } item ? ItemText(item) : null;
+    /// <summary>
+    /// Текст вибраного пункту або null. Поки список жодного разу не розгортали, WPF може не створити пунктів: тоді
+    /// вибраний пункт порожній, а його Name — назва типу даних («…CyclingTask.MonthOfYearUnit»). Такий текст беремо з
+    /// пунктів, які FlaUI створює, розгорнувши список, і список згортаємо.
+    /// </summary>
+    public string? SelectedText
+    {
+        get
+        {
+            var comboBox = ComboBox;
+            var item = comboBox.SelectedItem;
+            if (item is null || item.FindFirstChild() is not null)
+                return item is null ? null : ItemText(item);
+
+            try
+            {
+                return comboBox.Items.FirstOrDefault(candidate => candidate.IsSelected) is { } selected ? ItemText(selected) : ItemText(item);
+            }
+            finally
+            {
+                Collapse(comboBox);
+            }
+        }
+    }
 
     /// <summary>
     /// Name вибраного пункту або null. У пунктах-ключах (наприклад, «FILTER_TASK_UNDONE» з текстом «Unerledigt») це

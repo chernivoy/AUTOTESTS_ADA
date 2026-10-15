@@ -204,7 +204,7 @@ public sealed partial class MainPage : AdaicaWindow
 
     [AllureStep("Дочекатися відкриття завдання {number}")]
     public TaskForm WaitForOpenedTask(string number) =>
-        WaitForOpenedRecord(TaskForm.NumberId, number, view => new TaskForm(view));
+        WaitForOpenedRecord(TaskForm.NumberId, number, view => new TaskForm(view, Window));
 
     [AllureStep("Дочекатися відкриття терміну {number}")]
     public AppointmentForm WaitForOpenedAppointment(string number) =>

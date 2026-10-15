@@ -672,6 +672,42 @@ public sealed class CustomerCase
         Remark: $"Täglich bis zum Abschluss, Serie ab {firstNumber}. "
             + Pick("Kurz notieren, was erledigt ist und was offen bleibt.", $"Fragen direkt an {Contact.Dative} weitergeben."));
 
+    /// <summary>
+    /// Перше завдання серії з Serienmuster <paramref name="pattern"/>: назва пасує до того, як часто завдання
+    /// повторюється. Наступні завдання ADAICA створює сама з тією ж назвою й приміткою. Початок — сьогодні в робочий
+    /// час: дату вікно «Aufgabenzyklus» замінює днем першого завдання серії, а час лишає для всіх завдань серії.
+    /// </summary>
+    public DashboardTaskData NewSeriesTask(SeriesPattern pattern) => new(
+        Name: pattern switch
+        {
+            SeriesPattern.Daily or SeriesPattern.Workdays => PickUnused(
+                $"Kassenbuch {_customer.Company} nachführen",
+                $"Posteingang für {_topic.Object} prüfen",
+                $"Tagesrapport {_topic.Title} an {Contact.Dative} schicken"),
+            SeriesPattern.Weekly => PickUnused(
+                $"Wochenbericht {_topic.Title} an {Contact.Dative} senden",
+                $"Belege für {_topic.Object} scannen",
+                $"Offene Posten bei {_customer.Company} nachfassen"),
+            SeriesPattern.MonthlyOnDay or SeriesPattern.MonthlyOnWeekday => PickUnused(
+                $"Monatsabschluss {_customer.Company} vorbereiten",
+                $"Rechnungen für {_topic.Object} kontrollieren",
+                $"Monatsgespräch mit {Contact.Dative} führen"),
+            _ => PickUnused(
+                $"Jahresrechnung an {_customer.Company} schicken",
+                $"Versicherungspolice für {_topic.Object} prüfen",
+                $"Jahresgespräch mit {Contact.Dative} führen"),
+        },
+        ShortName: ShortName,
+        Begin: DateTime.Today + WorkingTime(),
+        Due: null,
+        Done: null,
+        ClosedOn: null,
+        AcceptanceType: "Bestätigung",
+        Remark: Pick(
+            $"Wiederkehrende Aufgabe für {_customer.Company}, {Contact.Nominative} erwartet jeweils eine kurze Rückmeldung.",
+            "Erledigte Punkte kurz im Projektordner notieren.",
+            $"Bei Abweichungen direkt {Contact.Dative} informieren."));
+
     private Person Contact => _customer.Contact;
 
     /// <summary>

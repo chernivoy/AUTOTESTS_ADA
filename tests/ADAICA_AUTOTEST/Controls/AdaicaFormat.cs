@@ -8,7 +8,7 @@ public static class AdaicaFormat
     public const string DatePattern = "dd.MM.yyyy";
     public const string TimePattern = "HH:mm";
 
-    private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("de-DE");
+    private static readonly CultureInfo GermanCulture = CultureInfo.GetCultureInfo("de-DE");
 
     public static string FormatDate(DateTime date) => date.ToString(DatePattern, CultureInfo.InvariantCulture);
 
@@ -24,7 +24,19 @@ public static class AdaicaFormat
 
     public static string FormatDateTime(DateTime value) => $"{FormatDate(value)} {FormatTime(value)}";
 
-    public static string FormatNumber(decimal value) => value.ToString(NumberCulture);
+    /// <summary>Дата з часом у форматі «18.09.2026 09:00» або null, якщо текст порожній чи не в цьому форматі.</summary>
+    public static DateTime? ParseDateTime(string? text) =>
+        DateTime.TryParseExact(text, $"{DatePattern} {TimePattern}", CultureInfo.InvariantCulture, DateTimeStyles.None, out var value)
+            ? value
+            : null;
+
+    /// <summary>Назва дня тижня, як її пише ADAICA: «Montag».</summary>
+    public static string FormatDayOfWeek(DayOfWeek day) => GermanCulture.DateTimeFormat.GetDayName(day);
+
+    /// <summary>Назва місяця, як її пише ADAICA: «März».</summary>
+    public static string FormatMonth(int month) => GermanCulture.DateTimeFormat.GetMonthName(month);
+
+    public static string FormatNumber(decimal value) => value.ToString(GermanCulture);
 
     /// <summary>
     /// Розмір файлу, як його показує ADAICA (csFunctions.ConvertFileSizeToString): менше кілобайта — ціле число байтів
@@ -38,9 +50,9 @@ public static class AdaicaFormat
         for (; size >= 1024 && unit < units.Length - 1; unit++)
             size /= 1024;
 
-        return unit == 0 ? $"{bytes}{units[0]}" : size.ToString("F3", NumberCulture) + units[unit];
+        return unit == 0 ? $"{bytes}{units[0]}" : size.ToString("F3", GermanCulture) + units[unit];
     }
 
     public static decimal? ParseNumber(string text) =>
-        string.IsNullOrWhiteSpace(text) ? null : decimal.Parse(text, NumberStyles.Number, NumberCulture);
+        string.IsNullOrWhiteSpace(text) ? null : decimal.Parse(text, NumberStyles.Number, GermanCulture);
 }

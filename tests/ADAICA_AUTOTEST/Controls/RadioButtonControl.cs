@@ -8,6 +8,9 @@ public sealed class RadioButtonControl(string name, Func<AutomationElement> find
 {
     public bool IsSelected => Element.Patterns.SelectionItem.Pattern.IsSelected.Value;
 
+    /// <summary>Підпис перемикача, як його показує ADAICA.</summary>
+    public string Caption => Element.Name;
+
     /// <summary>Вибирає перемикач і чекає, доки вибір застосується.</summary>
     public void Select() => Step($"Вибрати «{Name}»", () =>
     {

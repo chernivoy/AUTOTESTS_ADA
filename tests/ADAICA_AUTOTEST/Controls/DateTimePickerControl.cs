@@ -35,6 +35,15 @@ public sealed class DateTimePickerControl(string name, Func<AutomationElement> f
         });
     }
 
+    /// <summary>Стирає дату й час.</summary>
+    public void Clear() => Step($"Очистити «{Name}»", () =>
+    {
+        var container = Element;
+        TextInput.Write(DatePart(container).FindByAutomationId("PART_TextBox1"), Name, string.Empty);
+        TextInput.Write(TimePart(container), Name, string.Empty);
+        Wait.Until(() => Value is null, $"порожнього поля «{Name}»");
+    });
+
     public void ShouldHaveValue(DateTime expected) =>
         Step($"Перевірити «{Name}»: {AdaicaFormat.FormatDateTime(ToMinutes(expected))}",
             () => Value.ShouldBe(ToMinutes(expected), $"Поле «{Name}»"));
