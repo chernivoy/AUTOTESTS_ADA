@@ -32,6 +32,23 @@ public sealed class MessageBoxDialog
         return dialog is null ? null : new MessageBoxDialog(dialog.AsWindow());
     }
 
+    /// <summary>
+    /// Відкритий діалог повідомлення застосунку або null. Шукає не лише серед дочірніх вікон: на старті, поки вікна
+    /// ADAICA ще не видно, повідомлення стоїть окремим вікном робочого столу.
+    /// </summary>
+    public static MessageBoxDialog? FindInApplication(AppSession session)
+    {
+        foreach (var window in session.Application.GetAllTopLevelWindows(session.Automation))
+        {
+            if (window.FindFirstChild(cf => cf.ByAutomationId(MessageId)) is not null)
+                return new MessageBoxDialog(window);
+            if (Find(window) is { } dialog)
+                return dialog;
+        }
+
+        return null;
+    }
+
     /// <summary>Кнопка за підписом. Вона містить підпис і пояснення як два дочірні TextBlock.</summary>
     public ButtonControl Button(string caption) => new(
         caption,
