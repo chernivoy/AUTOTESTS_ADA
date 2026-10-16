@@ -1,4 +1,5 @@
 using ADAICA_AUTOTEST.Infrastructure;
+using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
 
 namespace ADAICA_AUTOTEST.Pages;
@@ -12,6 +13,7 @@ public class AdaicaWindow : PageBase
     public const string AutomationId = "FlatWnd";
 
     private const string ExitQuestion = "Wollen Sie ADAICA verlassen?";
+    private const string OutlookMissingMessage = "Keine gültige Installation von Microsoft Outlook gefunden";
 
     private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(30);
 
@@ -30,9 +32,28 @@ public class AdaicaWindow : PageBase
     /// <summary>Відкритий зараз діалог повідомлення або null.</summary>
     public MessageBoxDialog? FindMessageBox() => MessageBoxDialog.Find(Window);
 
+    /// <summary>
+    /// Натискає OK, якщо <paramref name="dialog"/> — повідомлення «Keine gültige Installation von Microsoft Outlook
+    /// gefunden…». Без Outlook ADAICA показує його на старті й після входу; на тести, крім листів, це не впливає.
+    /// </summary>
+    /// <returns>true, якщо це було повідомлення про Outlook і його закрито.</returns>
+    protected static bool CloseIfOutlookMissing(MessageBoxDialog dialog)
+    {
+        var message = dialog.Message.Text;
+        if (!message.StartsWith(OutlookMissingMessage, StringComparison.Ordinal))
+            return false;
+
+        AllureApi.Step($"Закрити повідомлення «{message}»", () => dialog.Button("OK").Click());
+        return true;
+    }
+
     [AllureStep("Закрити ADAICA")]
     public void Exit()
     {
+        // Поки відкрите повідомлення про Outlook, ADAICA не закривається.
+        if (FindMessageBox() is { } message)
+            CloseIfOutlookMissing(message);
+
         // Close() лише надсилає запит на закриття; ADAICA перепитує, чи справді вийти.
         Window.Close();
         Wait.Until(() =>
