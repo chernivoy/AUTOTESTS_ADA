@@ -89,6 +89,10 @@ public abstract class RecordDialog
             Cancel();
     }
 
+    /// <summary>Чи є серед дочірніх вікон <paramref name="owner"/> вікно з вкладкою бланку <paramref name="mainTabId"/>.</summary>
+    protected static bool IsShownIn(Window owner, string mainTabId) =>
+        ChildWindows(owner).Any(window => window.FindFirstDescendant(cf => cf.ByAutomationId(mainTabId)) is not null);
+
     private static IEnumerable<Window> ChildWindows(Window owner) =>
         owner.FindAllChildren(cf => cf.ByControlType(ControlType.Window)).Select(window => window.AsWindow());
 }

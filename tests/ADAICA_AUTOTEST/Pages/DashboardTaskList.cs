@@ -126,6 +126,17 @@ public sealed partial class DashboardTaskList
         return new TaskDialog(_owner);
     });
 
+    /// <summary>
+    /// Відкриває вікно «Kalender» кнопкою над списком: ті самі завдання на планувальнику. Кожне натискання відкриває ще
+    /// одне вікно.
+    /// </summary>
+    public TaskCalendarWindow OpenCalendar() => AllureApi.Step("Відкрити вікно «Kalender» кнопкою над списком «Meine Aufgaben»", () =>
+    {
+        // Така сама кнопка є й над списком термінів, тож шукаємо її в списку завдань.
+        new ButtonControl("Kalender", Locate.ById(_owner, ViewId, "toggleScheduler")).Click();
+        return new TaskCalendarWindow(_owner, UserName);
+    });
+
     /// <summary>Вимикає всі фільтри: список показує всі завдання.</summary>
     public void ShowAll() => AllureApi.Step("Вимкнути всі фільтри списку «Meine Aufgaben»", () =>
     {
