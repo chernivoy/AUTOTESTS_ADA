@@ -6,13 +6,18 @@ namespace ADAICA_AUTOTEST.Pages;
 /// <summary>Вікно нового завдання («Neue Aufgabe …»).</summary>
 public sealed class TaskDialog : RecordDialog
 {
+    private const string MainTabId = "tiMainRecordTask";
+
     public TaskDialog(Window owner)
-        : base(owner, "tiMainRecordTask", "завдання")
+        : base(owner, MainTabId, "завдання")
     {
         Form = new TaskForm(Root, Root);
     }
 
     public TaskForm Form { get; }
+
+    /// <summary>Чи відкрито вікно нового завдання серед дочірніх вікон <paramref name="owner"/>.</summary>
+    public static bool IsShownIn(Window owner) => IsShownIn(owner, MainTabId);
 
     /// <summary>
     /// Робить завдання першим у щоденній серії з <paramref name="count"/> завдань і запускає серію. Решту завдань

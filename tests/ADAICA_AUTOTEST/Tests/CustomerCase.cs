@@ -673,6 +673,28 @@ public sealed class CustomerCase
             + Pick("Kurz notieren, was erledigt ist und was offen bleibt.", $"Fragen direkt an {Contact.Dative} weitergeben."));
 
     /// <summary>
+    /// Завдання для планувальника (вікно «Kalender» навігатора Dashboard, календар «Aufgaben» під фірмою): сьогодні з
+    /// 10:00 до 11:00, тож у планувальнику це смужка в сітці часу з відомими межами, від якої тест рахує координати
+    /// клітинок. Примітка згадує номер завдання: за ним швидкий пошук знаходить і завдання, і його копії з тією самою
+    /// приміткою.
+    /// </summary>
+    public DashboardTaskData NewCalendarTask(string number) => new(
+        Name: PickUnused(
+            $"Unterlagen für {_topic.Object} prüfen",
+            $"Zeitplan für {_topic.Object} mit {Contact.Dative} abstimmen",
+            $"Offerte für {_topic.Object} vorbereiten"),
+        ShortName: ShortName,
+        Begin: DateTime.Today.AddHours(10),
+        Due: DateTime.Today.AddHours(11),
+        Done: null,
+        ClosedOn: null,
+        AcceptanceType: "Bestätigung",
+        Remark: Pick(
+            $"Im Kalender eingeplant, {Contact.Nominative} wartet auf das Ergebnis.",
+            "Vorher die offenen Punkte aus der letzten Sitzung durchgehen.",
+            $"Unterlagen von {_customer.Company} mitnehmen.") + $" Bezug: {number}.");
+
+    /// <summary>
     /// Перше завдання серії з Serienmuster <paramref name="pattern"/>: назва пасує до того, як часто завдання
     /// повторюється. Наступні завдання ADAICA створює сама з тією ж назвою й приміткою. Початок — сьогодні в робочий
     /// час: дату вікно «Aufgabenzyklus» замінює днем першого завдання серії, а час лишає для всіх завдань серії.

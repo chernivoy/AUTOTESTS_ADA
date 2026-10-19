@@ -123,6 +123,12 @@ public class TaskForm(AutomationElement root, Window owner)
         ShowTab(MainTabId, "Aufgabe");
     });
 
+    /// <summary>
+    /// Відкриває головну вкладку «Aufgabe»: бланк збереженого завдання ADAICA показує на вкладці, яку відкривали
+    /// останньою, а поля головної вкладки є в дереві, лише коли вона вибрана.
+    /// </summary>
+    public void ShowMainTab() => ShowTab(MainTabId, "Aufgabe");
+
     /// <summary>Для прибирання: відкидає незбережені зміни огляду кнопкою «Abbrechen».</summary>
     public void CancelIfEditing()
     {

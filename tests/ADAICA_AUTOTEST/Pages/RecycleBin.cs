@@ -88,13 +88,13 @@ public sealed class RecycleBin(Window window)
         if (RowOnPage() is { } found)
             return found;
 
-        if (PageButton("btnBegin").IsEnabled)
+        if (PageButton("btnBegin") is { IsEnabled: true })
             TurnPage("btnBegin");
         while (true)
         {
             if (RowOnPage() is { } row)
                 return row;
-            if (!PageButton("btnForward").IsEnabled)
+            if (PageButton("btnForward") is not { IsEnabled: true })
                 return null;
             TurnPage("btnForward");
         }
@@ -105,7 +105,7 @@ public sealed class RecycleBin(Window window)
     {
         var before = PageIds();
         UiInput.LeftClick(
-            () => PageButton(buttonId),
+            () => Wait.For(() => PageButton(buttonId), $"кнопки сторінок «{buttonId}» над списком Papierkorb"),
             () => PageIds() is { Count: > 0 } after && !after.SequenceEqual(before),
             "іншої сторінки списку Papierkorb");
     }
@@ -119,8 +119,9 @@ public sealed class RecycleBin(Window window)
         return list.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem)).Select(row => CellText(row, idIndex)).ToList();
     }
 
-    private AutomationElement PageButton(string buttonId) =>
-        Wait.For(() => View()?.FindFirstDescendant(cf => cf.ByAutomationId(buttonId)), $"кнопки сторінок «{buttonId}» над списком Papierkorb");
+    // Кнопок сторінок немає, коли в кошику записів не більше ніж на одну сторінку.
+    private AutomationElement? PageButton(string buttonId) =>
+        View()?.FindFirstDescendant(cf => cf.ByAutomationId(buttonId));
 
     // Лічильник прихований (offscreen) і є лише в raw-дереві, але значення в ньому є.
     private bool IsLoaded()

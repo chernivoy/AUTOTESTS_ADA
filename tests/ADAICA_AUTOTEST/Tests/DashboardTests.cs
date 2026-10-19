@@ -12,7 +12,7 @@ namespace ADAICA_AUTOTEST.Tests;
 /// за номером.
 /// </summary>
 [AllureSuite("Навігатори")]
-public class DashboardTests : AdaicaTestBase
+public partial class DashboardTests : AdaicaTestBase
 {
     // Під якими фільтрами видно завдання в кожному стані. Кожне завдання потрапляє рівно під один фільтр з кожної
     // групи: прийняття, виконання, закриття, «Aktuell/Geplant»; «Überfällig» — лише прострочене.
@@ -49,10 +49,24 @@ public class DashboardTests : AdaicaTestBase
     {
         var mainPage = LogInAndShowSingleNavigator("Dashboard");
         var taskList = mainPage.OpenUserTaskList();
+        var created = CreateTaskForFilter(taskList, filter);
+
+        taskList.FiltersShowing(created.Task).ShouldBe(
+            created.Expected,
+            ignoreOrder: true,
+            $"Фільтри, під якими видно «{created.Task}» (очікували: {string.Join(", ", created.Expected.Select(item => item.Label()))})");
+    }
+
+    /// <summary>
+    /// Створює кнопкою «+» над списком «Meine Aufgaben» завдання, яке має потрапити під фільтр <paramref name="filter"/>,
+    /// і звужує список швидким пошуком до нього (див. <see cref="DashboardNavigator_TaskListFilter"/>).
+    /// </summary>
+    private FilterCase CreateTaskForFilter(DashboardTaskList taskList, TaskListFilter filter)
+    {
         var customer = CustomerCase.Random();
         var yesterday = DateTime.Today.AddDays(-1);
 
-        var (task, expected) = filter switch
+        var ((task, searchText), expected) = filter switch
         {
             Unread => (CreateDailySeries(taskList, customer, day: 1), UnreadSeriesTask),
             Planned => (CreateDailySeries(taskList, customer, day: 2), PlannedSeriesTask),
@@ -64,11 +78,14 @@ public class DashboardTests : AdaicaTestBase
             _ => (CreateTask(taskList, customer.NewDashboardTask()), AcceptedTask),
         };
 
-        taskList.FiltersShowing(task).ShouldBe(
-            expected,
-            ignoreOrder: true,
-            $"Фільтри, під якими видно «{task}» (очікували: {string.Join(", ", expected.Select(item => item.Label()))})");
+        return new FilterCase(task, searchText, expected);
     }
+
+    /// <summary>
+    /// Завдання під фільтр: його рядок, текст, за яким швидкий пошук знаходить саме його (номер завдання, а для серії —
+    /// номер першого завдання, який є в примітці кожного), і фільтри, під якими його має бути видно.
+    /// </summary>
+    private sealed record FilterCase(TaskListRow Task, string SearchText, TaskListFilter[] Expected);
 
     /// <summary>
     /// Вмикає в «Spaltenkonfiguration» (контекстне меню заголовка колонки) всі колонки списку «Meine Aufgaben»,
@@ -172,7 +189,7 @@ public class DashboardTests : AdaicaTestBase
     }
 
     /// <summary>Створює завдання й звужує список швидким пошуком за його номером до цього завдання.</summary>
-    private TaskListRow CreateTask(DashboardTaskList taskList, DashboardTaskData task)
+    private (TaskListRow Row, string Number) CreateTask(DashboardTaskList taskList, DashboardTaskData task)
     {
         var dialog = taskList.OpenNewTaskDialog();
         OnCleanup(dialog.CancelIfOpen);
@@ -183,21 +200,22 @@ public class DashboardTests : AdaicaTestBase
         var row = new TaskListRow(task.Name, task.Begin.Date);
         taskList.ShowAll();
         taskList.Search(number, [row]);
-        return row;
+        return (row, number);
     }
 
-    private TaskListRow CreateRefusedTask(DashboardTaskList taskList, DashboardTaskData task)
+    private (TaskListRow Row, string Number) CreateRefusedTask(DashboardTaskList taskList, DashboardTaskData task)
     {
-        var row = CreateTask(taskList, task);
-        taskList.Refuse(row);
-        return row;
+        var created = CreateTask(taskList, task);
+        taskList.Refuse(created.Row);
+        return created;
     }
 
     /// <summary>
     /// Створює щоденну серію з трьох завдань (сьогодні, завтра, післязавтра) і повертає завдання дня <paramref name="day"/>
-    /// (0 — перше). Список звужує швидким пошуком за номером першого завдання, який є в примітці кожного завдання серії.
+    /// (0 — перше) та номер першого завдання. Список звужує швидким пошуком за цим номером: він є в примітці кожного
+    /// завдання серії.
     /// </summary>
-    private TaskListRow CreateDailySeries(DashboardTaskList taskList, CustomerCase customer, int day)
+    private (TaskListRow Row, string Number) CreateDailySeries(DashboardTaskList taskList, CustomerCase customer, int day)
     {
         var dialog = taskList.OpenNewTaskDialog();
         OnCleanup(dialog.CancelIfOpen);
@@ -211,6 +229,6 @@ public class DashboardTests : AdaicaTestBase
         taskList.ShowAll();
         taskList.Search(number, rows);
         AllureApi.Step($"Перевіряти завдання серії за {rows[day].Begin:dd.MM.yyyy}");
-        return rows[day];
+        return (rows[day], number);
     }
 }

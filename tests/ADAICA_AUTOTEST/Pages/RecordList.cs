@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Controls;
 using ADAICA_AUTOTEST.Infrastructure;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
@@ -48,6 +49,19 @@ public sealed class RecordList(Window window)
                 ".txt");
             return row;
         });
+
+    /// <summary>
+    /// Кнопка «Kalender» над списком вузла «Aufgaben»: область перегляду замість списку показує планувальник із
+    /// завданнями запису (<see cref="RecordTaskCalendar"/>).
+    /// </summary>
+    public RecordTaskCalendar OpenTaskCalendar() => AllureApi.Step("Показати завдання в календарі кнопкою «Kalender» над списком", () =>
+    {
+        new ButtonControl("Kalender", () => Wait.For(
+                () => window.FindFirstDescendant(cf => cf.ByClassName("InformationView"))?.FindFirstDescendant(cf => cf.ByAutomationId("btnToggleTaskViewList")),
+                "кнопки «Kalender» над списком завдань"))
+            .Click();
+        return new RecordTaskCalendar(window);
+    });
 
     // ADAICA дописує до деяких значень пробіл у кінці: «(An) ».
     private static string CellText(AutomationElement cell) =>
