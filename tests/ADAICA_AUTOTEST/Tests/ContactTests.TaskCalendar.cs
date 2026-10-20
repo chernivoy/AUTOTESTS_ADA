@@ -8,9 +8,10 @@ using static ADAICA_AUTOTEST.Tests.ContactTests.TaskContact;
 namespace ADAICA_AUTOTEST.Tests;
 
 /// <summary>
-/// Календар вузла «Aufgaben» під контактом у навігаторі Kontakte — фірмою чи окремою персоною (<see cref="RecordTaskCalendar"/>):
-/// кнопка «Kalender» над списком показує завдання контакту на планувальнику, і з нього можна додати завдання — з меню
-/// клітинки, подвійним кліком, кнопкою «+», з клітинки дня в Monatsansicht і копією «Duplizieren». Тест створює контакт
+/// Календар вузла «Aufgaben» під контактом у навігаторі Kontakte — фірмою, окремою персоною чи співробітником відділу
+/// фірми (<see cref="RecordTaskCalendar"/>): кнопка «Kalender» над списком показує завдання контакту на планувальнику,
+/// і з нього можна додати завдання — з меню клітинки, подвійним кліком, кнопкою «+», з клітинки дня в Monatsansicht і
+/// копією «Duplizieren». Тест створює контакт
 /// і під ним (меню контакту «Neu» → «Aufgabe») завдання на сьогодні 10:00–11:00, від смужки якого рахує клітинки. Нове
 /// завдання має належати контакту: вікно називається «Neue Aufgabe (übergeordnet: контакт)», а після збереження
 /// завдання є в списку вузла «Aufgaben» контакту. Контакти й завдання лишаються в базі.
@@ -18,6 +19,7 @@ namespace ADAICA_AUTOTEST.Tests;
 public partial class ContactTests
 {
     private const string TasksFolder = "Aufgaben";
+    private const string CurrentNode = "Aktuelle";
 
     /// <summary>Контакт, під яким тест створює завдання для календаря.</summary>
     public enum TaskContact
@@ -27,6 +29,21 @@ public partial class ContactTests
 
         /// <summary>Окрема персона без фірми з унікальним e-mail; вузол — «Nachname, Vorname».</summary>
         Person,
+
+        /// <summary>
+        /// Співробітник нового відділу нової фірми; вузол — «Nachname, Vorname (Mitarbeiter)» під «Фірма → Mitarbeiter →
+        /// Відділ», батько нового завдання — «Nachname, Vorname # Firma».
+        /// </summary>
+        Employee,
+    }
+
+    /// <summary>
+    /// Вузол контакту в дереві: шлях від «Aktuelle» (<paramref name="Path"/>, останній — сам контакт) і як ADAICA називає
+    /// контакт батьком нового завдання (<paramref name="ParentName"/>).
+    /// </summary>
+    private sealed record ContactNode(IReadOnlyList<string> Path, string ParentName)
+    {
+        public string Name => Path[^1];
     }
 
     /// <summary>
@@ -38,13 +55,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.critical)]
     public void KontakteNavigator_TaskCalendar(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, CustomerCase.Random(), contact);
 
-        var list = mainPage.OpenRecordFolder(node, TasksFolder);
+        var list = mainPage.OpenRecordFolder(node.Name, TasksFolder);
         ShouldListTasks(list, number);
         var calendar = list.OpenTaskCalendar();
         AllureApi.Step("Перевірити календар: Wochenansicht на поточному тижні, смужка завдання контакту, лічильник, кнопки стану", () =>
@@ -84,13 +102,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.critical)]
     public void KontakteNavigator_TaskCalendarNewTaskFromCell(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskFromCell(cell);
@@ -108,13 +127,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.critical)]
     public void KontakteNavigator_TaskCalendarNewTaskByDoubleClick(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskByDoubleClick(cell);
@@ -132,13 +152,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.critical)]
     public void KontakteNavigator_TaskCalendarNewTaskFromAddButton(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
         var (node, _, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
 
         var openedFrom = DateTime.Now;
         var dialog = calendar.NewTaskFromAddButton();
@@ -164,13 +185,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.normal)]
     public void KontakteNavigator_TaskCalendarNewTaskInMonthView(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
 
         calendar.SwitchView(CalendarView.Month);
         var dialog = calendar.NewTaskInDayOf(Row(task));
@@ -188,12 +210,13 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.critical)]
     public void KontakteNavigator_TaskCalendarDuplicate(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, CustomerCase.Random(), contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
         var row = Row(task);
 
         OnCleanup(calendar.CancelPendingPaste);
@@ -225,13 +248,14 @@ public partial class ContactTests
     /// </summary>
     [TestCase(Company)]
     [TestCase(Person)]
+    [TestCase(Employee)]
     [AllureSeverity(SeverityLevel.normal)]
     public void KontakteNavigator_TaskCalendarListShowsNewTask(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
         var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
-        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
+        var calendar = mainPage.OpenRecordFolder(node.Name, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskFromCell(cell);
@@ -246,27 +270,37 @@ public partial class ContactTests
     /// Створює контакт <paramref name="contact"/> — фірму (<see cref="CreateCompany"/>) чи окрему персону з унікальним
     /// e-mail (<see cref="AdaicaTestBase.CreatePersonWithEmail"/>) — а під ним з меню контакту («Neu» → «Aufgabe»)
     /// завдання для календаря: сьогодні 10:00–11:00, з номером у примітці (<see cref="CustomerCase.NewCalendarTask"/>).
-    /// Повертає вузол контакту в дереві: назву фірми чи «Nachname, Vorname». Після збереження ADAICA відкриває завдання в
-    /// області перегляду.
+    /// Співробітника — у новому відділі нової фірми (<see cref="CreateDepartmentWithEmployee"/>). Повертає вузол контакту
+    /// в дереві. Після збереження ADAICA відкриває завдання в області перегляду.
     /// </summary>
-    private (string Node, DashboardTaskData Task, string Number) CreateContactWithCalendarTask(
+    private (ContactNode Node, DashboardTaskData Task, string Number) CreateContactWithCalendarTask(
         MainPage mainPage, CustomerCase customer, TaskContact contact)
     {
-        string node;
-        if (contact == Company)
+        ContactNode node;
+        switch (contact)
         {
-            var company = customer.NewCompany();
-            CreateCompany(mainPage, company);
-            node = company.Name;
-        }
-        else
-        {
-            var person = customer.NewMailPerson();
-            CreatePersonWithEmail(mainPage, person, CustomerCase.NewMailAddress(person));
-            node = person.SortName;
+            case Company:
+                var company = customer.NewCompany();
+                CreateCompany(mainPage, company);
+                node = new([CurrentNode, company.Name], company.Name);
+                break;
+            case Person:
+                var person = customer.NewMailPerson();
+                CreatePersonWithEmail(mainPage, person, CustomerCase.NewMailAddress(person));
+                node = new([CurrentNode, person.SortName], person.SortName);
+                break;
+            default:
+                var employer = customer.NewCompany();
+                var department = customer.NewDepartment();
+                var employee = customer.NewEmployee();
+                CreateCompany(mainPage, employer);
+                CreateDepartmentWithEmployee(mainPage, employer.Name, department, employee);
+                // Батьком нового запису ADAICA називає співробітника разом із фірмою: «Nachname, Vorname # Firma».
+                node = new([CurrentNode, employer.Name, EmployeesNode, department, employee.NodeName], $"{employee.SortName} # {employer.Name}");
+                break;
         }
 
-        var dialog = mainPage.OpenNewChildTaskDialog(node);
+        var dialog = mainPage.OpenNewChildTaskDialog(node.Name);
         OnCleanup(dialog.CancelIfOpen);
         var number = dialog.Form.Number.Text;
         var task = customer.NewCalendarTask(number);
@@ -282,10 +316,10 @@ public partial class ContactTests
     /// може заповнити назвою контакту (README, «Name des übergeordneten Elements vorausfüllen»), тож тест її перезаписує.
     /// </summary>
     private static (DashboardTaskData Task, string Number) SaveContactTask(
-        TaskDialog dialog, CustomerCase customer, string node, DateTime begin, DateTime due)
+        TaskDialog dialog, CustomerCase customer, ContactNode node, DateTime begin, DateTime due)
     {
-        AllureApi.Step($"Перевірити вікно нового завдання контакту «{node}»", () =>
-            dialog.Title.ShouldBe($"Neue Aufgabe (übergeordnet: {node})", "Заголовок вікна"));
+        AllureApi.Step($"Перевірити вікно нового завдання контакту «{node.ParentName}»", () =>
+            dialog.Title.ShouldBe($"Neue Aufgabe (übergeordnet: {node.ParentName})", "Заголовок вікна"));
         dialog.Form.ShouldHaveDates(begin, due);
 
         var number = dialog.Form.Number.Text;
@@ -310,10 +344,10 @@ public partial class ContactTests
     /// Вибирає контакт у «Aktuelle», а потім його вузол «Aufgaben» заново: так ADAICA перечитує список завдань контакту
     /// (після календаря «Listenansicht» показує той список, що був до нього).
     /// </summary>
-    private static RecordList ReopenTasksFolder(MainPage mainPage, string node)
+    private static RecordList ReopenTasksFolder(MainPage mainPage, ContactNode node)
     {
-        mainPage.SelectNavigatorNodeAt("Aktuelle", node);
-        return mainPage.OpenRecordFolder(node, TasksFolder);
+        mainPage.SelectNavigatorNodeAt([.. node.Path]);
+        return mainPage.OpenRecordFolder(node.Name, TasksFolder);
     }
 
     /// <summary>У списку «Aufgaben» — саме завдання з номерами <paramref name="numbers"/>.</summary>
