@@ -3,39 +3,51 @@ using ADAICA_AUTOTEST.Pages;
 using Allure.Net.Commons;
 using Allure.Net.Commons.Attributes;
 using FlaUI.Core.Tools;
+using static ADAICA_AUTOTEST.Tests.ContactTests.TaskContact;
 
 namespace ADAICA_AUTOTEST.Tests;
 
 /// <summary>
-/// Календар вузла «Aufgaben» під фірмою в навігаторі Kontakte (<see cref="RecordTaskCalendar"/>): кнопка «Kalender» над
-/// списком показує завдання фірми на планувальнику, і з нього можна додати завдання — з меню клітинки, подвійним кліком,
-/// кнопкою «+», з клітинки дня в Monatsansicht і копією «Duplizieren». Тест створює фірму й під нею (меню фірми «Neu»
-/// → «Aufgabe») завдання на сьогодні 10:00–11:00, від смужки якого рахує клітинки. Нове завдання має належати фірмі:
-/// вікно називається «Neue Aufgabe (übergeordnet: фірма)», а після збереження завдання є в списку вузла «Aufgaben»
-/// фірми. Фірми й завдання лишаються в базі.
+/// Календар вузла «Aufgaben» під контактом у навігаторі Kontakte — фірмою чи окремою персоною (<see cref="RecordTaskCalendar"/>):
+/// кнопка «Kalender» над списком показує завдання контакту на планувальнику, і з нього можна додати завдання — з меню
+/// клітинки, подвійним кліком, кнопкою «+», з клітинки дня в Monatsansicht і копією «Duplizieren». Тест створює контакт
+/// і під ним (меню контакту «Neu» → «Aufgabe») завдання на сьогодні 10:00–11:00, від смужки якого рахує клітинки. Нове
+/// завдання має належати контакту: вікно називається «Neue Aufgabe (übergeordnet: контакт)», а після збереження
+/// завдання є в списку вузла «Aufgaben» контакту. Контакти й завдання лишаються в базі.
 /// </summary>
 public partial class ContactTests
 {
     private const string TasksFolder = "Aufgaben";
 
+    /// <summary>Контакт, під яким тест створює завдання для календаря.</summary>
+    public enum TaskContact
+    {
+        /// <summary>Фірма з унікальною назвою (<see cref="CustomerCase.NewCompany"/>); вузол — назва фірми.</summary>
+        Company,
+
+        /// <summary>Окрема персона без фірми з унікальним e-mail; вузол — «Nachname, Vorname».</summary>
+        Person,
+    }
+
     /// <summary>
-    /// «Kalender» над списком «Aufgaben» фірми: на місці списку — планувальник у Wochenansicht на поточному тижні зі
-    /// смужкою завдання фірми, лічильник «1/1», кнопки стану без «Ungelesen», «Akzeptieren», «Angenommen» і «Abgelehnt»
+    /// «Kalender» над списком «Aufgaben» контакту: на місці списку — планувальник у Wochenansicht на поточному тижні зі
+    /// смужкою завдання контакту, лічильник «1/1», кнопки стану без «Ungelesen», «Akzeptieren», «Angenommen» і «Abgelehnt»
     /// (усі вимкнені), у «Kontakt» позначено лише користувача. Додати завдання можна з меню клітинки («Neu» → «Neue
     /// Aufgabe», «Einfügen als Duplikat» недоступне, поки нічого не скопійовано) і кнопкою «+». «Listenansicht» повертає
     /// список.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.critical)]
-    public void KontakteNavigator_CompanyTaskCalendar()
+    public void KontakteNavigator_TaskCalendar(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, CustomerCase.Random());
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, CustomerCase.Random(), contact);
 
-        var list = mainPage.OpenRecordFolder(company.Name, TasksFolder);
+        var list = mainPage.OpenRecordFolder(node, TasksFolder);
         ShouldListTasks(list, number);
         var calendar = list.OpenTaskCalendar();
-        AllureApi.Step("Перевірити календар: Wochenansicht на поточному тижні, смужка завдання фірми, лічильник, кнопки стану", () =>
+        AllureApi.Step("Перевірити календар: Wochenansicht на поточному тижні, смужка завдання контакту, лічильник, кнопки стану", () =>
             calendar.ShouldSatisfyAllConditions(
                 () => calendar.View.ShouldBe(CalendarView.Week, "Вид"),
                 () => ShouldSpan(calendar.Period, 7, DateTime.Today),
@@ -66,64 +78,67 @@ public partial class ContactTests
     }
 
     /// <summary>
-    /// Меню порожньої клітинки на пів години нижче за смужку завдання фірми → «Neu» → «Neue Aufgabe»: вікно нового
-    /// завдання фірми з датами клітинки (11:30–12:00). Збережене завдання з'являється в календарі, а в списку
-    /// «Aufgaben» фірми — обидва завдання.
+    /// Меню порожньої клітинки на пів години нижче за смужку завдання контакту → «Neu» → «Neue Aufgabe»: вікно нового
+    /// завдання контакту з датами клітинки (11:30–12:00). Збережене завдання з'являється в календарі, а в списку
+    /// «Aufgaben» контакту — обидва завдання.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.critical)]
-    public void KontakteNavigator_CompanyTaskCalendarNewTaskFromCell()
+    public void KontakteNavigator_TaskCalendarNewTaskFromCell(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, customer);
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskFromCell(cell);
         OnCleanup(dialog.CancelIfOpen);
-        var (newTask, newNumber) = SaveCompanyTask(dialog, customer, company, cell.Start, cell.Start.AddMinutes(30));
+        var (newTask, newNumber) = SaveContactTask(dialog, customer, node, cell.Start, cell.Start.AddMinutes(30));
 
         ShouldShowNewTask(calendar, newTask, total: 2);
-        ShouldListTasks(ReopenTasksFolder(mainPage, company), number, newNumber);
+        ShouldListTasks(ReopenTasksFolder(mainPage, node), number, newNumber);
     }
 
     /// <summary>
-    /// Подвійний клік по порожній клітинці на пів години нижче за смужку завдання фірми: те саме вікно нового завдання
-    /// фірми з датами клітинки (11:30–12:00), що й з меню клітинки. Збережене завдання з'являється в календарі й у списку
-    /// «Aufgaben» фірми.
+    /// Подвійний клік по порожній клітинці на пів години нижче за смужку завдання контакту: те саме вікно нового завдання
+    /// контакту з датами клітинки (11:30–12:00), що й з меню клітинки. Збережене завдання з'являється в календарі й у
+    /// списку «Aufgaben» контакту.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.critical)]
-    public void KontakteNavigator_CompanyTaskCalendarNewTaskByDoubleClick()
+    public void KontakteNavigator_TaskCalendarNewTaskByDoubleClick(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, customer);
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskByDoubleClick(cell);
         OnCleanup(dialog.CancelIfOpen);
-        var (newTask, newNumber) = SaveCompanyTask(dialog, customer, company, cell.Start, cell.Start.AddMinutes(30));
+        var (newTask, newNumber) = SaveContactTask(dialog, customer, node, cell.Start, cell.Start.AddMinutes(30));
 
         ShouldShowNewTask(calendar, newTask, total: 2);
-        ShouldListTasks(ReopenTasksFolder(mainPage, company), number, newNumber);
+        ShouldListTasks(ReopenTasksFolder(mainPage, node), number, newNumber);
     }
 
     /// <summary>
     /// Кнопка «+» → «Neue Aufgabe»: доки в планувальнику не виділено клітинку, ADAICA бере дати з півгодини, у яку
-    /// відкрито вікно. Вікно — нового завдання фірми; збережене завдання з'являється в календарі й у списку «Aufgaben»
-    /// фірми.
+    /// відкрито вікно. Вікно — нового завдання контакту; збережене завдання з'являється в календарі й у списку «Aufgaben»
+    /// контакту.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.critical)]
-    public void KontakteNavigator_CompanyTaskCalendarNewTaskFromAddButton()
+    public void KontakteNavigator_TaskCalendarNewTaskFromAddButton(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
-        var (company, _, number) = CreateCompanyWithCalendarTask(mainPage, customer);
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, _, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
 
         var openedFrom = DateTime.Now;
         var dialog = calendar.NewTaskFromAddButton();
@@ -136,47 +151,49 @@ public partial class ContactTests
             value.Value.ShouldBeOneOf(HalfHourStart(openedFrom), HalfHourStart(openedTo));
             return value.Value;
         });
-        var (newTask, newNumber) = SaveCompanyTask(dialog, customer, company, begin, begin.AddMinutes(30));
+        var (newTask, newNumber) = SaveContactTask(dialog, customer, node, begin, begin.AddMinutes(30));
 
         ShouldShowNewTask(calendar, newTask, total: 2);
-        ShouldListTasks(ReopenTasksFolder(mainPage, company), number, newNumber);
+        ShouldListTasks(ReopenTasksFolder(mainPage, node), number, newNumber);
     }
 
     /// <summary>
-    /// Monatsansicht: клітинка — цілий день. Меню клітинки дня завдання фірми (під його смужкою) → «Neu» → «Neue
+    /// Monatsansicht: клітинка — цілий день. Меню клітинки дня завдання контакту (під його смужкою) → «Neu» → «Neue
     /// Aufgabe»: «Beginnt am» — сьогодні 00:00, «Fällig am» — сьогодні 23:59. Збережене завдання з'являється в календарі
-    /// й у списку «Aufgaben» фірми.
+    /// й у списку «Aufgaben» контакту.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.normal)]
-    public void KontakteNavigator_CompanyTaskCalendarNewTaskInMonthView()
+    public void KontakteNavigator_TaskCalendarNewTaskInMonthView(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, customer);
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
 
         calendar.SwitchView(CalendarView.Month);
         var dialog = calendar.NewTaskInDayOf(Row(task));
         OnCleanup(dialog.CancelIfOpen);
-        var (newTask, newNumber) = SaveCompanyTask(dialog, customer, company, DateTime.Today, DateTime.Today.AddHours(23).AddMinutes(59));
+        var (newTask, newNumber) = SaveContactTask(dialog, customer, node, DateTime.Today, DateTime.Today.AddHours(23).AddMinutes(59));
 
         ShouldShowNewTask(calendar, newTask, total: 2);
-        ShouldListTasks(ReopenTasksFolder(mainPage, company), number, newNumber);
+        ShouldListTasks(ReopenTasksFolder(mainPage, node), number, newNumber);
     }
 
     /// <summary>
-    /// Меню смужки завдання фірми → «Duplizieren», потім меню клітинки на пів години нижче → «Einfügen als Duplikat» і OK у
-    /// «Festlegungen für das Duplikat»: у клітинці — копія з тією самою назвою, іншим номером і датами клітинки. Копія
-    /// теж належить фірмі: у списку «Aufgaben» фірми — обидва завдання.
+    /// Меню смужки завдання контакту → «Duplizieren», потім меню клітинки на пів години нижче → «Einfügen als Duplikat» і
+    /// OK у «Festlegungen für das Duplikat»: у клітинці — копія з тією самою назвою, іншим номером і датами клітинки.
+    /// Копія теж належить контакту: у списку «Aufgaben» контакту — обидва завдання.
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.critical)]
-    public void KontakteNavigator_CompanyTaskCalendarDuplicate()
+    public void KontakteNavigator_TaskCalendarDuplicate(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, CustomerCase.Random());
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, CustomerCase.Random(), contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
         var row = Row(task);
 
         OnCleanup(calendar.CancelPendingPaste);
@@ -198,7 +215,7 @@ public partial class ContactTests
             () => copy.Begin.Value.ShouldBe(cell.Start, "Beginnt am"),
             () => copy.Due.Value.ShouldBe(cell.Start.AddMinutes(30), "Fällig am")));
 
-        ShouldListTasks(ReopenTasksFolder(mainPage, company), number, copyNumber);
+        ShouldListTasks(ReopenTasksFolder(mainPage, node), number, copyNumber);
     }
 
     /// <summary>
@@ -206,54 +223,69 @@ public partial class ContactTests
     /// список лишається таким, яким був до календаря (лічильник «1», без нового завдання), доки вузол «Aufgaben» не
     /// вибрати знову. Імовірний баг ADAICA, тест падає навмисно (README, «Тести, що падають навмисно»).
     /// </summary>
-    [Test]
+    [TestCase(Company)]
+    [TestCase(Person)]
     [AllureSeverity(SeverityLevel.normal)]
-    public void KontakteNavigator_CompanyTaskCalendarListShowsNewTask()
+    public void KontakteNavigator_TaskCalendarListShowsNewTask(TaskContact contact)
     {
         var mainPage = LogInAndOpenNavigator("Kontakte");
         var customer = CustomerCase.Random();
-        var (company, task, number) = CreateCompanyWithCalendarTask(mainPage, customer);
-        var calendar = mainPage.OpenRecordFolder(company.Name, TasksFolder).OpenTaskCalendar();
+        var (node, task, number) = CreateContactWithCalendarTask(mainPage, customer, contact);
+        var calendar = mainPage.OpenRecordFolder(node, TasksFolder).OpenTaskCalendar();
 
         var cell = CellBelow(task);
         var dialog = calendar.NewTaskFromCell(cell);
         OnCleanup(dialog.CancelIfOpen);
-        var (newTask, newNumber) = SaveCompanyTask(dialog, customer, company, cell.Start, cell.Start.AddMinutes(30));
+        var (newTask, newNumber) = SaveContactTask(dialog, customer, node, cell.Start, cell.Start.AddMinutes(30));
         ShouldShowNewTask(calendar, newTask, total: 2);
 
         ShouldListTasks(calendar.ShowList(), number, newNumber);
     }
 
     /// <summary>
-    /// Створює фірму, а під нею з меню фірми («Neu» → «Aufgabe») завдання для календаря: сьогодні 10:00–11:00, з номером
-    /// у примітці (<see cref="CustomerCase.NewCalendarTask"/>). Після збереження ADAICA відкриває завдання в області
-    /// перегляду.
+    /// Створює контакт <paramref name="contact"/> — фірму (<see cref="CreateCompany"/>) чи окрему персону з унікальним
+    /// e-mail (<see cref="AdaicaTestBase.CreatePersonWithEmail"/>) — а під ним з меню контакту («Neu» → «Aufgabe»)
+    /// завдання для календаря: сьогодні 10:00–11:00, з номером у примітці (<see cref="CustomerCase.NewCalendarTask"/>).
+    /// Повертає вузол контакту в дереві: назву фірми чи «Nachname, Vorname». Після збереження ADAICA відкриває завдання в
+    /// області перегляду.
     /// </summary>
-    private (CompanyData Company, DashboardTaskData Task, string Number) CreateCompanyWithCalendarTask(MainPage mainPage, CustomerCase customer)
+    private (string Node, DashboardTaskData Task, string Number) CreateContactWithCalendarTask(
+        MainPage mainPage, CustomerCase customer, TaskContact contact)
     {
-        var company = customer.NewCompany();
-        CreateCompany(mainPage, company);
+        string node;
+        if (contact == Company)
+        {
+            var company = customer.NewCompany();
+            CreateCompany(mainPage, company);
+            node = company.Name;
+        }
+        else
+        {
+            var person = customer.NewMailPerson();
+            CreatePersonWithEmail(mainPage, person, CustomerCase.NewMailAddress(person));
+            node = person.SortName;
+        }
 
-        var dialog = mainPage.OpenNewChildTaskDialog(company.Name);
+        var dialog = mainPage.OpenNewChildTaskDialog(node);
         OnCleanup(dialog.CancelIfOpen);
         var number = dialog.Form.Number.Text;
         var task = customer.NewCalendarTask(number);
         dialog.Form.Fill(task);
         dialog.Save();
         mainPage.WaitForOpenedTask(number);
-        return (company, task, number);
+        return (node, task, number);
     }
 
     /// <summary>
-    /// Перевіряє вікно нового завдання з календаря фірми (заголовок називає фірму батьком, дати — з клітинки чи кнопки),
-    /// вписує свої назву, Kurzname, Annahmeart і примітку з номером завдання й зберігає завдання. Назву ADAICA може
-    /// заповнити назвою фірми (README, «Name des übergeordneten Elements vorausfüllen»), тож тест її перезаписує.
+    /// Перевіряє вікно нового завдання з календаря контакту (заголовок називає контакт батьком, дати — з клітинки чи
+    /// кнопки), вписує свої назву, Kurzname, Annahmeart і примітку з номером завдання й зберігає завдання. Назву ADAICA
+    /// може заповнити назвою контакту (README, «Name des übergeordneten Elements vorausfüllen»), тож тест її перезаписує.
     /// </summary>
-    private static (DashboardTaskData Task, string Number) SaveCompanyTask(
-        TaskDialog dialog, CustomerCase customer, CompanyData company, DateTime begin, DateTime due)
+    private static (DashboardTaskData Task, string Number) SaveContactTask(
+        TaskDialog dialog, CustomerCase customer, string node, DateTime begin, DateTime due)
     {
-        AllureApi.Step($"Перевірити вікно нового завдання фірми «{company.Name}»", () =>
-            dialog.Title.ShouldBe($"Neue Aufgabe (übergeordnet: {company.Name})", "Заголовок вікна"));
+        AllureApi.Step($"Перевірити вікно нового завдання контакту «{node}»", () =>
+            dialog.Title.ShouldBe($"Neue Aufgabe (übergeordnet: {node})", "Заголовок вікна"));
         dialog.Form.ShouldHaveDates(begin, due);
 
         var number = dialog.Form.Number.Text;
@@ -264,24 +296,24 @@ public partial class ContactTests
     }
 
     /// <summary>
-    /// Після збереження календар сам довантажує нове завдання: лічильник показує <paramref name="total"/> завдань фірми,
-    /// і смужку нового видно.
+    /// Після збереження календар сам довантажує нове завдання: лічильник показує <paramref name="total"/> завдань
+    /// контакту, і смужку нового видно.
     /// </summary>
     private static void ShouldShowNewTask(RecordTaskCalendar calendar, DashboardTaskData task, int total) =>
-        AllureApi.Step($"Перевірити, що календар показує нове завдання «{Row(task)}», а завдань фірми — {total}", () =>
+        AllureApi.Step($"Перевірити, що календар показує нове завдання «{Row(task)}», а завдань контакту — {total}", () =>
         {
-            Wait.Until(() => calendar.Count.Total == total, $"{total} завдань фірми в лічильнику календаря");
+            Wait.Until(() => calendar.Count.Total == total, $"{total} завдань контакту в лічильнику календаря");
             ShouldBeFound(calendar, Row(task), true, "нове завдання");
         });
 
     /// <summary>
-    /// Вибирає фірму, а потім її вузол «Aufgaben» заново: так ADAICA перечитує список завдань фірми (після календаря
-    /// «Listenansicht» показує той список, що був до нього).
+    /// Вибирає контакт у «Aktuelle», а потім його вузол «Aufgaben» заново: так ADAICA перечитує список завдань контакту
+    /// (після календаря «Listenansicht» показує той список, що був до нього).
     /// </summary>
-    private static RecordList ReopenTasksFolder(MainPage mainPage, CompanyData company)
+    private static RecordList ReopenTasksFolder(MainPage mainPage, string node)
     {
-        mainPage.SelectNavigatorNode(company.Name);
-        return mainPage.OpenRecordFolder(company.Name, TasksFolder);
+        mainPage.SelectNavigatorNodeAt("Aktuelle", node);
+        return mainPage.OpenRecordFolder(node, TasksFolder);
     }
 
     /// <summary>У списку «Aufgaben» — саме завдання з номерами <paramref name="numbers"/>.</summary>
