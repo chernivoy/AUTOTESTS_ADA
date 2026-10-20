@@ -236,7 +236,7 @@ public abstract partial class AdaicaTestBase : UiTestBase
     /// <summary>Документ, створений <see cref="CreateDocumentFromWordFile"/>, і проміжок часу, коли його створено.</summary>
     protected sealed record CreatedDocument(TestWordFile File, DocumentForm Form, DateTime CreatedFrom, DateTime CreatedTo);
 
-    private static void ShouldBeSelectedUnder(MainPage mainPage, string parentNode, string folder, string recordNode) =>
+    protected static void ShouldBeSelectedUnder(MainPage mainPage, string parentNode, string folder, string recordNode) =>
         AllureApi.Step(
             $"Перевірити, що в дереві виділено «{recordNode}» у «{parentNode} → {folder}»",
             () => mainPage.SelectedNavigatorNodePath.TakeLast(3).ShouldBe(new[] { parentNode, folder, recordNode }));

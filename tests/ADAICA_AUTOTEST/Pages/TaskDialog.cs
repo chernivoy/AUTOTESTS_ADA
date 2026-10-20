@@ -1,3 +1,4 @@
+using ADAICA_AUTOTEST.Controls;
 using Allure.Net.Commons;
 using FlaUI.Core.AutomationElements;
 
@@ -12,9 +13,38 @@ public sealed class TaskDialog : RecordDialog
         : base(owner, MainTabId, "завдання")
     {
         Form = new TaskForm(Root, Root);
+        // Обидві кнопки — картинки без підпису праворуч унизу, підказка — у HelpText.
+        ChooseTemplateButton = new ButtonControl("Aufgabenvorlage auswählen", Locate.ById(Root, "btnSelectTemplate"));
+        SaveAsTemplateButton = new ButtonControl("Als Aufgabenvorlage speichern", Locate.ById(Root, "btnSaveAsTemplate"));
     }
 
     public TaskForm Form { get; }
+
+    /// <summary>«Aufgabenvorlage auswählen»: «Aufgabenvorlagen» з «Verwenden», що заповнює це вікно полями шаблону.</summary>
+    public ButtonControl ChooseTemplateButton { get; }
+
+    /// <summary>«Als Aufgabenvorlage speichern»: «Neue Aufgabenvorlage» з полями цього вікна.</summary>
+    public ButtonControl SaveAsTemplateButton { get; }
+
+    /// <summary>
+    /// «Als Aufgabenvorlage speichern»: відкриває «Neue Aufgabenvorlage» з усіма полями цього вікна, крім «Beginnt am».
+    /// Шаблон зберігається окремо, а вікно завдання лишається відкритим і незміненим.
+    /// </summary>
+    public TaskTemplateDialog SaveAsTemplate() => AllureApi.Step("Відкрити «Neue Aufgabenvorlage» кнопкою «Als Aufgabenvorlage speichern»", () =>
+    {
+        SaveAsTemplateButton.Click();
+        return new TaskTemplateDialog(Root);
+    });
+
+    /// <summary>
+    /// «Aufgabenvorlage auswählen»: «Aufgabenvorlagen» з кнопкою «Verwenden» (<see cref="TaskTemplatesWindow.Use"/>), яка
+    /// переносить у це вікно поля шаблону.
+    /// </summary>
+    public TaskTemplatesWindow ChooseTemplate() => AllureApi.Step("Відкрити «Aufgabenvorlagen» кнопкою «Aufgabenvorlage auswählen»", () =>
+    {
+        ChooseTemplateButton.Click();
+        return new TaskTemplatesWindow(Root);
+    });
 
     /// <summary>Чи відкрито вікно нового завдання серед дочірніх вікон <paramref name="owner"/>.</summary>
     public static bool IsShownIn(Window owner) => IsShownIn(owner, MainTabId);
