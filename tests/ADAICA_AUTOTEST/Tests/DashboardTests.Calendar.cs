@@ -198,7 +198,8 @@ public partial class DashboardTests
             "Підменю «Öffnen»");
         menu.Close();
 
-        calendar.AddButtonMenuItems().ShouldBe(new[] { "Neue Aufgabe", "Vorlage erstellen/bearbeiten" }, ignoreOrder: false, "Меню кнопки «+»");
+        // Як і в підменю «Neu», далі йдуть шаблони завдань, якщо вони є.
+        calendar.AddButtonMenuItems().Take(2).ShouldBe(new[] { "Neue Aufgabe", "Vorlage erstellen/bearbeiten" }, ignoreOrder: false, "Меню кнопки «+»");
     }
 
     /// <summary>

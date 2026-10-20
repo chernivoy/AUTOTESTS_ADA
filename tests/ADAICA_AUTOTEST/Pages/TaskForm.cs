@@ -7,10 +7,14 @@ using FlaUI.Core.Definitions;
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
-/// Бланк завдання. Ті самі поля ADAICA показує і у вікні «Neue Aufgabe», і в огляді збереженого завдання.
+/// Бланк завдання. Ті самі поля ADAICA показує у вікні «Neue Aufgabe», в огляді збереженого завдання й у вікні шаблону
+/// завдання (<see cref="TaskTemplateDialog"/>).
 /// </summary>
-/// <param name="root">Вікно завдання або область перегляду.</param>
-/// <param name="owner">Вікно, якому належать вікна бланку («Aufgabenzyklus»): вікно завдання або головне вікно.</param>
+/// <param name="root">Вікно завдання чи шаблону або область перегляду.</param>
+/// <param name="owner">
+/// Вікно, якому належать вікна бланку («Aufgabenzyklus», «Kontaktzuordnungs-Dialog»): вікно завдання чи шаблону або
+/// головне вікно.
+/// </param>
 public class TaskForm(AutomationElement root, Window owner)
 {
     public const string NumberId = "txtNumberRecordTask";
@@ -77,6 +81,28 @@ public class TaskForm(AutomationElement root, Window owner)
     public TextBoxControl Remark { get; } = new("Bemerkung", Locate.ById(root, "ctrSimpleRemark", "txtRemark"));
 
     public RecordClassBox Class { get; } = new(root, "ctrVUBClassSelectRecordTask");
+
+    /// <summary>«Verantwortlich»: ім'я, як його показує ADAICA («Goldun, Anna»). Змінює його кнопка «...» поруч.</summary>
+    public TextBoxControl Responsible { get; } = new("Verantwortlich", Locate.ById(root, "ctrResponsibleRecordTask", "dtbResponsible"));
+
+    public ButtonControl ResponsibleButton { get; } = new("Verantwortlich: ...", Locate.ById(root, "ctrResponsibleRecordTask", "dtbResponsible", "PART_Button"));
+
+    public ButtonControl ReminderButton { get; } = new("Erinnerung", Locate.ById(root, "btnNotificationAssistentRecordTask"));
+
+    /// <summary>Заголовок вкладки «Ausführende»: ADAICA дописує імена виконавців, наприклад «Ausführende (Goldun Anna)».</summary>
+    public LabelControl ParticipantsTab { get; } = new("Ausführende", Locate.ById(root, "tbParticipantsRecordTask"));
+
+    /// <summary>
+    /// Заголовки видимих вкладок бланку («Aufgabe», «Ausführende (…)», «Weitere Eigenschaften»). Приховані вкладки
+    /// («Aufgabenzyklus», «Workflow») лишаються в дереві з порожнім прямокутником.
+    /// </summary>
+    public IReadOnlyList<string> TabNames =>
+        root.FindByAutomationId("tcRecordTask")
+            .FindAllChildren(cf => cf.ByControlType(ControlType.TabItem))
+            .Where(tab => !tab.BoundingRectangle.IsEmpty)
+            .Select(tab => tab.FindFirstChild(cf => cf.ByControlType(ControlType.Text))?.Name)
+            .OfType<string>()
+            .ToList();
 
     /// <summary>«Serientyp»: відкриває вікно «Aufgabenzyklus» (<see cref="TaskSeriesDialog"/>).</summary>
     public ButtonControl SeriesTypeButton { get; } = new("Serientyp", Locate.ById(root, "btnTypeOfReiterationRecordTask"));
@@ -158,14 +184,77 @@ public class TaskForm(AutomationElement root, Window owner)
                 () => Due.Value.ShouldBe(due, $"Поле «{Due.Name}»"));
         });
 
-    public void Fill(TaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
+    public void Fill(TaskData task) => AllureApi.Step("Заповнити поля завдання", () => Fill(task, withBegin: true));
+
+    /// <summary>
+    /// Заповнює бланк шаблону завдання (<see cref="TaskTemplateDialog"/>): ті самі поля, що й <see cref="Fill(TaskData)"/>,
+    /// крім «Beginnt am» — у шаблоні це поле недоступне.
+    /// </summary>
+    public void FillTemplate(TaskData task) => AllureApi.Step("Заповнити поля шаблону завдання", () => Fill(task, withBegin: false));
+
+    /// <summary>
+    /// Вибирає «Verantwortlich»: «...» → «Kontaktzuordnungs-Dialog» → користувач <paramref name="user"/> у гілці «Benutzer».
+    /// Повертає ім'я, як його показує поле («van de Goldun, Anna Dr.» → «Goldun, Anna»). Відповідального ADAICA робить і
+    /// виконавцем замість попереднього (<see cref="ShouldHaveResponsible"/>).
+    /// </summary>
+    public string ChooseResponsible(string user) => AllureApi.Step($"Вибрати «Verantwortlich»: {user}", () =>
+    {
+        var before = Responsible.Text;
+        ResponsibleButton.Click();
+        new ChooseContactsDialog(owner).ChooseUser(user);
+        Wait.Until(() => Responsible.Text != before, $"нового значення в полі «{Responsible.Name}»");
+        return Responsible.Text;
+    });
+
+    /// <summary>
+    /// Перевіряє «Verantwortlich» і виконавців: відповідальний — єдиний виконавець, і вкладку ADAICA підписує його іменем
+    /// без коми («Goldun, Anna» → «Ausführende (Goldun Anna)»).
+    /// </summary>
+    public void ShouldHaveResponsible(string responsible) => AllureApi.Step($"Перевірити «Verantwortlich» і «Ausführende»: {responsible}", () =>
+        this.ShouldSatisfyAllConditions(
+            () => Responsible.ShouldHaveText(responsible),
+            () => ParticipantsTab.ShouldHaveText(ParticipantsTabName(responsible))));
+
+    /// <summary>Заголовок вкладки «Ausführende» з єдиним виконавцем <paramref name="participant"/> («Goldun, Anna»).</summary>
+    public static string ParticipantsTabName(string participant) => $"Ausführende ({participant.Replace(",", string.Empty)})";
+
+    /// <summary>
+    /// Перевіряє власну назву завдання. Якщо ввімкнено «Name des übergeordneten Elements vorausfüllen», поле «Name» показує
+    /// назву батька, а власну — лише з вимкненим перемикачем. Тож перемикач на час перевірки вимикаємо й одразу вмикаємо
+    /// знову: стан ADAICA запам'ятовує, лише коли завдання збережено.
+    /// </summary>
+    public void ShouldHaveOwnName(string expected) => AllureApi.Step($"Перевірити власну назву завдання: {expected}", () =>
+    {
+        if (!IsParentNameShown)
+        {
+            Name.ShouldHaveText(expected);
+            return;
+        }
+
+        SwitchParentName(on: false);
+        try
+        {
+            Name.ShouldHaveText(expected);
+        }
+        finally
+        {
+            SwitchParentName(on: true);
+        }
+    });
+
+    /// <summary>Чи ввімкнено «Name des übergeordneten Elements vorausfüllen» (у полі «Name» — назва батька).</summary>
+    public bool IsParentNameShown =>
+        ParentNameToggle().Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On;
+
+    private void Fill(TaskData task, bool withBegin)
     {
         // Клас — першим: ADAICA підставляє в «Kurzname» короткі назви класу й підкласу («KUAKKORR»).
         if (task.Class is { } recordClass)
             Class.Select(recordClass);
         Name.Fill(task.Name);
         ShortName.Fill(task.ShortName);
-        Begin.Fill(task.Begin);
+        if (withBegin)
+            Begin.Fill(task.Begin);
         Due.Fill(task.Due);
         Done.Fill(task.Done);
         ClosedOn.Fill(task.ClosedOn);
@@ -187,7 +276,7 @@ public class TaskForm(AutomationElement root, Window owner)
         HintText.Fill(task.HintText);
         SimpleRemarkTab.Select();
         Remark.Fill(task.Remark);
-    });
+    }
 
     /// <summary>Заповнює поля завдання для списку «Meine Aufgaben»; порожні дати не чіпає.</summary>
     public void Fill(DashboardTaskData task) => AllureApi.Step("Заповнити поля завдання", () =>
@@ -210,11 +299,35 @@ public class TaskForm(AutomationElement root, Window owner)
     public void ShouldHaveValues(TaskData expected) => AllureApi.Step("Перевірити поля завдання", () =>
     {
         SimpleRemarkTab.Select();
+        this.ShouldSatisfyAllConditions([() => Begin.ShouldHaveValue(expected.Begin), .. FieldChecks(expected)]);
+    });
+
+    /// <summary>
+    /// Перевіряє бланк шаблону завдання: поля — як у <paramref name="expected"/>, а «Beginnt am» порожнє й недоступне
+    /// (завдання з шаблону ADAICA починає в день створення). Номера, дати створення й автора шаблон не має, а
+    /// «Erinnerung» і «Serientyp» недоступні.
+    /// </summary>
+    public void ShouldHaveTemplateValues(TaskData expected) => AllureApi.Step("Перевірити поля шаблону завдання", () =>
+    {
+        SimpleRemarkTab.Select();
         this.ShouldSatisfyAllConditions(
+        [
+            () => Begin.Value.ShouldBeNull($"Поле «{Begin.Name}»"),
+            () => Begin.IsEnabled.ShouldBeFalse($"Поле «{Begin.Name}» доступне"),
+            () => Number.Text.ShouldBeEmpty($"Поле «{Number.Name}»"),
+            () => Created.Text.ShouldBeEmpty($"Поле «{Created.Name}»"),
+            () => ReminderButton.IsEnabled.ShouldBeFalse($"Кнопка «{ReminderButton.Name}» доступна"),
+            () => SeriesTypeButton.IsEnabled.ShouldBeFalse($"Кнопка «{SeriesTypeButton.Name}» доступна"),
+            .. FieldChecks(expected),
+        ]);
+    });
+
+    // Перевірки всіх полів, крім «Beginnt am», яке в шаблоні порожнє.
+    private Action[] FieldChecks(TaskData expected) =>
+        [
             () => Class.ShouldHave(expected.Class),
             () => Name.ShouldHaveText(expected.Name),
             () => ShortName.ShouldHaveText(expected.ShortName),
-            () => Begin.ShouldHaveValue(expected.Begin),
             () => Due.ShouldHaveValue(expected.Due),
             () => Done.ShouldHaveValue(expected.Done),
             () => ClosedOn.ShouldHaveValue(expected.ClosedOn),
@@ -234,8 +347,8 @@ public class TaskForm(AutomationElement root, Window owner)
             () => CustomerBenefitText.ShouldHaveText(expected.CustomerBenefitText),
             () => Hint.ShouldHaveSelected(expected.Hint),
             () => HintText.ShouldHaveText(expected.HintText),
-            () => Remark.ShouldHaveText(expected.Remark));
-    });
+            () => Remark.ShouldHaveText(expected.Remark),
+        ];
 
     private static string Format(DateTime? value) => value is { } date ? AdaicaFormat.FormatDateTime(date) : "порожнє";
 
@@ -244,6 +357,13 @@ public class TaskForm(AutomationElement root, Window owner)
 
     private static AutomationElement? FindButton(AutomationElement root, string name) =>
         root.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button).And(cf.ByName(name)));
+
+    private Func<AutomationElement> ParentNameToggle => Locate.ById(root, "fbApplyParentName");
+
+    // Перемикач реагує лише на клік: Toggle з UI Automation міняє стан, але не назву в полі.
+    private void SwitchParentName(bool on) =>
+        AllureApi.Step($"{(on ? "Увімкнути" : "Вимкнути")} «Name des übergeordneten Elements vorausfüllen»", () =>
+            UiInput.LeftClick(ParentNameToggle, () => IsParentNameShown == on, $"перемикача «Name des übergeordneten Elements vorausfüllen» ({(on ? "увімкнено" : "вимкнено")})"));
 
     // Вкладки бланку завдання перемикаємо кліком, як користувач.
     private void ShowTab(string automationId, string name) => AllureApi.Step($"Відкрити вкладку «{name}»", () =>

@@ -369,10 +369,25 @@ public sealed class CustomerCase
             Comment: comment);
     }
 
-    public TaskData NewTask()
+    public TaskData NewTask() => NewTask(fromDay: -DateRangeDays);
+
+    /// <summary>
+    /// Завдання з усіма полями, як <see cref="NewTask()"/>, для шаблону: усі дати пізніше за сьогодні. Завдання з шаблону
+    /// ADAICA починає сьогодні о 00:00, а «Fällig am», «Erledigt am» і «Geschlossen an» бере з шаблону; раніші за початок
+    /// дати вона вважає помилкою, і завдання не зберегти.
+    /// </summary>
+    public TaskData NewTemplateTask() => NewTask(fromDay: 1);
+
+    /// <summary>
+    /// Назва шаблону завдання. Шаблони спільні для всіх користувачів, а двох шаблонів з однаковою назвою (без урахування
+    /// регістру) ADAICA не допускає, тож у кінці — номер із часу, як у фірми.
+    /// </summary>
+    public string NewTemplateName() => $"{Pick("Vorlage", "Standardablauf", "Checkliste")} {_topic.Title} {NewCustomerNumber()}";
+
+    private TaskData NewTask(int fromDay)
     {
         // Початок — найраніший день; виконання раніше за закриття; термін «Fällig am» — будь-коли після початку.
-        var days = UniqueDays(4);
+        var days = UniqueDays(4, fromDay);
         var due = Pick(1, 2, 3);
         var (done, closed) = due switch { 1 => (2, 3), 2 => (1, 3), _ => (1, 2) };
         return new TaskData(
@@ -413,7 +428,7 @@ public sealed class CustomerCase
     /// <summary>
     /// Завдання для контакту з датами, які задає тест (наприклад, щоб перевірити період пропозицій у вікні збереження
     /// листа). Без <paramref name="done"/> завдання незавершене; «Erledigt am» робить його «Aufgabe erledigt».
-    /// Термін — тиждень після початку. Назв більше, ніж у <see cref="NewTask"/>: під одним контактом їх буває до восьми.
+    /// Термін — тиждень після початку. Назв більше, ніж у <see cref="NewTask()"/>: під одним контактом їх буває до восьми.
     /// </summary>
     public DashboardTaskData NewContactTask(DateTime begin, DateTime? done = null, DateTime? closedOn = null) => new(
         Name: PickUnused(
@@ -637,7 +652,7 @@ public sealed class CustomerCase
             $"Die Unterlagen liegen im Projektordner {_topic.Title}."));
 
     /// <summary>
-    /// Завдання з усіма полями, як <see cref="NewTask"/>, але з датами, які видно в списку «Meine Aufgaben»:
+    /// Завдання з усіма полями, як <see cref="NewTask()"/>, але з датами, які видно в списку «Meine Aufgaben»:
     /// почалося вчора зранку, виконане вчора надвечір, закрите сьогодні, термін — завтра.
     /// </summary>
     public TaskData NewCurrentTask()

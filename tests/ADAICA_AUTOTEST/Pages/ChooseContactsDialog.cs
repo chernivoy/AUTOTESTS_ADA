@@ -8,7 +8,8 @@ namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
 /// «Kontaktzuordnungs-Dialog» (`wndChooseContacts`): вибір контактів для панелі зв'язків запису
-/// (<see cref="RecordLinksPanel.OpenAddContact"/>). Ліворуч — дерево контактів, праворуч — «Ausgewählt:»; «Finden»
+/// (<see cref="RecordLinksPanel.OpenAddContact"/>) і «Verantwortlich» завдання (<see cref="TaskForm.ChooseResponsible"/>).
+/// Ліворуч — дерево контактів, праворуч — «Ausgewählt:»; «Finden»
 /// відкриває пошук контактів (<see cref="ContactFindCreateWindow"/>), знайдений контакт потрапляє у вибрані.
 /// </summary>
 public sealed class ChooseContactsDialog
@@ -21,10 +22,14 @@ public sealed class ChooseContactsDialog
     {
         _owner = owner;
         Root = Wait.For(() => owner.FindFirstChild(cf => cf.ByAutomationId(WindowId))?.AsWindow(), "вікна «Kontaktzuordnungs-Dialog»");
+        AddButton = new ButtonControl(">>", Locate.ById(Root, "btnAddInSelectedNodeWndChooseContacts"));
         FindButton = new ButtonControl("Finden", Locate.ById(Root, "btnSearchWndChooseContacts"));
         OkButton = new ButtonControl("OK", Locate.ById(Root, "btnOkWndChooseContacts"));
         CancelButton = new ButtonControl("Abbrechen", Locate.ById(Root, "btnCloseWndChooseContacts"));
     }
+
+    /// <summary>«>>»: переносить вибраний вузол дерева в «Ausgewählt:».</summary>
+    public ButtonControl AddButton { get; }
 
     public ButtonControl FindButton { get; }
 
@@ -52,6 +57,27 @@ public sealed class ChooseContactsDialog
         var findWindow = new ContactFindCreateWindow(Root);
         findWindow.Email.Fill(email);
         findWindow.ChooseFound(email);
+        Wait.Until(() => OkButton.IsEnabled, "доступної кнопки OK у вікні «Kontaktzuordnungs-Dialog»");
+        OkButton.Click();
+        Wait.Until(() => !IsOpen, "закриття вікна «Kontaktzuordnungs-Dialog»");
+    });
+
+    /// <summary>
+    /// Вибирає користувача <paramref name="user"/> у гілці «Benutzer» дерева, «>>» і OK. До імені користувача з
+    /// контактом фірми ADAICA дописує фірму («van de Goldun, Anna Dr. # Hotel Seeblick …»), тож вузол шукаємо за початком.
+    /// Так вибирають одного контакт, наприклад «Verantwortlich» завдання; для кількох (виконавці) у дереві є прапорці,
+    /// яких UI Automation не бачить.
+    /// </summary>
+    public void ChooseUser(string user) => AllureApi.Step($"Вибрати користувача «{user}»: Benutzer → {user} → «>>» → OK", () =>
+    {
+        // Кнопки, натиснуті, поки вікно ще завантажує дерево, ADAICA не обробляє (див. AddFound).
+        var node = Wait.For(
+            () => Root.FindFirstDescendant(cf => cf.ByAutomationId("treeViewControl"))?
+                .FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
+                .FirstOrDefault(item => item.Name.StartsWith(user, StringComparison.Ordinal)),
+            $"користувача «{user}» у дереві вікна «Kontaktzuordnungs-Dialog»");
+        node.Patterns.SelectionItem.Pattern.Select();
+        AddButton.Click();
         Wait.Until(() => OkButton.IsEnabled, "доступної кнопки OK у вікні «Kontaktzuordnungs-Dialog»");
         OkButton.Click();
         Wait.Until(() => !IsOpen, "закриття вікна «Kontaktzuordnungs-Dialog»");
