@@ -8,7 +8,8 @@ using FlaUI.Core.Definitions;
 namespace ADAICA_AUTOTEST.Pages;
 
 /// <summary>
-/// «Kontaktzuordnungs-Dialog» (<c>wndChooseContacts</c>) для учасників чату: ліворуч дерево «Benutzer» / «Gruppen»
+/// «Kontaktzuordnungs-Dialog» (<c>wndChooseContacts</c>) для учасників чату й Prüfer кроку workflow
+/// (<see cref="WorkflowForm.AddReviewer"/>): ліворуч дерево «Benutzer» / «Gruppen»
 /// з прапорцями, «&gt;&gt;» переносить позначених у «Ausgewählt:», «Löschen» прибирає виділеного, «Alles löschen» — усіх;
 /// OK доступна, коли «Ausgewählt:» не порожній. У дереві є й ті, хто вже в чаті: повторно їх ADAICA мовчки не додає.
 /// </summary>
@@ -75,7 +76,7 @@ public sealed class ChatParticipantsDialog
             () =>
             {
                 Root.FindByAutomationId("btnAddInSelectedNodeWndChooseContacts").Patterns.Invoke.Pattern.Invoke();
-                return Selected.Contains(user);
+                return Selected.Any(name => IsUser(name, user));
             },
             $"користувача «{user}» у списку «Ausgewählt:»",
             offset: CheckBoxPoint(item));
@@ -99,7 +100,12 @@ public sealed class ChatParticipantsDialog
     }
 
     private AutomationElement? UserItem(string user) =>
-        Root.FindByAutomationId("treeViewControl").FindFirstDescendant(cf => cf.ByControlType(ControlType.TreeItem).And(cf.ByName(user)));
+        Root.FindByAutomationId("treeViewControl").FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem))
+            .FirstOrDefault(item => IsUser(item.Name, user));
+
+    // Для Prüfer workflow ADAICA дописує до користувача з контактом фірми саму фірму: «van de Goldun, Anna Dr. # Hotel Seeblick …».
+    private static bool IsUser(string node, string user) =>
+        node == user || node.StartsWith(user + " # ", StringComparison.Ordinal);
 
     private static Point CheckBoxPoint(AutomationElement item)
     {

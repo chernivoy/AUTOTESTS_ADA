@@ -12,15 +12,15 @@ namespace ADAICA_AUTOTEST.Pages;
 /// </summary>
 public sealed class RecordList(Window window)
 {
+    // Запис зі списку ADAICA відкриває за 10–15 с: розгортає дерево до нього й виділяє.
+    private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(40);
+
     /// <summary>Рядки списку: заголовок колонки → текст комірки.</summary>
     public IReadOnlyList<IReadOnlyDictionary<string, string>> Rows
     {
         get
         {
-            var list = Wait.For(
-                () => window.FindFirstDescendant(cf => cf.ByClassName("InformationView"))?
-                    .FindFirstDescendant(cf => cf.ByAutomationId("listView").And(cf.ByControlType(ControlType.DataGrid))),
-                "списку записів в області перегляду");
+            var list = List;
             var columns = list.FindFirstChild(cf => cf.ByControlType(ControlType.Header))
                 .FindAllChildren()
                 .Select(header => header.FindFirstChild(cf => cf.ByAutomationId("PART_Content"))?.Name ?? string.Empty)
@@ -51,6 +51,22 @@ public sealed class RecordList(Window window)
         });
 
     /// <summary>
+    /// Подвійний клік по рядку, у якого назва («Name» чи «Dokumentname») — <paramref name="name"/>: ADAICA відкриває
+    /// запис: розгортає до нього дерево навігатора й виділяє його. Коли запис відкрито, каже <paramref name="opened"/>.
+    /// </summary>
+    public void Open(string name, Func<bool> opened, TimeSpan? timeout = null) => AllureApi.Step($"Відкрити «{name}» подвійним кліком по рядку списку", () =>
+        UiInput.DoubleClick(
+            () => Wait.For(
+                () => List.FindAllChildren(cf => cf.ByControlType(ControlType.DataItem))
+                    .FirstOrDefault(row => row.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)).Any(text => text.Name.Trim() == name))?
+                    .FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
+                    .First(text => text.Name.Trim() == name),
+                $"рядка «{name}» у списку"),
+            opened,
+            $"відкриття «{name}»",
+            timeout ?? OpenTimeout));
+
+    /// <summary>
     /// Кнопка «Kalender» над списком вузла «Aufgaben»: область перегляду замість списку показує планувальник із
     /// завданнями запису (<see cref="RecordTaskCalendar"/>).
     /// </summary>
@@ -62,6 +78,16 @@ public sealed class RecordList(Window window)
             .Click();
         return new RecordTaskCalendar(window);
     });
+
+    // Область перегляду є в кожної відкритої вкладки навігатора; список беремо з видимої. Список вузла під щойно
+    // розгорнутим записом (наприклад, кроки під головним завданням workflow) ADAICA показує й за 10 с і довше.
+    private AutomationElement List =>
+        Wait.For(
+            () => window.FindAllDescendants(cf => cf.ByClassName("InformationView"))
+                .Select(view => view.FindFirstDescendant(cf => cf.ByAutomationId("listView").And(cf.ByControlType(ControlType.DataGrid))))
+                .FirstOrDefault(list => list is { IsOffscreen: false }),
+            "списку записів в області перегляду",
+            TimeSpan.FromSeconds(30));
 
     // ADAICA дописує до деяких значень пробіл у кінці: «(An) ».
     private static string CellText(AutomationElement cell) =>

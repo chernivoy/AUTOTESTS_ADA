@@ -342,6 +342,14 @@ public sealed partial class MainPage : AdaicaWindow
         return new OptionsWindow(Window);
     }
 
+    [AllureStep("Відкрити шаблони workflow: Konfiguration → Workflowkonfiguration")]
+    public WorkflowConfigWindow OpenWorkflowConfiguration()
+    {
+        new MenuItemControl("Konfiguration", Locate.ById(Window, "mnuConfigurationWndMain")).Expand();
+        PopupMenuItem("Workflowkonfiguration", "mnuWorkflowConfiguration").Click();
+        return new WorkflowConfigWindow(Window);
+    }
+
     [AllureStep("Відкрити асистент пошти: Benutzereinstellungen → Maileinstellungen")]
     public MailSettingsWizard OpenMailSettings()
     {
@@ -717,13 +725,16 @@ public sealed partial class MainPage : AdaicaWindow
     /// має значення <paramref name="keyValue"/> (номер запису або інша унікальна ознака).
     /// Шукаємо лише в області перегляду: у відкритому діалозі запису є поля з тими самими AutomationId.
     /// </summary>
-    private TForm WaitForOpenedRecord<TForm>(string keyFieldId, string keyValue, Func<AutomationElement, TForm> createForm)
+    private TForm WaitForOpenedRecord<TForm>(string keyFieldId, string keyValue, Func<AutomationElement, TForm> createForm, TimeSpan? timeout = null)
         where TForm : class =>
         Wait.For(
             () => ShownValue(keyFieldId) == keyValue ? createForm(InformationView()!) : null,
-            $"запису «{keyValue}» в області перегляду");
+            $"запису «{keyValue}» в області перегляду",
+            timeout);
 
-    private AutomationElement? InformationView() => Window.FindFirstDescendant(cf => cf.ByClassName("InformationView"));
+    // Область перегляду є в кожної відкритої вкладки навігатора (Dashboard відкриває завдання зі списку в новій); беремо видиму.
+    private AutomationElement? InformationView() =>
+        Window.FindAllDescendants(cf => cf.ByClassName("InformationView")).FirstOrDefault(view => !view.IsOffscreen);
 
     // Значення поля в області перегляду або null, якщо такого поля там немає.
     private string? ShownValue(string fieldId) =>

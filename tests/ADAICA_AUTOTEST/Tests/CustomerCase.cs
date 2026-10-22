@@ -90,6 +90,15 @@ public sealed class CustomerCase
         new("Wechsel der Buchhaltungssoftware", "den Wechsel der Buchhaltungssoftware"),
     ];
 
+    // Документи, які в невеликій фірмі погоджують кількома людьми: назва workflow і що саме погоджують.
+    private static readonly (string Name, string Document)[] WorkflowKinds =
+    [
+        ("Freigabe Offerte", "Offerte"),
+        ("Prüfung Vertrag", "Vertrag"),
+        ("Abnahme Protokoll", "Protokoll"),
+        ("Freigabe Rechnung", "Rechnung"),
+    ];
+
     private readonly Customer _customer;
     private readonly Topic _topic;
     private readonly HashSet<DateTime> _usedDays = [];
@@ -383,6 +392,52 @@ public sealed class CustomerCase
     /// регістру) ADAICA не допускає, тож у кінці — номер із часу, як у фірми.
     /// </summary>
     public string NewTemplateName() => $"{Pick("Vorlage", "Standardablauf", "Checkliste")} {_topic.Title} {NewCustomerNumber()}";
+
+    /// <summary>
+    /// Шаблон workflow для погодження документа справи: два кроки — фахова перевірка (<paramref name="firstReviewer"/>)
+    /// і затвердження (<paramref name="secondReviewer"/>). «Workflowname» — до 30 символів і унікальний серед шаблонів,
+    /// тож у кінці номер із часу, як у фірми. Той самий номер — і в назвах кроків: завдання кроків потрапляють у
+    /// «Meine Aufgaben» Prüfer, і завдання цього workflow мають відрізнятися від завдань інших.
+    /// </summary>
+    public WorkflowTemplateData NewWorkflowTemplate(string firstReviewer, string secondReviewer)
+    {
+        var (name, document) = Pick(WorkflowKinds);
+        var number = NewCustomerNumber();
+        return new WorkflowTemplateData(
+            Name: $"{name} {number}",
+            MainTaskName: $"{document} für {_topic.Object} freigeben",
+            Steps:
+            [
+                new WorkflowStepData($"{PickUnused("Fachliche Prüfung", "Inhaltliche Prüfung", "Prüfung der Unterlagen")} – {document} {number}", [firstReviewer]),
+                new WorkflowStepData($"{PickUnused("Freigabe durch die Geschäftsleitung", "Unterschrift der Geschäftsleitung", "Abschließende Freigabe")} – {document} {number}", [secondReviewer]),
+            ]);
+    }
+
+    /// <summary>Причина, з якою Prüfer відхиляє документ кроку workflow.</summary>
+    public string NewRefuseRemark() => Pick(
+        $"Bitte die Kosten für {_topic.Object} noch einmal mit {Contact.Dative} abstimmen.",
+        $"Im Dokument fehlen die Termine für {_topic.Object}.",
+        $"Die Angaben zu {_topic.Object} sind unvollständig, bitte ergänzen.");
+
+    /// <summary>
+    /// Той самий шаблон після змін: нова назва, інша назва головного завдання й першого кроку, у першому кроці замість
+    /// Prüfer — <paramref name="newReviewer"/>, а крок затвердження замінено двома: перевіркою контакту справи й затвердженням.
+    /// </summary>
+    public WorkflowTemplateData EditWorkflowTemplate(WorkflowTemplateData template, string newReviewer)
+    {
+        var (name, document) = Pick(WorkflowKinds);
+        return template with
+        {
+            Name = $"{name} {NewCustomerNumber()}",
+            MainTaskName = $"{document} für {_topic.Object} mit {Contact.Dative} abstimmen",
+            Steps =
+            [
+                template.Steps[0] with { Name = $"{template.Steps[0].Name} mit Rückfrage", Reviewers = [newReviewer] },
+                new WorkflowStepData($"Rücksprache mit {Contact.Dative}", template.Steps[1].Reviewers),
+                template.Steps[1],
+            ],
+        };
+    }
 
     private TaskData NewTask(int fromDay)
     {

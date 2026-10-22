@@ -21,6 +21,7 @@ public class TaskForm(AutomationElement root, Window owner)
 
     private const string MainTabId = "tiMainRecordTask";
     private const string SeriesTabId = "tiCycleSettingCtrTask";
+    private const string WorkflowTabId = "tiWorkflowRecordTask";
 
     private static readonly TimeSpan SaveTimeout = TimeSpan.FromSeconds(60);
 
@@ -119,6 +120,48 @@ public class TaskForm(AutomationElement root, Window owner)
     /// <see cref="RecordDialog.Save"/>.
     /// </summary>
     public ButtonControl OkButton { get; } = new("OK", Locate.ById(root, "btnOKCtrMainForm"));
+
+    /// <summary>
+    /// Кнопка погодження документа на вкладці «Workflow» завдання кроку workflow. Видно її лише Prüfer цього кроку;
+    /// недоступна, коли Prüfer уже погодив. Сама кнопка лише змінює бланк — погодження зберігає OK.
+    /// </summary>
+    public ButtonControl ApproveDocumentButton { get; } = new("Dokument akzeptieren", Locate.ById(root, "btnDocApplyWorkflowRecordTask"));
+
+    /// <summary>Кнопка відхилення документа на вкладці «Workflow» завдання кроку (див. <see cref="ApproveDocumentButton"/>).</summary>
+    public ButtonControl RefuseDocumentButton { get; } = new("Dokument ablehnen", Locate.ById(root, "btnDocRefuseWorkflowRecordTask"));
+
+    /// <summary>Чи є вкладка «Workflow»: її показують лише завдання кроків workflow.</summary>
+    public bool HasWorkflowTab => root.FindFirstDescendant(cf => cf.ByAutomationId(WorkflowTabId)) is { BoundingRectangle.IsEmpty: false };
+
+    /// <summary>Чи видно кнопки погодження й відхилення документа (вони лише в Prüfer кроку).</summary>
+    public bool CanReviewDocument
+    {
+        get
+        {
+            ShowTab(WorkflowTabId, "Workflow");
+            return root.FindFirstDescendant(cf => cf.ByAutomationId("btnDocApplyWorkflowRecordTask")) is { IsOffscreen: false };
+        }
+    }
+
+    /// <summary>Вкладка «Workflow» → погодити документ → OK: крок погоджено від імені поточного користувача.</summary>
+    public void ApproveDocument() => AllureApi.Step("Погодити документ кроку: вкладка Workflow → Dokument akzeptieren → OK", () =>
+    {
+        ShowTab(WorkflowTabId, "Workflow");
+        ApproveDocumentButton.Click();
+        SaveChanges();
+    });
+
+    /// <summary>
+    /// Вкладка «Workflow» → відхилити документ → OK. Зберегти відмову ADAICA дає лише з причиною: повертаємо вікно
+    /// «Ablehnungsgrund» (<see cref="RefuseRemarkDialog"/>), відкрите посеред збереження.
+    /// </summary>
+    public RefuseRemarkDialog RefuseDocument() => AllureApi.Step("Відхилити документ кроку: вкладка Workflow → Dokument ablehnen → OK", () =>
+    {
+        ShowTab(WorkflowTabId, "Workflow");
+        RefuseDocumentButton.Click();
+        OkButton.Click();
+        return new RefuseRemarkDialog(owner);
+    });
 
     /// <summary>Відкриває вікно «Aufgabenzyklus» кнопкою «Serientyp» на головній вкладці.</summary>
     public TaskSeriesDialog OpenSeriesType() => AllureApi.Step("Відкрити вікно «Aufgabenzyklus» кнопкою «Serientyp»", () =>

@@ -193,6 +193,22 @@ public sealed partial class DashboardTaskList
             return showing;
         });
 
+    /// <summary>
+    /// Подвійний клік по рядку: ADAICA відкриває завдання в новій вкладці навігатора Dokumentation (вузол «Aktuelle»
+    /// → завдання) і показує його бланк; бланк повертає <see cref="MainPage.WaitForOpenedTaskNamed"/>. Вкладку закриває
+    /// прибирання після тесту.
+    /// </summary>
+    public void OpenTask(TaskListRow row) => AllureApi.Step($"Відкрити «{row}» подвійним кліком у списку «Meine Aufgaben»", () =>
+        UiInput.DoubleClick(
+            () => RowCell(row, "RowData.Row.Name"),
+            // Бланк може відкритися не на «Aufgabe» (див. MainPage.WaitForOpenedTaskNamed), і тоді поля назви в дереві немає.
+            () => _owner.FindAllDescendants(cf => cf.ByClassName("InformationView"))
+                .Where(view => !view.IsOffscreen && view.FindFirstDescendant(cf => cf.ByAutomationId("tcRecordTask")) is not null)
+                .Select(view => view.FindFirstDescendant(cf => cf.ByAutomationId("txtRecordName")))
+                .Any(name => name is null || name.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault == row.Name),
+            $"бланка завдання «{row}»",
+            TimeSpan.FromSeconds(40)));
+
     /// <summary>Відхиляє завдання з контекстного меню рядка («Ablehnen»).</summary>
     public void Refuse(TaskListRow row) => AllureApi.Step($"Відхилити «{row}»: контекстне меню → Ablehnen", () =>
     {

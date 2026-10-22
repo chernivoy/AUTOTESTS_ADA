@@ -29,8 +29,8 @@ public abstract class ChildDialog
         _title = title;
         Root = Wait.For(() => findWindow(owner)?.AsWindow(), $"вікна «{title}»");
 
-        OkButton = new ButtonControl("OK", Locate.ById(Root, okButtonId));
-        CancelButton = new ButtonControl("Abbrechen", Locate.ById(Root, cancelButtonId));
+        OkButton = new ButtonControl("OK", FindButton(okButtonId));
+        CancelButton = new ButtonControl("Abbrechen", FindButton(cancelButtonId));
     }
 
     public ButtonControl OkButton { get; }
@@ -55,6 +55,12 @@ public abstract class ChildDialog
     }
 
     protected Window Root { get; }
+
+    /// <summary>
+    /// Як знайти кнопку OK чи Abbrechen за тим, що передано в конструктор: за замовчуванням це AutomationId. Викликається
+    /// з конструктора, тож може спиратися лише на <see cref="Root"/>.
+    /// </summary>
+    protected virtual Func<AutomationElement> FindButton(string button) => Locate.ById(Root, button);
 
     /// <summary>Вікна, дочірнім вікном яких ADAICA може показати повідомлення про помилку збереження.</summary>
     protected virtual IEnumerable<Window> MessageOwners => [Root, _owner];
